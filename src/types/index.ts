@@ -1,3 +1,13 @@
+export interface PriceHistory {
+  _id: string;
+  product_id: string;
+  old_price: number;
+  new_price: number;
+  changed_by: string;
+  change_reason?: string;
+  changed_at: Date;
+}
+
 export interface Product {
   _id: string;
   name: string;
@@ -29,6 +39,7 @@ export interface Product {
   store_id: string;
   created_at: Date;
   updated_at: Date;
+  price_history?: PriceHistory[];
 }
 
 export interface Transaction {

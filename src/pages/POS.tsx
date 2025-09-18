@@ -9,10 +9,15 @@ import { ShoppingCartComponent } from '../components/ui/ShoppingCart';
 import { Modal } from '../components/ui/Modal';
 import { BarcodeScanner } from '../components/ui/BarcodeScanner';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { TransactionItem } from '../types';
 
 export const POS: React.FC = () => {
   const { products, addTransaction, updateInventory } = useApp();
+  const { user, isAuthenticated, isLoading } = useAuth();
+  
+  // Debug user information
+  console.log('POS - User info:', { user, isAuthenticated, isLoading });
   const [searchQuery, setSearchQuery] = useState('');
   const [cartItems, setCartItems] = useState<TransactionItem[]>([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -60,6 +65,8 @@ export const POS: React.FC = () => {
   };
 
   const addToCart = (product: any) => {
+    console.log('Adding product to cart:', product);
+    
     if (product.stock_quantity === 0) {
       toast.error('Product is out of stock');
       return;
@@ -72,6 +79,7 @@ export const POS: React.FC = () => {
         toast.error('Not enough stock available');
         return;
       }
+      console.log('Updating existing item quantity');
       updateCartItemQuantity(product._id, existingItem.quantity + 1);
     } else {
       const newItem: TransactionItem = {
@@ -82,11 +90,15 @@ export const POS: React.FC = () => {
         unit_price: product.price,
         total_price: product.price,
       };
+      console.log('Adding new item to cart:', newItem);
       setCartItems([...cartItems, newItem]);
+      toast.success(`Added ${product.name} to cart`);
     }
   };
 
   const updateCartItemQuantity = (productId: string, quantity: number) => {
+    console.log('Updating cart item quantity:', productId, quantity);
+    
     if (quantity <= 0) {
       removeFromCart(productId);
       return;
@@ -103,11 +115,14 @@ export const POS: React.FC = () => {
       return;
     }
 
-    setCartItems(cartItems.map(item => 
+    const updatedItems = cartItems.map(item => 
       item.product_id === productId 
         ? { ...item, quantity, total_price: item.unit_price * quantity }
         : item
-    ));
+    );
+    
+    console.log('Updated cart items:', updatedItems);
+    setCartItems(updatedItems);
   };
 
   const removeFromCart = (productId: string) => {
@@ -119,6 +134,20 @@ export const POS: React.FC = () => {
     setDiscount('');
   };
 
+  const updateInventoryForSale = async (productId: string, quantitySold: number) => {
+    try {
+      // Get the current product to calculate new stock
+      const product = products?.find(p => p._id === productId);
+      if (product) {
+        const newStock = product.stock_quantity - quantitySold;
+        await updateInventory(productId, newStock);
+      }
+    } catch (error) {
+      console.error('Failed to update inventory:', error);
+      toast.error('Failed to update inventory');
+    }
+  };
+
   const handleCheckout = () => {
     if (cartItems.length === 0) {
       toast.error('Cart is empty');
@@ -127,44 +156,61 @@ export const POS: React.FC = () => {
     setIsPaymentModalOpen(true);
   };
 
-  const processPayment = () => {
+  const processPayment = async () => {
     if (cartItems.length === 0) {
       toast.error('Cart is empty');
       return;
     }
 
-    // Create transaction record
-    const transaction = {
-      items: cartItems.map(item => ({
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-      })),
-      discount_amount: parseFloat(discount) || 0,
-      payment_method: selectedPaymentMethod,
-      customer_id: customerId || undefined,
-    };
-
-    addTransaction(transaction);
-
-    // Update inventory
-    if (products && Array.isArray(products)) {
-      cartItems.forEach(item => {
-        const product = products.find(p => p._id === item.product_id);
-        if (product) {
-          updateInventory(item.product_id, product.stock_quantity - item.quantity);
-        }
-      });
+    // Validate required user data
+    if (!user?.id) {
+      toast.error('User ID is missing. Please log in again.');
+      return;
     }
+    
+    // Use default store if user doesn't have a store_id assigned
+    const storeId = user?.store_id || 'default-store';
 
-    // Clear cart and close modal
-    clearCart();
-    setIsPaymentModalOpen(false);
-    setCustomerId('');
-    setDiscount('');
-    setSelectedPaymentMethod('cash');
+    try {
+      // Create transaction record with all required fields
+      const transaction = {
+        store_id: storeId,
+        cashier_id: user.id,
+        items: cartItems.map(item => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        })),
+        discount_amount: parseFloat(discount) || 0,
+        payment_method: selectedPaymentMethod,
+        customer_id: customerId || undefined,
+      };
 
-    toast.success(`Sale completed! Total: ₺${finalTotal.toFixed(2)}`);
+      console.log('Creating transaction:', transaction);
+      await addTransaction(transaction);
+
+      // Update inventory - reduce stock for sold items
+      if (products && Array.isArray(products)) {
+        for (const item of cartItems) {
+          const product = products.find(p => p._id === item.product_id);
+          if (product) {
+            await updateInventoryForSale(item.product_id, item.quantity);
+          }
+        }
+      }
+
+      // Clear cart and close modal
+      clearCart();
+      setIsPaymentModalOpen(false);
+      setCustomerId('');
+      setDiscount('');
+      setSelectedPaymentMethod('cash');
+
+      toast.success(`Sale completed! Total: ₺${finalTotal.toFixed(2)}`);
+    } catch (error) {
+      console.error('Payment processing failed:', error);
+      toast.error('Failed to process payment. Please try again.');
+    }
   };
 
   const paymentMethods = [
@@ -172,6 +218,50 @@ export const POS: React.FC = () => {
     { id: 'pos', label: 'POS/Card', icon: CreditCard, color: 'text-blue-600' },
     { id: 'transfer', label: 'Transfer', icon: Smartphone, color: 'text-purple-600' },
   ];
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 pb-24">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-12">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CreditCard className="h-8 w-8 text-primary-600" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Loading POS System</h1>
+              <p className="text-gray-600">Please wait while we verify your authentication...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if not authenticated
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 pb-24">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-12">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CreditCard className="h-8 w-8 text-red-600" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Authentication Required</h1>
+              <p className="text-gray-600 mb-6">You need to be logged in to access the POS system.</p>
+              <Button 
+                onClick={() => window.location.href = '/login'}
+                className="bg-primary-600 hover:bg-primary-700"
+              >
+                Go to Login
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 pb-24">
@@ -255,7 +345,7 @@ export const POS: React.FC = () => {
                     key={product._id}
                     product={product}
                     onAddToCart={addToCart}
-                    showActions={false}
+                    showActions={true}
                     showStockAlert={true}
                   />
                 ))}

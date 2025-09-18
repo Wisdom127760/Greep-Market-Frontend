@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, ReactNode, useEffect, useState, useCallback } from 'react';
-import { AppState, Product, Transaction, InventoryAlert, DashboardMetrics } from '../types';
+import { AppState, Product, Transaction, InventoryAlert, DashboardMetrics, PriceHistory } from '../types';
 import { apiService } from '../services/api';
 import { useAuth } from './AuthContext';
 import { toast } from 'react-hot-toast';
@@ -7,6 +7,8 @@ import { toast } from 'react-hot-toast';
 interface AppContextType extends AppState {
   addProduct: (product: Omit<Product, '_id' | 'created_at' | 'updated_at'>, images?: File[]) => Promise<void>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
+  updateProductPrice: (productId: string, newPrice: number, reason?: string) => Promise<void>;
+  getProductPriceHistory: (productId: string) => Promise<PriceHistory[]>;
   deleteProduct: (id: string) => Promise<void>;
   deleteAllProducts: () => Promise<{ deletedCount: number }>;
   exportProducts: () => Promise<void>;
@@ -234,6 +236,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateProductPrice = async (productId: string, newPrice: number, reason?: string) => {
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      const result = await apiService.updateProductPrice(productId, {
+        new_price: newPrice,
+        change_reason: reason,
+        changed_by: user.id,
+      });
+      
+      // Update the product in the state
+      dispatch({ type: 'UPDATE_PRODUCT', payload: { id: productId, updates: result.product } });
+      
+      toast.success('Price updated successfully');
+    } catch (error) {
+      console.error('Failed to update product price:', error);
+      toast.error('Failed to update product price');
+      throw error;
+    }
+  };
+
+  const getProductPriceHistory = async (productId: string): Promise<PriceHistory[]> => {
+    try {
+      return await apiService.getProductPriceHistory(productId);
+    } catch (error) {
+      console.error('Failed to get product price history:', error);
+      toast.error('Failed to load price history');
+      throw error;
+    }
+  };
+
   const deleteProduct = async (id: string) => {
     try {
       await apiService.deleteProduct(id);
@@ -341,11 +376,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addTransaction = async (transactionData: any) => {
     try {
-      const newTransaction = await apiService.createTransaction({
+      // Only add store_id and cashier_id if they're not already provided
+      const transactionPayload = {
         ...transactionData,
-        store_id: user?.store_id || '',
-        cashier_id: user?.id || '',
-      });
+        store_id: transactionData.store_id || user?.store_id || '',
+        cashier_id: transactionData.cashier_id || user?.id || '',
+      };
+      
+      console.log('Sending transaction to API:', transactionPayload);
+      const newTransaction = await apiService.createTransaction(transactionPayload);
       dispatch({ type: 'ADD_TRANSACTION', payload: newTransaction });
       toast.success('Transaction completed successfully');
     } catch (error) {
@@ -358,8 +397,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateInventory = async (productId: string, quantity: number) => {
     try {
       await apiService.adjustInventory(productId, {
-        store_id: user?.store_id || '',
-        movement_type: 'in',
+        adjustment_type: 'set',
         quantity,
         reason: 'Manual adjustment',
       });
@@ -389,8 +427,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppContextType = {
     ...state,
+    // Ensure arrays are always defined
+    sales: state.sales || [],
+    inventoryAlerts: state.inventoryAlerts || [],
+    products: state.products || [],
     addProduct,
     updateProduct,
+    updateProductPrice,
+    getProductPriceHistory,
     deleteProduct,
     deleteAllProducts,
     exportProducts,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, AlertTriangle, CheckSquare, Square } from 'lucide-react';
+import { Package, AlertTriangle, CheckSquare, Square, DollarSign, History } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Product } from '../../types';
@@ -9,11 +9,14 @@ interface ProductCardProps {
   onEdit?: (product: Product) => void;
   onDelete?: (product: Product) => void;
   onAddToCart?: (product: Product) => void;
+  onPriceUpdate?: (product: Product) => void;
+  onPriceHistory?: (product: Product) => void;
   showActions?: boolean;
   showStockAlert?: boolean;
   isSelected?: boolean;
   onSelect?: (productId: string) => void;
   showSelection?: boolean;
+  showPriceActions?: boolean;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -21,11 +24,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onEdit,
   onDelete,
   onAddToCart,
+  onPriceUpdate,
+  onPriceHistory,
   showActions = true,
   showStockAlert = true,
   isSelected = false,
   onSelect,
   showSelection = false,
+  showPriceActions = false,
 }) => {
   const isLowStock = product.stock_quantity <= product.min_stock_level;
   const isOutOfStock = product.stock_quantity === 0;
@@ -175,6 +181,36 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   className="px-4 bg-red-500 hover:bg-red-600"
                 >
                   Delete
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Price Action Buttons */}
+        {showPriceActions && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex space-x-2">
+              {onPriceUpdate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPriceUpdate(product)}
+                  className="flex-1 border-blue-200 text-blue-600 hover:border-blue-300 hover:bg-blue-50"
+                >
+                  <DollarSign className="h-4 w-4 mr-1" />
+                  Update Price
+                </Button>
+              )}
+              {onPriceHistory && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPriceHistory(product)}
+                  className="flex-1 border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                >
+                  <History className="h-4 w-4 mr-1" />
+                  Price History
                 </Button>
               )}
             </div>

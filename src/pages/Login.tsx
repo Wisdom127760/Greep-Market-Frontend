@@ -116,14 +116,14 @@ export const Login: React.FC = () => {
           </form>
 
           {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+          {/* <div className="mt-6 p-4 bg-gray-50 rounded-lg">
             <h3 className="text-sm font-medium text-gray-900 mb-2">Demo Credentials</h3>
             <div className="text-xs text-gray-600 space-y-1">
               <p><strong>Admin:</strong> admin@greep.com / admin123</p>
               <p><strong>Manager:</strong> manager@greep.com / manager123</p>
               <p><strong>Cashier:</strong> cashier@greep.com / cashier123</p>
             </div>
-          </div>
+          </div> */}
         </Card>
 
         {/* Footer */}

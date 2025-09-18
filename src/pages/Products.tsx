@@ -8,11 +8,13 @@ import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import ExcelImportModal from '../components/ExcelImportModal';
+import { PriceUpdateModal } from '../components/ui/PriceUpdateModal';
+import { PriceHistoryModal } from '../components/ui/PriceHistoryModal';
 import { useApp } from '../context/AppContext';
-import { Product } from '../types';
+import { Product, PriceHistory } from '../types';
 
 export const Products: React.FC = () => {
-  const { products, addProduct, updateProduct, deleteProduct, exportProducts, importProducts, loading, loadProducts, productsPagination } = useApp();
+  const { products, addProduct, updateProduct, updateProductPrice, getProductPriceHistory, deleteProduct, exportProducts, importProducts, loading, loadProducts, productsPagination } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -41,6 +43,11 @@ export const Products: React.FC = () => {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isPriceUpdateModalOpen, setIsPriceUpdateModalOpen] = useState(false);
+  const [isPriceHistoryModalOpen, setIsPriceHistoryModalOpen] = useState(false);
+  const [priceUpdateProduct, setPriceUpdateProduct] = useState<Product | null>(null);
+  const [priceHistoryProduct, setPriceHistoryProduct] = useState<Product | null>(null);
+  const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([]);
 
   const categories = useMemo(() => {
     if (!Array.isArray(products)) return ['all'];
@@ -75,6 +82,29 @@ export const Products: React.FC = () => {
     // Refresh products list after successful import
     // The AppContext will automatically refresh the products
     toast.success('Products imported successfully!');
+  };
+
+  const handlePriceUpdate = (product: Product) => {
+    setPriceUpdateProduct(product);
+    setIsPriceUpdateModalOpen(true);
+  };
+
+  const handlePriceHistory = async (product: Product) => {
+    setPriceHistoryProduct(product);
+    setIsPriceHistoryModalOpen(true);
+    
+    try {
+      const history = await getProductPriceHistory(product._id);
+      setPriceHistory(history);
+    } catch (error) {
+      console.error('Failed to load price history:', error);
+    }
+  };
+
+  const handlePriceUpdateSubmit = async (productId: string, newPrice: number, reason?: string) => {
+    await updateProductPrice(productId, newPrice, reason);
+    setPriceUpdateProduct(null);
+    setIsPriceUpdateModalOpen(false);
   };
 
   const handleSelectProduct = (productId: string) => {
@@ -583,7 +613,10 @@ export const Products: React.FC = () => {
                   product={product}
                   onEdit={handleEditProduct}
                   onDelete={handleDeleteProduct}
+                  onPriceUpdate={handlePriceUpdate}
+                  onPriceHistory={handlePriceHistory}
                   showActions={true}
+                  showPriceActions={true}
                   showStockAlert={true}
                   isSelected={selectedProducts.includes(product._id)}
                   onSelect={handleSelectProduct}
@@ -1155,6 +1188,29 @@ export const Products: React.FC = () => {
                 </div>
               </div>
             </Modal>
+
+            {/* Price Update Modal */}
+            <PriceUpdateModal
+              isOpen={isPriceUpdateModalOpen}
+              onClose={() => {
+                setIsPriceUpdateModalOpen(false);
+                setPriceUpdateProduct(null);
+              }}
+              product={priceUpdateProduct}
+              onPriceUpdate={handlePriceUpdateSubmit}
+            />
+
+            {/* Price History Modal */}
+            <PriceHistoryModal
+              isOpen={isPriceHistoryModalOpen}
+              onClose={() => {
+                setIsPriceHistoryModalOpen(false);
+                setPriceHistoryProduct(null);
+                setPriceHistory([]);
+              }}
+              productName={priceHistoryProduct?.name || ''}
+              priceHistory={priceHistory}
+            />
 
           </div>
         </div>

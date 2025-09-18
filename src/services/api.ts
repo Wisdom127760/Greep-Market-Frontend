@@ -5,7 +5,8 @@ import {
   AuthResponse, 
   ApiResponse,
   InventoryAlert,
-  DashboardMetrics 
+  DashboardMetrics,
+  PriceHistory 
 } from '../types';
 
 const API_BASE_URL = 'http://localhost:3001/api/v1';
@@ -39,6 +40,11 @@ class ApiService {
     } catch {
       return false;
     }
+  }
+
+  // Check if user is authenticated
+  public isAuthenticated(): boolean {
+    return !!(this.accessToken && this.isTokenValid(this.accessToken));
   }
 
   private async request<T>(
@@ -340,6 +346,40 @@ class ApiService {
     return response.data;
   }
 
+  async updateProductPrice(id: string, data: {
+    new_price: number;
+    change_reason?: string;
+    changed_by: string;
+  }): Promise<{ product: Product; priceHistory: PriceHistory[] }> {
+    console.log('Updating product price:', { id, data });
+    
+    // Use the standard product update endpoint
+    const response = await this.request<Product>(`/products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        price: data.new_price
+      }),
+    });
+    
+    // For now, return the updated product and an empty price history array
+    // The backend would need to implement proper price history tracking
+    return {
+      product: response.data,
+      priceHistory: []
+    };
+  }
+
+  async getProductPriceHistory(productId: string): Promise<PriceHistory[]> {
+    try {
+      const response = await this.request<PriceHistory[]>(`/products/${productId}/price-history`);
+      return response.data;
+    } catch (error) {
+      console.warn('Price history endpoint not available, returning empty array');
+      // Return empty array if the endpoint doesn't exist yet
+      return [];
+    }
+  }
+
   async deleteProduct(id: string): Promise<void> {
     await this.request(`/products/${id}`, {
       method: 'DELETE',
@@ -434,11 +474,9 @@ class ApiService {
   async adjustInventory(
     productId: string,
     data: {
-      store_id: string;
-      movement_type: 'in' | 'out';
+      adjustment_type: 'add' | 'subtract' | 'set';
       quantity: number;
       reason: string;
-      cost_per_unit?: number;
       notes?: string;
     }
   ): Promise<void> {
@@ -481,10 +519,12 @@ class ApiService {
       product_id: string;
       quantity: number;
       unit_price: number;
+      discount_amount?: number;
     }>;
     discount_amount?: number;
-    payment_method: 'cash' | 'card' | 'transfer';
+    payment_method: 'cash' | 'card' | 'transfer' | 'pos';
     notes?: string;
+    cashier_id: string;
   }): Promise<Transaction> {
     const response = await this.request<Transaction>('/transactions', {
       method: 'POST',
@@ -724,6 +764,79 @@ class ApiService {
 
     const response = await this.request<{ success: boolean; data: any[] }>(`/expenses/monthly/${year}?${queryParams}`);
     return (response as any).data || [];
+  }
+
+  // Goal Management Methods (Legacy - kept for compatibility)
+  async getGoalsWithProgress(): Promise<any[]> {
+    const response = await this.request<{ success: boolean; data: any[] }>('/goals/progress');
+    return (response as any).data || [];
+  }
+
+  async getGoalAnalytics(): Promise<any> {
+    const response = await this.request<{ success: boolean; data: any }>('/goals/analytics');
+    return (response as any).data || {};
+  }
+
+  // Goals API methods
+  async getGoals(params?: {
+    goal_type?: 'daily' | 'monthly' | 'weekly' | 'yearly';
+    is_active?: boolean;
+    store_id?: string;
+  }): Promise<any[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.goal_type) queryParams.append('goal_type', params.goal_type);
+    if (params?.is_active !== undefined) queryParams.append('is_active', params.is_active.toString());
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+
+    const response = await this.request<{ success: boolean; data: any[] }>(`/goals?${queryParams}`);
+    return (response as any).data || [];
+  }
+
+  async createGoal(goalData: {
+    goal_type: 'daily' | 'monthly' | 'weekly' | 'yearly';
+    target_amount: number;
+    currency?: string;
+    period_start: string;
+    period_end: string;
+    store_id?: string;
+  }): Promise<any> {
+    const response = await this.request<{ success: boolean; data: any }>('/goals', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(goalData),
+    });
+    return (response as any).data;
+  }
+
+  async updateGoal(goalId: string, updateData: {
+    target_amount?: number;
+    currency?: string;
+    period_start?: string;
+    period_end?: string;
+    is_active?: boolean;
+  }): Promise<any> {
+    const response = await this.request<{ success: boolean; data: any }>(`/goals/${goalId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updateData),
+    });
+    return (response as any).data;
+  }
+
+  async deleteGoal(goalId: string): Promise<boolean> {
+    const response = await this.request<{ success: boolean }>(`/goals/${goalId}`, {
+      method: 'DELETE',
+    });
+    return response.success;
+  }
+
+  async getGoalProgress(goalId: string): Promise<any> {
+    const response = await this.request<{ success: boolean; data: any }>(`/goals/${goalId}/progress`);
+    return (response as any).data;
   }
 }
 
