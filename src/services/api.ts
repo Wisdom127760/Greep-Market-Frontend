@@ -47,6 +47,8 @@ class ApiService {
   ): Promise<ApiResponse<T>> {
     const url = `${API_BASE_URL}${endpoint}`;
     
+    console.log(`Making API request to: ${url}`);
+    
     // Validate access token before making request
     // Temporarily disabled for debugging
     // if (this.accessToken && !this.isTokenValid(this.accessToken)) {
@@ -56,7 +58,8 @@ class ApiService {
     
     const config: RequestInit = {
       headers: {
-        'Content-Type': 'application/json',
+        // Only set Content-Type for JSON, not for FormData
+        ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
         ...options.headers,
       },
@@ -64,7 +67,17 @@ class ApiService {
     };
 
     try {
-      const response = await fetch(url, config);
+      // Add timeout to prevent hanging requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(url, {
+        ...config,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      console.log(`API response received: ${response.status} ${response.statusText}`);
       
       // Check if response has content before trying to parse JSON
       let data;
@@ -117,6 +130,18 @@ class ApiService {
       return data;
     } catch (error) {
       console.error('API request failed:', error);
+      
+      // Handle different types of errors
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          console.error('Request timed out after 10 seconds');
+          throw new Error('Request timed out. Please check your connection and try again.');
+        } else if (error.message.includes('Failed to fetch')) {
+          console.error('Network error - server might be down');
+          throw new Error('Unable to connect to server. Please check if the backend is running.');
+        }
+      }
+      
       throw error;
     }
   }
@@ -203,7 +228,7 @@ class ApiService {
     category?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ products: Product[]; total: number; page: number; limit: number }> {
+  }): Promise<{ products: Product[]; total: number; page: number; pages: number; limit: number }> {
     const queryParams = new URLSearchParams();
     if (params?.store_id) queryParams.append('store_id', params.store_id);
     if (params?.search) queryParams.append('search', params.search);
@@ -211,11 +236,41 @@ class ApiService {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-    const response = await this.request<{ products: Product[]; total: number; page: number; pages: number }>(`/products?${queryParams}`);
+    const response = await this.request<{ success: boolean; data: { products: Product[]; total: number; page: number; pages: number } }>(`/products?${queryParams}`) as any;
+    
+    // Debug logging to see the actual response structure
+    console.log('=== API DEBUG INFO ===');
+    console.log('Full API Response:', response);
+    console.log('Response type:', typeof response);
+    console.log('Response keys:', Object.keys(response || {}));
+    console.log('response.data:', response.data);
+    console.log('response.data type:', typeof response.data);
+    console.log('response.data keys:', response.data ? Object.keys(response.data) : 'response.data is null/undefined');
+    console.log('response.data.data:', response.data?.data);
+    console.log('response.data.data type:', typeof response.data?.data);
+    console.log('response.data.data keys:', response.data?.data ? Object.keys(response.data.data) : 'response.data.data is null/undefined');
+    console.log('=== END API DEBUG INFO ===');
+    
+    // Try different possible response structures
+    let data;
+    if (response.data?.products) {
+      // Structure: { success: true, data: { products: [...], total: 897, ... } }
+      data = response.data;
+      console.log('Using response.data structure (nested data)');
+    } else if (response.products) {
+      // Structure: { products: [...], total: 897, ... } directly
+      data = response;
+      console.log('Using direct response structure');
+    } else {
+      console.error('No recognizable data structure found in API response:', response);
+      throw new Error('Invalid API response structure - no products data found');
+    }
+    
     return {
-      products: response.data.products,
-      total: response.data.total,
-      page: response.data.page,
+      products: data.products || [],
+      total: data.total || 0,
+      page: data.page || 1,
+      pages: data.pages || 1,
       limit: params?.limit || 20,
     };
   }
@@ -230,12 +285,51 @@ class ApiService {
     return response.data;
   }
 
-  async createProduct(productData: Partial<Product>): Promise<Product> {
-    const response = await this.request<Product>('/products', {
-      method: 'POST',
-      body: JSON.stringify(productData),
-    });
-    return response.data;
+  async createProduct(productData: Partial<Product>, images?: File[]): Promise<Product> {
+    console.log('Creating product with images:', images?.length || 0);
+    
+    // If there are images, use FormData, otherwise use JSON
+    if (images && images.length > 0) {
+      console.log('Using FormData for image upload');
+      const formData = new FormData();
+      
+      // Add each product field individually to FormData
+      console.log('Product data being sent:', productData);
+      Object.keys(productData).forEach(key => {
+        const value = productData[key as keyof Product];
+        if (value !== undefined && value !== null) {
+          if (typeof value === 'object') {
+            formData.append(key, JSON.stringify(value));
+            console.log(`Added ${key} as JSON:`, JSON.stringify(value));
+          } else {
+            formData.append(key, String(value));
+            console.log(`Added ${key} as string:`, String(value));
+          }
+        }
+      });
+      
+      // Add each image file
+      images.forEach((image, index) => {
+        console.log(`Adding image ${index + 1}:`, image.name, image.size, 'bytes');
+        formData.append(`images`, image);
+      });
+      
+      const response = await this.request<Product>('/products', {
+        method: 'POST',
+        body: formData,
+      });
+      console.log('Product created with images:', response.data);
+      return response.data;
+    } else {
+      console.log('Using JSON request (no images)');
+      // No images, use regular JSON request
+      const response = await this.request<Product>('/products', {
+        method: 'POST',
+        body: JSON.stringify(productData),
+      });
+      console.log('Product created without images:', response.data);
+      return response.data;
+    }
   }
 
   async updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
@@ -250,6 +344,68 @@ class ApiService {
     await this.request(`/products/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  async deleteAllProducts(storeId: string): Promise<{ deletedCount: number }> {
+    const response = await this.request<{ success: boolean; data: { deletedCount: number } }>(`/products/bulk/all?store_id=${storeId}`, {
+      method: 'DELETE',
+    });
+    
+    console.log('Delete all products response:', response);
+    
+    // Handle the nested response structure
+    const data = response.data?.data || response.data;
+    
+    if (!data || typeof data.deletedCount === 'undefined') {
+      console.error('Invalid delete all products response:', response);
+      throw new Error('Invalid response from delete all products API');
+    }
+    
+    return { deletedCount: data.deletedCount };
+  }
+
+  // Export products to JSON file
+  async exportProducts(storeId: string): Promise<Blob> {
+    console.log('Exporting products for store:', storeId);
+    
+    const response = await fetch(`${API_BASE_URL}/products/export?store_id=${storeId}`, {
+      method: 'GET',
+      headers: {
+        ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    return await response.blob();
+  }
+
+  // Import products from JSON file
+  async importProducts(storeId: string, file: File): Promise<{ imported: number; errors: string[] }> {
+    console.log('Importing products for store:', storeId);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('store_id', storeId);
+
+    const response = await this.request<{ success: boolean; data: { imported: number; errors: string[] } }>('/products/import', {
+      method: 'POST',
+      body: formData,
+    });
+
+    console.log('Import response:', response);
+    
+    // Handle the nested response structure
+    const data = response.data?.data || response.data;
+    
+    if (!data) {
+      console.error('Invalid import response:', response);
+      throw new Error('Invalid response from import API');
+    }
+    
+    return { imported: data.imported, errors: data.errors || [] };
   }
 
   // Inventory

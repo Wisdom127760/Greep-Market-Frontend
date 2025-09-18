@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, AlertTriangle } from 'lucide-react';
+import { Package, AlertTriangle, CheckSquare, Square } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Product } from '../../types';
@@ -11,6 +11,9 @@ interface ProductCardProps {
   onAddToCart?: (product: Product) => void;
   showActions?: boolean;
   showStockAlert?: boolean;
+  isSelected?: boolean;
+  onSelect?: (productId: string) => void;
+  showSelection?: boolean;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -20,6 +23,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onAddToCart,
   showActions = true,
   showStockAlert = true,
+  isSelected = false,
+  onSelect,
+  showSelection = false,
 }) => {
   const isLowStock = product.stock_quantity <= product.min_stock_level;
   const isOutOfStock = product.stock_quantity === 0;
@@ -32,7 +38,27 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   };
 
   return (
-    <div className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl hover:border-primary-200 transition-all duration-300 overflow-hidden">
+    <div className={`group relative bg-white rounded-2xl shadow-lg border transition-all duration-300 overflow-hidden ${
+      isSelected 
+        ? 'border-primary-500 shadow-primary-200 shadow-lg' 
+        : 'border-gray-100 hover:shadow-xl hover:border-primary-200'
+    }`}>
+      {/* Selection Checkbox */}
+      {showSelection && (
+        <div className="absolute top-4 left-4 z-10">
+          <button
+            onClick={() => onSelect?.(product._id)}
+            className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+          >
+            {isSelected ? (
+              <CheckSquare className="h-5 w-5 text-primary-600" />
+            ) : (
+              <Square className="h-5 w-5 text-gray-400" />
+            )}
+          </button>
+        </div>
+      )}
+      
       {/* Stock Alert Badge */}
       {showStockAlert && (isLowStock || isOutOfStock) && (
         <div className={`absolute top-4 right-4 z-10 px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${

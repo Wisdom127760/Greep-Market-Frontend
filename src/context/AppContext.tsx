@@ -1,20 +1,29 @@
-import React, { createContext, useContext, useReducer, ReactNode, useEffect, useState } from 'react';
+import React, { createContext, useContext, useReducer, ReactNode, useEffect, useState, useCallback } from 'react';
 import { AppState, Product, Transaction, InventoryAlert, DashboardMetrics } from '../types';
 import { apiService } from '../services/api';
 import { useAuth } from './AuthContext';
 import { toast } from 'react-hot-toast';
 
 interface AppContextType extends AppState {
-  addProduct: (product: Omit<Product, '_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  addProduct: (product: Omit<Product, '_id' | 'created_at' | 'updated_at'>, images?: File[]) => Promise<void>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
+  deleteAllProducts: () => Promise<{ deletedCount: number }>;
+  exportProducts: () => Promise<void>;
+  importProducts: (file: File) => Promise<{ imported: number; errors: string[] }>;
   addTransaction: (transaction: any) => Promise<void>;
   updateInventory: (productId: string, quantity: number) => Promise<void>;
   refreshDashboard: () => Promise<void>;
-  loadProducts: () => Promise<void>;
+  loadProducts: (page?: number, limit?: number) => Promise<void>;
   loadTransactions: () => Promise<void>;
   loadInventoryAlerts: () => Promise<void>;
   loading: boolean;
+  productsPagination: {
+    currentPage: number;
+    totalPages: number;
+    totalProducts: number;
+    limit: number;
+  };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -23,6 +32,7 @@ type AppAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_PRODUCTS'; payload: Product[] }
+  | { type: 'SET_PRODUCTS_PAGINATION'; payload: { currentPage: number; totalPages: number; totalProducts: number; limit: number } }
   | { type: 'ADD_PRODUCT'; payload: Product }
   | { type: 'UPDATE_PRODUCT'; payload: { id: string; updates: Partial<Product> } }
   | { type: 'DELETE_PRODUCT'; payload: string }
@@ -30,6 +40,13 @@ type AppAction =
   | { type: 'ADD_TRANSACTION'; payload: Transaction }
   | { type: 'SET_INVENTORY_ALERTS'; payload: InventoryAlert[] }
   | { type: 'SET_DASHBOARD_METRICS'; payload: DashboardMetrics };
+
+const initialPaginationState = {
+  currentPage: 1,
+  totalPages: 1,
+  totalProducts: 0,
+  limit: 20,
+};
 
 const initialState: AppState = {
   products: [],
@@ -49,6 +66,7 @@ const initialState: AppState = {
   },
   isLoading: false,
   error: null,
+  productsPagination: initialPaginationState,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -59,6 +77,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, error: action.payload };
     case 'SET_PRODUCTS':
       return { ...state, products: action.payload };
+    case 'SET_PRODUCTS_PAGINATION':
+      return { ...state, productsPagination: action.payload };
     case 'ADD_PRODUCT':
       return { ...state, products: [...state.products, action.payload] };
     case 'UPDATE_PRODUCT':
@@ -125,22 +145,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
 
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async (page: number = 1, limit: number = 20) => {
     if (!isAuthenticated || !user) {
       console.log('User not authenticated, skipping products load');
       return;
     }
     try {
+      console.log(`Loading products - page: ${page}, limit: ${limit}, store_id: ${user?.store_id}`);
       const response = await apiService.getProducts({ 
         store_id: user?.store_id,
-        limit: 100 
+        page,
+        limit
       });
+      console.log('Products loaded successfully:', response);
       dispatch({ type: 'SET_PRODUCTS', payload: response.products });
+      dispatch({ 
+        type: 'SET_PRODUCTS_PAGINATION', 
+        payload: {
+          currentPage: response.page,
+          totalPages: response.pages,
+          totalProducts: response.total,
+          limit: response.limit
+        }
+      });
     } catch (error) {
       console.error('Failed to load products:', error);
-      toast.error('Failed to load products');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load products';
+      toast.error(errorMessage);
     }
-  };
+  }, [isAuthenticated, user]);
 
   const loadTransactions = async () => {
     if (!isAuthenticated || !user) {
@@ -173,13 +206,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addProduct = async (productData: Omit<Product, '_id' | 'created_at' | 'updated_at'>) => {
+  const addProduct = async (productData: Omit<Product, '_id' | 'created_at' | 'updated_at'>, images?: File[]) => {
     try {
       const newProduct = await apiService.createProduct({
         ...productData,
         store_id: user?.store_id || '',
         created_by: user?.id || '',
-      });
+      }, images);
       dispatch({ type: 'ADD_PRODUCT', payload: newProduct });
       toast.success('Product added successfully');
     } catch (error) {
@@ -212,6 +245,97 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Re-throw with more specific error message
       const errorMessage = error?.message || 'Failed to delete product';
       throw new Error(errorMessage);
+    }
+  };
+
+  const deleteAllProducts = async (): Promise<{ deletedCount: number }> => {
+    if (!user?.store_id) {
+      throw new Error('Store ID is required');
+    }
+    
+    try {
+      console.log('Starting delete all products for store:', user.store_id);
+      const result = await apiService.deleteAllProducts(user.store_id);
+      console.log('Delete all products result:', result);
+      
+      // Clear all products from state
+      dispatch({ type: 'SET_PRODUCTS', payload: [] });
+      dispatch({ 
+        type: 'SET_PRODUCTS_PAGINATION', 
+        payload: {
+          currentPage: 1,
+          totalPages: 1,
+          totalProducts: 0,
+          limit: 20
+        }
+      });
+      
+      toast.success(`Successfully deleted ${result.deletedCount} products`);
+      return result;
+    } catch (error) {
+      console.error('Failed to delete all products:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete all products';
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
+  const exportProducts = async (): Promise<void> => {
+    if (!user?.store_id) {
+      throw new Error('Store ID is required');
+    }
+    
+    try {
+      console.log('Starting export products for store:', user.store_id);
+      const blob = await apiService.exportProducts(user.store_id);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `products-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Products exported successfully!');
+    } catch (error) {
+      console.error('Failed to export products:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to export products';
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
+  const importProducts = async (file: File): Promise<{ imported: number; errors: string[] }> => {
+    if (!user?.store_id) {
+      throw new Error('Store ID is required');
+    }
+    
+    try {
+      console.log('Starting import products for store:', user.store_id);
+      const result = await apiService.importProducts(user.store_id, file);
+      console.log('Import products result:', result);
+      
+      // Refresh products list
+      await loadProducts(1, 20);
+      
+      if (result.imported > 0) {
+        toast.success(`Successfully imported ${result.imported} products!`);
+      }
+      
+      if (result.errors.length > 0) {
+        toast.error(`Import completed with ${result.errors.length} errors. Check console for details.`);
+        console.error('Import errors:', result.errors);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to import products:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import products';
+      toast.error(errorMessage);
+      throw error;
     }
   };
 
@@ -268,6 +392,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addProduct,
     updateProduct,
     deleteProduct,
+    deleteAllProducts,
+    exportProducts,
+    importProducts,
     addTransaction,
     updateInventory,
     refreshDashboard,
@@ -275,6 +402,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadTransactions,
     loadInventoryAlerts,
     loading: state.isLoading,
+    productsPagination: state.productsPagination || initialPaginationState,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

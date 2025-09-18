@@ -3,6 +3,7 @@ export interface Product {
   name: string;
   description: string;
   price: number;
+  cost_price?: number;
   category: string;
   sku: string;
   barcode?: string;
@@ -152,6 +153,12 @@ export interface AppState {
   dashboardMetrics: DashboardMetrics;
   isLoading: boolean;
   error: string | null;
+  productsPagination: {
+    currentPage: number;
+    totalPages: number;
+    totalProducts: number;
+    limit: number;
+  };
 }
 
 

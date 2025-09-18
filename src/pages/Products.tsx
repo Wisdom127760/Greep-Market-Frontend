@@ -1,24 +1,24 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Filter, Grid, List, Package } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Plus, Filter, Grid, List, Package, Upload, Trash2, CheckSquare, Square, Download, FileText } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
 import { SearchBar } from '../components/ui/SearchBar';
 import { ProductCard } from '../components/ui/ProductCard';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
-import { BarcodeScanner } from '../components/ui/BarcodeScanner';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
+import ExcelImportModal from '../components/ExcelImportModal';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 
 export const Products: React.FC = () => {
-  const { products, addProduct, updateProduct, deleteProduct, loading } = useApp();
+  const { products, addProduct, updateProduct, deleteProduct, exportProducts, importProducts, loading, loadProducts, productsPagination } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [currentPage, setCurrentPage] = useState(1);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
@@ -37,6 +37,10 @@ export const Products: React.FC = () => {
   });
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const categories = useMemo(() => {
     if (!Array.isArray(products)) return ['all'];
@@ -44,6 +48,13 @@ export const Products: React.FC = () => {
     return ['all', ...uniqueCategories];
   }, [products]);
 
+  // Load products when page changes
+  useEffect(() => {
+    loadProducts(currentPage, 20);
+  }, [currentPage, loadProducts]); // Now safe to include loadProducts since it's memoized
+
+  // For now, we'll keep client-side filtering since the API might not support search/category filtering
+  // In a production app, you'd want to move this to server-side
   const filteredProducts = useMemo(() => {
     if (!Array.isArray(products)) return [];
     return products.filter(product => {
@@ -59,15 +70,95 @@ export const Products: React.FC = () => {
     setSearchQuery(query);
   };
 
-  const handleBarcodeScan = (barcode: string) => {
-    // If we're in a modal (add or edit), set the barcode in the form
-    if (isAddModalOpen || isEditModalOpen) {
-      setNewProduct({ ...newProduct, barcode: barcode });
-      toast.success(`Barcode scanned: ${barcode}`);
+
+  const handleExcelImportSuccess = () => {
+    // Refresh products list after successful import
+    // The AppContext will automatically refresh the products
+    toast.success('Products imported successfully!');
+  };
+
+  const handleSelectProduct = (productId: string) => {
+    setSelectedProducts(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedProducts.length === filteredProducts.length) {
+      setSelectedProducts([]);
     } else {
-      // If we're on the main page, use it for search
-      setSearchQuery(barcode);
-      toast.success(`Scanned barcode: ${barcode}`);
+      setSelectedProducts(filteredProducts.map(p => p._id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedProducts.length === 0) {
+      toast.error('No products selected');
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const productId of selectedProducts) {
+        try {
+          await deleteProduct(productId);
+          successCount++;
+        } catch (error) {
+          errorCount++;
+          console.error(`Failed to delete product ${productId}:`, error);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully deleted ${successCount} products`);
+      }
+      if (errorCount > 0) {
+        toast.error(`Failed to delete ${errorCount} products`);
+      }
+
+      setSelectedProducts([]);
+      setIsBulkDeleteModalOpen(false);
+    } catch (error) {
+      toast.error('Failed to delete products');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+
+  const handleExportProducts = async () => {
+    try {
+      await exportProducts();
+    } catch (error) {
+      console.error('Export products error:', error);
+      // Error message is already shown by the exportProducts function
+    }
+  };
+
+  const handleImportProducts = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.endsWith('.json')) {
+      toast.error('Please select a valid JSON file');
+      return;
+    }
+
+    try {
+      const result = await importProducts(file);
+      console.log('Import completed:', result);
+    } catch (error) {
+      console.error('Import products error:', error);
+      // Error message is already shown by the importProducts function
+    } finally {
+      // Reset the file input
+      event.target.value = '';
     }
   };
 
@@ -97,13 +188,13 @@ export const Products: React.FC = () => {
         unit: newProduct.unit,
         weight: undefined,
         dimensions: undefined,
-        images: [], // TODO: Handle image upload
+        images: [], // Will be populated by the API after image upload
         tags: tags,
         is_active: true,
         is_featured: false,
         created_by: '',
         store_id: '',
-      });
+      }, selectedImages); // Pass the selected images
 
       // Reset form
       setNewProduct({
@@ -120,7 +211,7 @@ export const Products: React.FC = () => {
       });
       setSelectedImages([]);
       setIsAddModalOpen(false);
-      toast.success('Product added successfully!');
+      // Success message is already shown by the addProduct function
     } catch (error) {
       console.error('Failed to add product:', error);
       toast.error('Failed to add product. Please try again.');
@@ -302,22 +393,67 @@ export const Products: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="flex flex-row gap-3">
-                <Button 
-                  onClick={() => setIsScannerOpen(true)}
-                  variant="outline"
-                  className="flex-shrink-0"
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  Scan Barcode
-                </Button>
-                <Button 
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="flex-shrink-0 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 shadow-lg"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Product
-                </Button>
+              <div className="flex flex-row gap-3 items-center">
+                {/* Secondary Actions */}
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => setIsExcelImportOpen(true)}
+                    variant="outline"
+                    size="md"
+                    className="flex-shrink-0"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import Excel
+                  </Button>
+                  <Button 
+                    onClick={handleExportProducts}
+                    variant="outline"
+                    size="md"
+                    className="flex-shrink-0"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                  <label className="flex-shrink-0">
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleImportProducts}
+                      className="hidden"
+                    />
+                    <div className="font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 border border-gray-300 hover:bg-gray-50 text-gray-700 focus:ring-gray-500 px-4 py-2 text-base cursor-pointer flex items-center justify-center">
+                      <FileText className="h-4 w-4 mr-2" />
+                      Import
+                    </div>
+                  </label>
+                </div>
+                
+                {/* Divider */}
+                <div className="w-px h-10 bg-gray-300 mx-2 flex-shrink-0"></div>
+                
+                {/* Primary Actions */}
+                <div className="flex gap-2">
+                  {selectedProducts.length > 0 && (
+                    <Button 
+                      onClick={() => setIsBulkDeleteModalOpen(true)}
+                      variant="danger"
+                      size="md"
+                      className="flex-shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete ({selectedProducts.length})
+                    </Button>
+                  )}
+                  <Button 
+                    onClick={() => setIsAddModalOpen(true)}
+                    variant="primary"
+                    size="md"
+                    className="flex-shrink-0"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Product
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -331,7 +467,6 @@ export const Products: React.FC = () => {
               <SearchBar
                 placeholder="Search products by name, barcode, or SKU..."
                 onSearch={handleSearch}
-                onBarcodeScan={() => setIsScannerOpen(true)}
               />
             </div>
             
@@ -402,8 +537,23 @@ export const Products: React.FC = () => {
                   {searchQuery || selectedCategory !== 'all' ? 'Search Results' : 'All Products'}
                 </h2>
                 <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
-                  {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}
+                  {filteredProducts.length} of {productsPagination.totalProducts} {filteredProducts.length === 1 ? 'product' : 'products'}
                 </span>
+                {filteredProducts.length > 0 && (
+                  <button
+                    onClick={handleSelectAll}
+                    className="flex items-center space-x-2 px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                  >
+                    {selectedProducts.length === filteredProducts.length ? (
+                      <CheckSquare className="h-4 w-4 text-primary-600" />
+                    ) : (
+                      <Square className="h-4 w-4 text-gray-400" />
+                    )}
+                    <span>
+                      {selectedProducts.length === filteredProducts.length ? 'Deselect All' : 'Select All'}
+                    </span>
+                  </button>
+                )}
               </div>
               {(searchQuery || selectedCategory !== 'all') && (
                 <button
@@ -435,9 +585,63 @@ export const Products: React.FC = () => {
                   onDelete={handleDeleteProduct}
                   showActions={true}
                   showStockAlert={true}
+                  isSelected={selectedProducts.includes(product._id)}
+                  onSelect={handleSelectProduct}
+                  showSelection={true}
                 />
               ))}
             </div>
+
+            {/* Pagination */}
+            {productsPagination.totalPages > 1 && (
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 flex justify-between sm:hidden">
+                    <button
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(Math.min(productsPagination.totalPages, currentPage + 1))}
+                      disabled={currentPage === productsPagination.totalPages}
+                      className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm text-gray-700">
+                        Showing page <span className="font-medium">{productsPagination.currentPage}</span> of{' '}
+                        <span className="font-medium">{productsPagination.totalPages}</span>
+                        {' '}({productsPagination.totalProducts} total products)
+                      </p>
+                    </div>
+                    <div>
+                      <nav className="relative z-0 inline-flex rounded-lg shadow-sm -space-x-px">
+                        <button
+                          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                          disabled={currentPage === 1}
+                          className="relative inline-flex items-center px-3 py-2 rounded-l-lg border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Previous
+                        </button>
+                        <button
+                          onClick={() => setCurrentPage(Math.min(productsPagination.totalPages, currentPage + 1))}
+                          disabled={currentPage === productsPagination.totalPages}
+                          className="relative inline-flex items-center px-3 py-2 rounded-r-lg border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Next
+                        </button>
+                      </nav>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-12">
@@ -521,17 +725,6 @@ export const Products: React.FC = () => {
                     placeholder="Enter barcode or scan"
                     className="flex-1"
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsScannerOpen(true)}
-                    className="px-4 border-gray-200 hover:border-primary-300 hover:text-primary-600"
-                    title="Scan barcode"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                    </svg>
-                  </Button>
                 </div>
               </div>
               <Input
@@ -550,6 +743,7 @@ export const Products: React.FC = () => {
                   onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   required
+                  aria-label="Select unit"
                 >
                   <option value="piece">Piece</option>
                   <option value="kg">Kg</option>
@@ -734,17 +928,6 @@ export const Products: React.FC = () => {
                     placeholder="Enter barcode or scan"
                     className="flex-1"
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsScannerOpen(true)}
-                    className="px-4 border-gray-200 hover:border-primary-300 hover:text-primary-600"
-                    title="Scan barcode"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                    </svg>
-                  </Button>
                 </div>
               </div>
               <Input
@@ -763,6 +946,7 @@ export const Products: React.FC = () => {
                   onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   required
+                  aria-label="Select unit"
                 >
                   <option value="piece">Piece</option>
                   <option value="kg">Kg</option>
@@ -854,17 +1038,6 @@ export const Products: React.FC = () => {
         </div>
       </Modal>
 
-            {/* Barcode Scanner */}
-            <BarcodeScanner
-              isOpen={isScannerOpen}
-              onClose={() => setIsScannerOpen(false)}
-              onScan={(barcode) => {
-                handleBarcodeScan(barcode);
-                // Close scanner after successful scan
-                setIsScannerOpen(false);
-              }}
-              onError={(error) => toast.error(`Scanner error: ${error}`)}
-            />
 
             {/* Delete Confirmation Modal */}
             <Modal
@@ -933,6 +1106,56 @@ export const Products: React.FC = () => {
                 </div>
               </div>
             </Modal>
+
+            {/* Smart Excel Import Modal */}
+            <ExcelImportModal
+              isOpen={isExcelImportOpen}
+              onClose={() => setIsExcelImportOpen(false)}
+              onSuccess={handleExcelImportSuccess}
+            />
+
+            {/* Bulk Delete Confirmation Modal */}
+            <Modal
+              isOpen={isBulkDeleteModalOpen}
+              onClose={() => setIsBulkDeleteModalOpen(false)}
+              title=""
+              size="md"
+            >
+              <div className="text-center py-6">
+                {/* Warning Icon */}
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="w-8 h-8 text-red-600" />
+                </div>
+
+                {/* Modal Content */}
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  Delete {selectedProducts.length} Products
+                </h3>
+                <p className="text-gray-600 mb-6 leading-relaxed">
+                  Are you sure you want to delete <span className="font-semibold text-gray-900">{selectedProducts.length} products</span>? 
+                  This action cannot be undone and will permanently remove all selected products from your catalog.
+                </p>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-center space-x-4">
+                  <Button
+                    onClick={() => setIsBulkDeleteModalOpen(false)}
+                    variant="outline"
+                    className="px-6 py-2"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleBulkDelete}
+                    disabled={isBulkDeleting}
+                    className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {isBulkDeleting ? 'Deleting...' : `Delete ${selectedProducts.length} Products`}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+
           </div>
         </div>
       );
