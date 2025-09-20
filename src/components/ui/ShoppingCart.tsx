@@ -79,7 +79,27 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
                 >
                   <Minus className="h-3 w-3" />
                 </Button>
-                <span className="w-8 text-center font-medium">{item.quantity}</span>
+                <input
+                  type="number"
+                  value={item.quantity}
+                  onChange={(e) => {
+                    const newQuantity = parseFloat(e.target.value) || 0;
+                    if (newQuantity >= 0) {
+                      onUpdateQuantity(item.product_id, newQuantity);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const newQuantity = parseFloat(e.target.value) || 0;
+                    if (newQuantity <= 0) {
+                      onUpdateQuantity(item.product_id, 1);
+                    }
+                  }}
+                  className="w-16 px-2 py-1 text-center font-medium border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent hover:border-gray-400 transition-colors"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  title="Click to edit quantity manually (useful for scale-weighed items)"
+                />
                 <Button
                   variant="outline"
                   size="sm"

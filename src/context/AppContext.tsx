@@ -153,7 +153,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      console.log(`Loading products - page: ${page}, limit: ${limit}, store_id: ${user?.store_id}`);
       const response = await apiService.getProducts({ 
         store_id: user?.store_id,
         page,

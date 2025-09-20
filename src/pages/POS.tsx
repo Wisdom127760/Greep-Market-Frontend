@@ -30,10 +30,18 @@ export const POS: React.FC = () => {
     if (!products || !Array.isArray(products)) {
       return [];
     }
+    if (!searchQuery.trim()) {
+      return products;
+    }
+    
+    const searchLower = searchQuery.toLowerCase();
     return products.filter(product => 
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.barcode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchQuery.toLowerCase())
+      product.name.toLowerCase().includes(searchLower) ||
+      product.barcode?.toLowerCase().includes(searchLower) ||
+      product.sku.toLowerCase().includes(searchLower) ||
+      product.category.toLowerCase().includes(searchLower) ||
+      product.description?.toLowerCase().includes(searchLower) ||
+      product.tags?.some(tag => tag.toLowerCase().includes(searchLower))
     );
   }, [products, searchQuery]);
 
@@ -333,6 +341,9 @@ export const POS: React.FC = () => {
                   placeholder="Search products or scan barcode..."
                   onSearch={handleSearch}
                   onBarcodeScan={() => setIsScannerOpen(true)}
+                  enableRealTime={true}
+                  debounceMs={200}
+                  showBarcodeButton={true}
                 />
               </div>
             </div>

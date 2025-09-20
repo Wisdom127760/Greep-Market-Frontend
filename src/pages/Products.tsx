@@ -10,6 +10,8 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import ExcelImportModal from '../components/ExcelImportModal';
 import { PriceUpdateModal } from '../components/ui/PriceUpdateModal';
 import { PriceHistoryModal } from '../components/ui/PriceHistoryModal';
+import CategorySelect from '../components/ui/CategorySelect';
+import { TagsDropdown } from '../components/ui/TagsDropdown';
 import { useApp } from '../context/AppContext';
 import { Product, PriceHistory } from '../types';
 
@@ -18,7 +20,6 @@ export const Products: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [currentPage, setCurrentPage] = useState(1);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -35,7 +36,7 @@ export const Products: React.FC = () => {
     min_stock_level: '5',
     description: '',
     sku: '',
-    tags: '',
+    tags: [] as string[],
   });
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,19 +56,32 @@ export const Products: React.FC = () => {
     return ['all', ...uniqueCategories];
   }, [products]);
 
-  // Load products when page changes
+  const existingTags = useMemo(() => {
+    if (!Array.isArray(products)) return [];
+    const allTags = products.flatMap(p => p.tags || []);
+    return Array.from(new Set(allTags));
+  }, [products]);
+
+  // Load products on initial mount
   useEffect(() => {
-    loadProducts(currentPage, 20);
-  }, [currentPage, loadProducts]); // Now safe to include loadProducts since it's memoized
+    loadProducts(1, 20);
+  }, [loadProducts]); // Load initial page on mount
 
   // For now, we'll keep client-side filtering since the API might not support search/category filtering
   // In a production app, you'd want to move this to server-side
   const filteredProducts = useMemo(() => {
     if (!Array.isArray(products)) return [];
     return products.filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           product.barcode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           product.sku.toLowerCase().includes(searchQuery.toLowerCase());
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery || 
+        product.name.toLowerCase().includes(searchLower) ||
+        product.barcode?.toLowerCase().includes(searchLower) ||
+        product.sku.toLowerCase().includes(searchLower) ||
+        product.category.toLowerCase().includes(searchLower) ||
+        product.description?.toLowerCase().includes(searchLower) ||
+        product.tags?.some(tag => tag.toLowerCase().includes(searchLower)) ||
+        product.unit.toLowerCase().includes(searchLower);
+      
       const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
@@ -75,6 +89,10 @@ export const Products: React.FC = () => {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    loadProducts(newPage, 20);
   };
 
 
@@ -203,9 +221,6 @@ export const Products: React.FC = () => {
       // Generate SKU if not provided
       const sku = newProduct.sku || `SKU-${newProduct.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-3)}`;
       
-      // Parse tags
-      const tags = newProduct.tags ? newProduct.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
-
       await addProduct({
         name: newProduct.name,
         description: newProduct.description || '',
@@ -219,7 +234,7 @@ export const Products: React.FC = () => {
         weight: undefined,
         dimensions: undefined,
         images: [], // Will be populated by the API after image upload
-        tags: tags,
+        tags: newProduct.tags,
         is_active: true,
         is_featured: false,
         created_by: '',
@@ -237,7 +252,7 @@ export const Products: React.FC = () => {
         min_stock_level: '5',
         description: '',
         sku: '',
-        tags: '',
+        tags: [],
       });
       setSelectedImages([]);
       setIsAddModalOpen(false);
@@ -262,7 +277,7 @@ export const Products: React.FC = () => {
       min_stock_level: product.min_stock_level.toString(),
       description: product.description || '',
       sku: product.sku,
-      tags: product.tags.join(', '),
+      tags: product.tags,
     });
     setIsEditModalOpen(true);
   };
@@ -275,9 +290,6 @@ export const Products: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // Parse tags
-      const tags = newProduct.tags ? newProduct.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
-
       await updateProduct(editingProduct._id, {
         name: newProduct.name,
         description: newProduct.description || '',
@@ -288,7 +300,7 @@ export const Products: React.FC = () => {
         stock_quantity: parseInt(newProduct.stock_quantity) || 0,
         min_stock_level: parseInt(newProduct.min_stock_level) || 5,
         unit: newProduct.unit,
-        tags: tags,
+        tags: newProduct.tags,
       });
 
       setIsEditModalOpen(false);
@@ -362,7 +374,7 @@ export const Products: React.FC = () => {
       min_stock_level: '5',
       description: '',
       sku: '',
-      tags: '',
+      tags: [],
     });
     setSelectedImages([]);
   };
@@ -497,6 +509,9 @@ export const Products: React.FC = () => {
               <SearchBar
                 placeholder="Search products by name, barcode, or SKU..."
                 onSearch={handleSearch}
+                enableRealTime={true}
+                debounceMs={300}
+                showBarcodeButton={false}
               />
             </div>
             
@@ -631,15 +646,15 @@ export const Products: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex-1 flex justify-between sm:hidden">
                     <button
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      disabled={currentPage === 1}
+                      onClick={() => handlePageChange(Math.max(1, productsPagination.currentPage - 1))}
+                      disabled={productsPagination.currentPage === 1}
                       className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Previous
                     </button>
                     <button
-                      onClick={() => setCurrentPage(Math.min(productsPagination.totalPages, currentPage + 1))}
-                      disabled={currentPage === productsPagination.totalPages}
+                      onClick={() => handlePageChange(Math.min(productsPagination.totalPages, productsPagination.currentPage + 1))}
+                      disabled={productsPagination.currentPage === productsPagination.totalPages}
                       className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Next
@@ -656,15 +671,15 @@ export const Products: React.FC = () => {
                     <div>
                       <nav className="relative z-0 inline-flex rounded-lg shadow-sm -space-x-px">
                         <button
-                          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                          disabled={currentPage === 1}
+                          onClick={() => handlePageChange(Math.max(1, productsPagination.currentPage - 1))}
+                          disabled={productsPagination.currentPage === 1}
                           className="relative inline-flex items-center px-3 py-2 rounded-l-lg border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Previous
                         </button>
                         <button
-                          onClick={() => setCurrentPage(Math.min(productsPagination.totalPages, currentPage + 1))}
-                          disabled={currentPage === productsPagination.totalPages}
+                          onClick={() => handlePageChange(Math.min(productsPagination.totalPages, productsPagination.currentPage + 1))}
+                          disabled={productsPagination.currentPage === productsPagination.totalPages}
                           className="relative inline-flex items-center px-3 py-2 rounded-r-lg border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Next
@@ -760,11 +775,12 @@ export const Products: React.FC = () => {
                   />
                 </div>
               </div>
-              <Input
+              <CategorySelect
                 label="Category *"
                 value={newProduct.category}
-                onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                placeholder="e.g., Electronics, Food, Beverages"
+                onChange={(category: string) => setNewProduct({ ...newProduct, category })}
+                existingCategories={categories.filter(cat => cat !== 'all')}
+                placeholder="Select or add a category"
                 required
               />
               <div>
@@ -834,15 +850,14 @@ export const Products: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
               Tags
             </h3>
-            <Input
+            <TagsDropdown
               label="Tags"
               value={newProduct.tags}
-              onChange={(e) => setNewProduct({ ...newProduct, tags: e.target.value })}
-              placeholder="Enter tags separated by commas (e.g., popular, featured, new)"
+              onChange={(tags) => setNewProduct({ ...newProduct, tags })}
+              existingTags={existingTags}
+              placeholder="Add tags..."
+              maxTags={10}
             />
-            <p className="text-sm text-gray-500">
-              Separate multiple tags with commas. Tags help with product organization and search.
-            </p>
           </div>
 
           {/* Image Upload */}
@@ -963,11 +978,12 @@ export const Products: React.FC = () => {
                   />
                 </div>
               </div>
-              <Input
+              <CategorySelect
                 label="Category *"
                 value={newProduct.category}
-                onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                placeholder="e.g., Electronics, Food, Beverages"
+                onChange={(category: string) => setNewProduct({ ...newProduct, category })}
+                existingCategories={categories.filter(cat => cat !== 'all')}
+                placeholder="Select or add a category"
                 required
               />
               <div>
@@ -1037,15 +1053,14 @@ export const Products: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
               Tags
             </h3>
-            <Input
+            <TagsDropdown
               label="Tags"
               value={newProduct.tags}
-              onChange={(e) => setNewProduct({ ...newProduct, tags: e.target.value })}
-              placeholder="Enter tags separated by commas (e.g., popular, featured, new)"
+              onChange={(tags) => setNewProduct({ ...newProduct, tags })}
+              existingTags={existingTags}
+              placeholder="Add tags..."
+              maxTags={10}
             />
-            <p className="text-sm text-gray-500">
-              Separate multiple tags with commas. Tags help with product organization and search.
-            </p>
           </div>
 
           {/* Form Actions */}

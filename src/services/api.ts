@@ -244,38 +244,23 @@ class ApiService {
 
     const response = await this.request<{ success: boolean; data: { products: Product[]; total: number; page: number; pages: number } }>(`/products?${queryParams}`) as any;
     
-    // Debug logging to see the actual response structure
-    console.log('=== API DEBUG INFO ===');
-    console.log('Full API Response:', response);
-    console.log('Response type:', typeof response);
-    console.log('Response keys:', Object.keys(response || {}));
-    console.log('response.data:', response.data);
-    console.log('response.data type:', typeof response.data);
-    console.log('response.data keys:', response.data ? Object.keys(response.data) : 'response.data is null/undefined');
-    console.log('response.data.data:', response.data?.data);
-    console.log('response.data.data type:', typeof response.data?.data);
-    console.log('response.data.data keys:', response.data?.data ? Object.keys(response.data.data) : 'response.data.data is null/undefined');
-    console.log('=== END API DEBUG INFO ===');
     
-    // Try different possible response structures
+    // Handle response structure
     let data;
     if (response.data?.products) {
       // Structure: { success: true, data: { products: [...], total: 897, ... } }
       data = response.data;
-      console.log('Using response.data structure (nested data)');
     } else if (response.products) {
       // Structure: { products: [...], total: 897, ... } directly
       data = response;
-      console.log('Using direct response structure');
     } else {
-      console.error('No recognizable data structure found in API response:', response);
       throw new Error('Invalid API response structure - no products data found');
     }
     
     return {
       products: data.products || [],
       total: data.total || 0,
-      page: data.page || 1,
+      page: data.page || 1, // Back to 1-based indexing
       pages: data.pages || 1,
       limit: params?.limit || 20,
     };
