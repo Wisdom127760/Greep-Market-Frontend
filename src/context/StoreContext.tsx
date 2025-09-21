@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-// import { apiService } from '../services/api';
+import { apiService } from '../services/api';
 
 interface Store {
   _id: string;
@@ -8,6 +8,10 @@ interface Store {
   address: string;
   phone: string;
   email: string;
+  currency: string;
+  timezone: string;
+  tax_rate: number;
+  low_stock_threshold: number;
   owner_id: string;
   is_active: boolean;
   created_at: Date;
@@ -39,22 +43,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      // In a real app, you would have a stores API endpoint
-      // For now, we'll create a mock store based on the user's store_id
+      // Try to load real store settings from API
+      // This connects to the store settings form in Settings page
       if (user.store_id) {
-        const mockStore: Store = {
-          _id: user.store_id,
-          name: 'Greep Market',
-          address: '123 Market Street, Istanbul, Turkey',
-          phone: '+90 555 123 4567',
-          email: 'info@greepmarket.com',
-          owner_id: user.id,
-          is_active: true,
-          created_at: new Date(),
-          updated_at: new Date(),
-        };
-        setStores([mockStore]);
-        setCurrentStore(mockStore);
+        try {
+          const storeSettings = await apiService.getStoreSettings(user.store_id);
+          const realStore: Store = {
+            _id: user.store_id,
+            name: storeSettings.name,
+            address: storeSettings.address,
+            phone: storeSettings.phone,
+            email: storeSettings.email,
+            currency: storeSettings.currency,
+            timezone: storeSettings.timezone,
+            tax_rate: storeSettings.tax_rate,
+            low_stock_threshold: storeSettings.low_stock_threshold,
+            owner_id: user.id,
+            is_active: true,
+            created_at: new Date(),
+            updated_at: new Date(),
+          };
+          setStores([realStore]);
+          setCurrentStore(realStore);
+        } catch (apiError) {
+          console.warn('Failed to load store settings from API, using fallback:', apiError);
+          // Fallback to default store if API fails
+          const fallbackStore: Store = {
+            _id: user.store_id,
+            name: 'Greep Market',
+            address: 'Store Address - Update in Settings',
+            phone: 'Phone - Update in Settings',
+            email: 'Email - Update in Settings',
+            currency: 'TRY',
+            timezone: 'Europe/Istanbul',
+            tax_rate: 18,
+            low_stock_threshold: 10,
+            owner_id: user.id,
+            is_active: true,
+            created_at: new Date(),
+            updated_at: new Date(),
+          };
+          setStores([fallbackStore]);
+          setCurrentStore(fallbackStore);
+        }
       }
     } catch (error) {
       console.error('Failed to load stores:', error);

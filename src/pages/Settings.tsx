@@ -16,6 +16,7 @@ import { User } from '../types';
 import { UserProfileModal } from '../components/ui/UserProfileModal';
 import { UserEditModal } from '../components/ui/UserEditModal';
 import { AuditLogs } from '../components/ui/AuditLogs';
+import { GlassmorphismIcon } from '../components/ui/GlassmorphismIcon';
 import toast from 'react-hot-toast';
 
 interface NewUser {
@@ -223,7 +224,10 @@ export const Settings: React.FC = () => {
           </div>
           <div>
             <h3 className="text-xl font-semibold text-gray-900">
-              {currentUser?.first_name} {currentUser?.last_name}
+              {currentUser?.first_name && currentUser?.last_name 
+                ? `${currentUser.first_name} ${currentUser.last_name}`
+                : currentUser?.email || 'User'
+              }
             </h3>
             <p className="text-gray-600">{currentUser?.email}</p>
             <div className="flex items-center space-x-4 mt-2">
@@ -233,14 +237,14 @@ export const Settings: React.FC = () => {
                 currentUser?.role === 'owner' ? 'bg-purple-100 text-purple-800' :
                 'bg-green-100 text-green-800'
               }`}>
-                {currentUser?.role?.charAt(0).toUpperCase()}{currentUser?.role?.slice(1)}
+                {currentUser?.role ? currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1) : 'User'}
               </span>
               <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                currentUser?.is_active 
+                currentUser?.is_active !== false
                   ? 'bg-green-100 text-green-800' 
                   : 'bg-gray-100 text-gray-800'
               }`}>
-                {currentUser?.is_active ? 'Active' : 'Inactive'}
+                {currentUser?.is_active !== false ? 'Active' : 'Inactive'}
               </span>
             </div>
           </div>
@@ -252,7 +256,7 @@ export const Settings: React.FC = () => {
             <div className="space-y-2 text-sm">
               <div>
                 <span className="text-gray-500">Email:</span>
-                <span className="ml-2 text-gray-900">{currentUser?.email}</span>
+                <span className="ml-2 text-gray-900">{currentUser?.email || 'Not available'}</span>
               </div>
               <div>
                 <span className="text-gray-500">Phone:</span>
@@ -266,13 +270,13 @@ export const Settings: React.FC = () => {
               <div>
                 <span className="text-gray-500">Member since:</span>
                 <span className="ml-2 text-gray-900">
-                  {currentUser?.created_at ? new Date(currentUser.created_at).toLocaleDateString() : 'Unknown'}
+                  {currentUser?.created_at ? new Date(currentUser.created_at).toLocaleDateString() : 'Account created recently'}
                 </span>
               </div>
               <div>
                 <span className="text-gray-500">Last login:</span>
                 <span className="ml-2 text-gray-900">
-                  {currentUser?.last_login ? new Date(currentUser.last_login).toLocaleDateString() : 'Never'}
+                  {currentUser?.last_login ? new Date(currentUser.last_login).toLocaleDateString() : 'First login'}
                 </span>
               </div>
             </div>
@@ -563,7 +567,7 @@ export const Settings: React.FC = () => {
   };
 
   return (
-    <div className="p-4 space-y-6 bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
+    <div className="p-4 space-y-6 bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 min-h-screen transition-colors duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
@@ -572,8 +576,8 @@ export const Settings: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 transition-colors duration-300">
-        <div className="border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-lg shadow-lg border border-white/20 dark:border-gray-700/50 transition-all duration-300">
+        <div className="border-b border-white/20 dark:border-gray-700/50">
           <nav className="-mb-px flex space-x-8 px-6">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -581,13 +585,19 @@ export const Settings: React.FC = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-colors duration-200 ${
+                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-all duration-200 ${
                     activeTab === tab.id
-                      ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                      ? 'border-primary-500/60 text-primary-600 dark:text-primary-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300/50 dark:hover:border-gray-600/50'
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <div className={`p-1 rounded-lg transition-all duration-200 ${
+                    activeTab === tab.id
+                      ? 'bg-primary-500/20 backdrop-blur-sm border border-primary-400/30'
+                      : 'bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20'
+                  }`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
                   <span className="hidden sm:inline">{tab.label}</span>
                 </button>
               );
@@ -595,7 +605,7 @@ export const Settings: React.FC = () => {
           </nav>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm rounded-b-lg">
           {renderTabContent()}
         </div>
       </div>
