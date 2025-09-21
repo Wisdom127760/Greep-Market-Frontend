@@ -17,6 +17,7 @@ interface AppContextType extends AppState {
   updateInventory: (productId: string, quantity: number) => Promise<void>;
   refreshDashboard: () => Promise<void>;
   loadProducts: (page?: number, limit?: number) => Promise<void>;
+  loadAllProducts: () => Promise<void>;
   loadTransactions: () => Promise<void>;
   loadInventoryAlerts: () => Promise<void>;
   loading: boolean;
@@ -153,7 +154,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const response = await apiService.getProducts({ 
+      const response = await apiService.getProducts({
         store_id: user?.store_id,
         page,
         limit
@@ -172,6 +173,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Failed to load products:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load products';
+      toast.error(errorMessage);
+    }
+  }, [isAuthenticated, user]);
+
+  const loadAllProducts = useCallback(async () => {
+    if (!isAuthenticated || !user) {
+      console.log('User not authenticated, skipping all products load');
+      return;
+    }
+    try {
+      // Load all products by setting a very high limit
+      const response = await apiService.getProducts({
+        store_id: user?.store_id,
+        page: 1,
+        limit: 1000 // Set high limit to get all products
+      });
+      console.log('All products loaded successfully:', response);
+      dispatch({ type: 'SET_PRODUCTS', payload: response.products });
+      dispatch({ 
+        type: 'SET_PRODUCTS_PAGINATION', 
+        payload: {
+          currentPage: 1,
+          totalPages: 1,
+          totalProducts: response.products.length,
+          limit: response.products.length
+        }
+      });
+    } catch (error) {
+      console.error('Failed to load all products:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load all products';
       toast.error(errorMessage);
     }
   }, [isAuthenticated, user]);
@@ -442,6 +473,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateInventory,
     refreshDashboard,
     loadProducts,
+    loadAllProducts,
     loadTransactions,
     loadInventoryAlerts,
     loading: state.isLoading,

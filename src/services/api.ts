@@ -823,6 +823,53 @@ class ApiService {
     const response = await this.request<{ success: boolean; data: any }>(`/goals/${goalId}/progress`);
     return (response as any).data;
   }
+
+  // Store Settings API Methods
+  async getStoreSettings(storeId?: string): Promise<{
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    currency: string;
+    timezone: string;
+    tax_rate: number;
+    low_stock_threshold: number;
+  }> {
+    const queryParams = new URLSearchParams();
+    if (storeId) queryParams.append('store_id', storeId);
+
+    const response = await this.request<{ success: boolean; data: any }>(`/stores/settings?${queryParams}`);
+    return (response as any).data;
+  }
+
+  async updateStoreSettings(storeId: string, settings: {
+    name?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    currency?: string;
+    timezone?: string;
+    tax_rate?: number;
+    low_stock_threshold?: number;
+  }): Promise<{
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    currency: string;
+    timezone: string;
+    tax_rate: number;
+    low_stock_threshold: number;
+  }> {
+    const response = await this.request<{ success: boolean; data: any }>(`/stores/${storeId}/settings`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(settings),
+    });
+    return (response as any).data;
+  }
 }
 
 export const apiService = new ApiService();

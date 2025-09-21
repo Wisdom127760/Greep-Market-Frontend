@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CreditCard, Banknote, Smartphone, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Card } from '../components/ui/Card';
@@ -13,11 +13,19 @@ import { useAuth } from '../context/AuthContext';
 import { TransactionItem } from '../types';
 
 export const POS: React.FC = () => {
-  const { products, addTransaction, updateInventory } = useApp();
+  const { products, addTransaction, updateInventory, loadAllProducts } = useApp();
   const { user, isAuthenticated, isLoading } = useAuth();
   
   // Debug user information
   console.log('POS - User info:', { user, isAuthenticated, isLoading });
+  
+  // Load all products when POS component mounts
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      loadAllProducts();
+    }
+  }, [isAuthenticated, user, loadAllProducts]);
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [cartItems, setCartItems] = useState<TransactionItem[]>([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);

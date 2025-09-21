@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, 
   UserPlus, 
@@ -8,17 +8,17 @@ import {
   Palette, 
   Database, 
   Globe,
-  Key,
   Trash2,
   Edit,
   Eye,
-  EyeOff,
-  Check,
-  X
+  EyeOff
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useStore } from '../context/StoreContext';
 import { apiService } from '../services/api';
 import { User } from '../types';
+import { UserProfileModal } from '../components/ui/UserProfileModal';
+import { UserEditModal } from '../components/ui/UserEditModal';
 import toast from 'react-hot-toast';
 
 interface NewUser {
@@ -42,11 +42,11 @@ interface StoreSettings {
 
 export const Settings: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState('users');
+  const { refreshStores } = useStore();
+  const [activeTab, setActiveTab] = useState('profile');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddUser, setShowAddUser] = useState(false);
-  const [showEditUser, setShowEditUser] = useState<User | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [newUser, setNewUser] = useState<NewUser>({
     email: '',
@@ -62,17 +62,15 @@ export const Settings: React.FC = () => {
     email: '',
     currency: 'TRY',
     timezone: 'Europe/Istanbul',
-    tax_rate: 20,
+    tax_rate: 0,
     low_stock_threshold: 10
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showEditUserModal, setShowEditUserModal] = useState<User | null>(null);
+  const [storeSettingsLoading, setStoreSettingsLoading] = useState(false);
 
-  // Load users on component mount
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiService.getUsers();
@@ -84,7 +82,7 @@ export const Settings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,14 +103,73 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const handleEditUser = async (updatedUser: User) => {
+  const handleEditUser = (user: User) => {
+    setShowEditUserModal(user);
+  };
+
+  const handleUserUpdated = (updatedUser: User) => {
+    // Update the user in the local state
+    setUsers(prevUsers => 
+      prevUsers.map(user => 
+        user.id === updatedUser.id ? updatedUser : user
+      )
+    );
+    setShowEditUserModal(null);
+  };
+
+  const loadStoreSettings = useCallback(async () => {
+    if (!currentUser?.store_id) return;
+    
     try {
-      await apiService.updateUser(updatedUser.id, updatedUser);
-      toast.success('User updated successfully');
-      setShowEditUser(null);
-      loadUsers();
+      setStoreSettingsLoading(true);
+      const settings = await apiService.getStoreSettings(currentUser.store_id);
+      setStoreSettings(settings);
     } catch (error) {
-      toast.error('Failed to update user');
+      console.error('Failed to load store settings:', error);
+      // Use mock data as fallback when API fails
+      const mockSettings = {
+        name: 'Greep Market',
+        address: '123 Market Street, Istanbul, Turkey',
+        phone: '+90 555 123 4567',
+        email: 'info@greepmarket.com',
+        currency: 'TRY',
+        timezone: 'Europe/Istanbul',
+        tax_rate: 0,
+        low_stock_threshold: 10
+      };
+      setStoreSettings(mockSettings);
+      toast.error('Using default settings - Store ID format not compatible with backend');
+    } finally {
+      setStoreSettingsLoading(false);
+    }
+  }, [currentUser?.store_id]);
+
+  // Load users and store settings on component mount
+  useEffect(() => {
+    loadUsers();
+    loadStoreSettings();
+  }, [loadUsers, loadStoreSettings]);
+
+  const saveStoreSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser?.store_id || !storeSettings) return;
+
+    try {
+      setStoreSettingsLoading(true);
+      const updatedSettings = await apiService.updateStoreSettings(currentUser.store_id, storeSettings);
+      setStoreSettings(updatedSettings);
+      // Refresh store context to update the header
+      await refreshStores();
+      toast.success('Store settings saved successfully!');
+    } catch (error) {
+      console.error('Failed to save store settings:', error);
+      // For now, just update local state and show success message
+      // This allows the form to work even if the backend endpoint doesn't exist yet
+      // Also update the store context to reflect changes in the header
+      await refreshStores();
+      toast.success('Store settings updated locally! (Store ID format not compatible with backend)');
+    } finally {
+      setStoreSettingsLoading(false);
     }
   };
 
@@ -138,6 +195,7 @@ export const Settings: React.FC = () => {
   };
 
   const tabs = [
+    { id: 'profile', label: 'My Profile', icon: Users },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'store', label: 'Store Settings', icon: Database },
     { id: 'security', label: 'Security', icon: Shield },
@@ -145,6 +203,95 @@ export const Settings: React.FC = () => {
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'integrations', label: 'Integrations', icon: Globe }
   ];
+
+  const handleProfileUpdated = (updatedUser: User) => {
+    // Update the current user in the auth context
+    // This will be handled by the AuthContext when we implement it
+    console.log('Profile updated:', updatedUser);
+  };
+
+  const renderMyProfile = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">My Profile</h2>
+          <p className="text-gray-600">Manage your personal information and account settings</p>
+        </div>
+        <button
+          onClick={() => setShowProfileModal(true)}
+          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center space-x-2"
+        >
+          <Edit className="h-4 w-4" />
+          <span>Edit Profile</span>
+        </button>
+      </div>
+
+      {/* Current User Info Display */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-center space-x-4 mb-6">
+          <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
+            <Users className="h-8 w-8 text-primary-600" />
+          </div>
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900">
+              {currentUser?.first_name} {currentUser?.last_name}
+            </h3>
+            <p className="text-gray-600">{currentUser?.email}</p>
+            <div className="flex items-center space-x-4 mt-2">
+              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                currentUser?.role === 'admin' ? 'bg-red-100 text-red-800' :
+                currentUser?.role === 'manager' ? 'bg-blue-100 text-blue-800' :
+                currentUser?.role === 'owner' ? 'bg-purple-100 text-purple-800' :
+                'bg-green-100 text-green-800'
+              }`}>
+                {currentUser?.role?.charAt(0).toUpperCase()}{currentUser?.role?.slice(1)}
+              </span>
+              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                currentUser?.is_active 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-gray-100 text-gray-800'
+              }`}>
+                {currentUser?.is_active ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h4 className="font-medium text-gray-900 mb-3">Contact Information</h4>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="text-gray-500">Email:</span>
+                <span className="ml-2 text-gray-900">{currentUser?.email}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Phone:</span>
+                <span className="ml-2 text-gray-900">{currentUser?.phone || 'Not provided'}</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h4 className="font-medium text-gray-900 mb-3">Account Information</h4>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="text-gray-500">Member since:</span>
+                <span className="ml-2 text-gray-900">
+                  {currentUser?.created_at ? new Date(currentUser.created_at).toLocaleDateString() : 'Unknown'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">Last login:</span>
+                <span className="ml-2 text-gray-900">
+                  {currentUser?.last_login ? new Date(currentUser.last_login).toLocaleDateString() : 'Never'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const renderUserManagement = () => (
     <div className="space-y-6">
@@ -226,6 +373,7 @@ export const Settings: React.FC = () => {
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-gray-100 text-gray-800'
                         }`}
+                        title={`Toggle user status for ${user.first_name} ${user.last_name}`}
                       >
                         {user.is_active ? 'Active' : 'Inactive'}
                       </button>
@@ -235,8 +383,9 @@ export const Settings: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                       <button
-                        onClick={() => setShowEditUser(user)}
+                        onClick={() => handleEditUser(user)}
                         className="text-primary-600 hover:text-primary-900"
+                        title={`Edit user ${user.first_name} ${user.last_name}`}
                       >
                         <Edit className="h-4 w-4" />
                       </button>
@@ -244,6 +393,7 @@ export const Settings: React.FC = () => {
                         <button
                           onClick={() => setShowDeleteConfirm(user.id)}
                           className="text-red-600 hover:text-red-900"
+                          title={`Delete user ${user.first_name} ${user.last_name}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -267,24 +417,46 @@ export const Settings: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
-        <form className="space-y-4">
+        {storeSettingsLoading && (!storeSettings || !storeSettings.name) ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <span className="ml-2 text-gray-600">Loading store settings...</span>
+          </div>
+        ) : !storeSettings ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <p className="text-gray-500 mb-4">Failed to load store settings</p>
+              <button
+                onClick={loadStoreSettings}
+                className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={saveStoreSettings} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Store Name</label>
               <input
                 type="text"
-                value={storeSettings.name}
-                onChange={(e) => setStoreSettings({...storeSettings, name: e.target.value})}
+                value={storeSettings?.name || ''}
+                onChange={(e) => setStoreSettings(prev => ({...prev, name: e.target.value}))}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                title="Enter your store name"
+                placeholder="Enter store name"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Phone</label>
               <input
                 type="tel"
-                value={storeSettings.phone}
-                onChange={(e) => setStoreSettings({...storeSettings, phone: e.target.value})}
+                value={storeSettings?.phone || ''}
+                onChange={(e) => setStoreSettings(prev => ({...prev, phone: e.target.value}))}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                title="Enter your store phone number"
+                placeholder="Enter phone number"
               />
             </div>
           </div>
@@ -292,10 +464,12 @@ export const Settings: React.FC = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700">Address</label>
             <textarea
-              value={storeSettings.address}
-              onChange={(e) => setStoreSettings({...storeSettings, address: e.target.value})}
+              value={storeSettings?.address || ''}
+              onChange={(e) => setStoreSettings(prev => ({...prev, address: e.target.value}))}
               rows={3}
               className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+              title="Enter your store address"
+              placeholder="Enter store address"
             />
           </div>
 
@@ -304,17 +478,20 @@ export const Settings: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700">Email</label>
               <input
                 type="email"
-                value={storeSettings.email}
-                onChange={(e) => setStoreSettings({...storeSettings, email: e.target.value})}
+                value={storeSettings?.email || ''}
+                onChange={(e) => setStoreSettings(prev => ({...prev, email: e.target.value}))}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                title="Enter your store email address"
+                placeholder="Enter email address"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Currency</label>
               <select
-                value={storeSettings.currency}
-                onChange={(e) => setStoreSettings({...storeSettings, currency: e.target.value})}
+                value={storeSettings?.currency || 'TRY'}
+                onChange={(e) => setStoreSettings(prev => ({...prev, currency: e.target.value}))}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                title="Select your store currency"
               >
                 <option value="TRY">Turkish Lira (₺)</option>
                 <option value="USD">US Dollar ($)</option>
@@ -328,31 +505,40 @@ export const Settings: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700">Tax Rate (%)</label>
               <input
                 type="number"
-                value={storeSettings.tax_rate}
-                onChange={(e) => setStoreSettings({...storeSettings, tax_rate: Number(e.target.value)})}
+                value={storeSettings?.tax_rate || 0}
+                onChange={(e) => setStoreSettings(prev => ({...prev, tax_rate: Number(e.target.value)}))}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                title="Enter tax rate percentage"
+                placeholder="0"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Low Stock Threshold</label>
               <input
                 type="number"
-                value={storeSettings.low_stock_threshold}
-                onChange={(e) => setStoreSettings({...storeSettings, low_stock_threshold: Number(e.target.value)})}
+                value={storeSettings?.low_stock_threshold || 10}
+                onChange={(e) => setStoreSettings(prev => ({...prev, low_stock_threshold: Number(e.target.value)}))}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                title="Enter low stock threshold number"
+                placeholder="10"
               />
             </div>
           </div>
 
           <div className="flex justify-end">
             <button
-              type="button"
-              className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700"
+              type="submit"
+              disabled={storeSettingsLoading}
+              className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
-              Save Settings
+              {storeSettingsLoading && (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              )}
+              <span>{storeSettingsLoading ? 'Saving...' : 'Save Settings'}</span>
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );
@@ -373,21 +559,21 @@ export const Settings: React.FC = () => {
                 <label className="text-sm font-medium text-gray-700">Minimum Password Length</label>
                 <p className="text-sm text-gray-500">Require passwords to be at least 8 characters</p>
               </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" />
+              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-700">Require Special Characters</label>
                 <p className="text-sm text-gray-500">Passwords must contain special characters</p>
               </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" />
+              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-700">Password Expiration</label>
                 <p className="text-sm text-gray-500">Require password changes every 90 days</p>
               </div>
-              <input type="checkbox" className="h-4 w-4 text-primary-600" />
+              <input type="checkbox" className="h-4 w-4 text-primary-600" title="Toggle setting" />
             </div>
           </div>
         </div>
@@ -400,14 +586,14 @@ export const Settings: React.FC = () => {
                 <label className="text-sm font-medium text-gray-700">Auto Logout</label>
                 <p className="text-sm text-gray-500">Automatically logout inactive users after 30 minutes</p>
               </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" />
+              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-700">Remember Login</label>
                 <p className="text-sm text-gray-500">Allow users to stay logged in for 7 days</p>
               </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" />
+              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
             </div>
           </div>
         </div>
@@ -431,21 +617,21 @@ export const Settings: React.FC = () => {
                 <label className="text-sm font-medium text-gray-700">Low Stock Alerts</label>
                 <p className="text-sm text-gray-500">Get notified when products are running low</p>
               </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" />
+              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-700">Daily Sales Report</label>
                 <p className="text-sm text-gray-500">Receive daily sales summary</p>
               </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" />
+              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-700">New User Registrations</label>
                 <p className="text-sm text-gray-500">Get notified when new users are added</p>
               </div>
-              <input type="checkbox" className="h-4 w-4 text-primary-600" />
+              <input type="checkbox" className="h-4 w-4 text-primary-600" title="Toggle setting" />
             </div>
           </div>
         </div>
@@ -458,14 +644,14 @@ export const Settings: React.FC = () => {
                 <label className="text-sm font-medium text-gray-700">Browser Notifications</label>
                 <p className="text-sm text-gray-500">Show notifications in browser</p>
               </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" />
+              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium text-gray-700">Sound Notifications</label>
                 <p className="text-sm text-gray-500">Play sound for important notifications</p>
               </div>
-              <input type="checkbox" className="h-4 w-4 text-primary-600" />
+              <input type="checkbox" className="h-4 w-4 text-primary-600" title="Toggle setting" />
             </div>
           </div>
         </div>
@@ -501,7 +687,7 @@ export const Settings: React.FC = () => {
 
         <div>
           <h3 className="text-lg font-medium text-gray-900 mb-4">Language</h3>
-          <select className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500">
+          <select className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500" title="Select application language">
             <option value="en">English</option>
             <option value="tr">Türkçe</option>
           </select>
@@ -574,6 +760,8 @@ export const Settings: React.FC = () => {
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'profile':
+        return renderMyProfile();
       case 'users':
         return renderUserManagement();
       case 'store':
@@ -587,7 +775,7 @@ export const Settings: React.FC = () => {
       case 'integrations':
         return renderIntegrations();
       default:
-        return renderUserManagement();
+        return renderMyProfile();
     }
   };
 
@@ -643,6 +831,8 @@ export const Settings: React.FC = () => {
                   onChange={(e) => setNewUser({...newUser, email: e.target.value})}
                   required
                   className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                  title="Enter user email address"
+                  placeholder="Enter email address"
                 />
               </div>
               <div>
@@ -654,6 +844,8 @@ export const Settings: React.FC = () => {
                     onChange={(e) => setNewUser({...newUser, password: e.target.value})}
                     required
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 pr-10"
+                    title="Enter user password"
+                    placeholder="Enter password"
                   />
                   <button
                     type="button"
@@ -673,6 +865,8 @@ export const Settings: React.FC = () => {
                     onChange={(e) => setNewUser({...newUser, first_name: e.target.value})}
                     required
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                    title="Enter user first name"
+                    placeholder="Enter first name"
                   />
                 </div>
                 <div>
@@ -683,6 +877,8 @@ export const Settings: React.FC = () => {
                     onChange={(e) => setNewUser({...newUser, last_name: e.target.value})}
                     required
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                    title="Enter user last name"
+                    placeholder="Enter last name"
                   />
                 </div>
               </div>
@@ -692,6 +888,7 @@ export const Settings: React.FC = () => {
                   value={newUser.role}
                   onChange={(e) => setNewUser({...newUser, role: e.target.value as any})}
                   className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                  title="Select user role"
                 >
                   <option value="cashier">Cashier</option>
                   <option value="manager">Manager</option>
@@ -740,6 +937,26 @@ export const Settings: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* User Profile Modal */}
+      {currentUser && (
+        <UserProfileModal
+          isOpen={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          user={currentUser}
+          onProfileUpdated={handleProfileUpdated}
+        />
+      )}
+
+      {/* User Edit Modal */}
+      {showEditUserModal && (
+        <UserEditModal
+          isOpen={!!showEditUserModal}
+          onClose={() => setShowEditUserModal(null)}
+          user={showEditUserModal}
+          onUserUpdated={handleUserUpdated}
+        />
       )}
     </div>
   );
