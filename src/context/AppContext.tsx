@@ -189,7 +189,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         page: 1,
         limit: 1000 // Set high limit to get all products
       });
-      console.log('All products loaded successfully:', response);
+      console.log('=== LOAD ALL PRODUCTS DEBUG ===');
+      console.log('API Response:', response);
+      console.log('Products count:', response.products.length);
+      console.log('Total from API:', response.total);
+      console.log('Store ID:', user?.store_id);
+      console.log('Request params:', { store_id: user?.store_id, page: 1, limit: 1000 });
+      console.log('================================');
       dispatch({ type: 'SET_PRODUCTS', payload: response.products });
       dispatch({ 
         type: 'SET_PRODUCTS_PAGINATION', 

@@ -32,7 +32,7 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
 
   if (items.length === 0) {
     return (
-      <Card className={`text-center py-8 ${className}`}>
+      <Card className={`text-center py-8 shadow-lg border-2 border-gray-100 max-h-[calc(100vh-200px)] ${className}`}>
         <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Your cart is empty</h3>
         <p className="text-gray-500">Add some products to get started</p>
@@ -41,8 +41,8 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
   }
 
   return (
-    <Card className={className}>
-      <div className="flex items-center justify-between mb-4">
+    <Card className={`shadow-lg border-2 border-primary-100 flex flex-col max-h-[calc(100vh-200px)] ${className}`}>
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <h3 className="text-lg font-semibold text-gray-900">
           Shopping Cart ({items.length})
         </h3>
@@ -55,7 +55,7 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
         </Button>
       </div>
 
-      <div className="space-y-3 mb-6">
+      <div className="space-y-3 mb-6 flex-1 overflow-y-auto min-h-0">
         {items.map((item) => (
           <div
             key={item.product_id}
@@ -129,7 +129,7 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
         ))}
       </div>
 
-      <div className="border-t border-gray-200 pt-4">
+      <div className="border-t border-gray-200 pt-4 flex-shrink-0 bg-white">
         <div className="flex justify-between items-center mb-4">
           <span className="text-lg font-semibold text-gray-900">Total:</span>
           <span className="text-xl font-bold text-primary-600">

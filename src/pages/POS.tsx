@@ -36,14 +36,17 @@ export const POS: React.FC = () => {
 
   const filteredProducts = useMemo(() => {
     if (!products || !Array.isArray(products)) {
+      console.log('POS - No products or products not array:', products);
       return [];
     }
+    console.log('POS - Total products available:', products.length);
     if (!searchQuery.trim()) {
+      console.log('POS - Returning all products:', products.length);
       return products;
     }
     
     const searchLower = searchQuery.toLowerCase();
-    return products.filter(product => 
+    const filtered = products.filter(product => 
       product.name.toLowerCase().includes(searchLower) ||
       product.barcode?.toLowerCase().includes(searchLower) ||
       product.sku.toLowerCase().includes(searchLower) ||
@@ -51,6 +54,8 @@ export const POS: React.FC = () => {
       product.description?.toLowerCase().includes(searchLower) ||
       product.tags?.some(tag => tag.toLowerCase().includes(searchLower))
     );
+    console.log('POS - Filtered products:', filtered.length);
+    return filtered;
   }, [products, searchQuery]);
 
   const cartTotal = useMemo(() => {
@@ -401,15 +406,17 @@ export const POS: React.FC = () => {
             )}
           </div>
 
-          {/* Shopping Cart Section */}
+          {/* Shopping Cart Section - Sticky */}
           <div className="lg:col-span-1">
-            <ShoppingCartComponent
-              items={cartItems}
-              onUpdateQuantity={updateCartItemQuantity}
-              onRemoveItem={removeFromCart}
-              onClearCart={clearCart}
-              onCheckout={handleCheckout}
-            />
+            <div className="sticky top-20 bottom-20">
+              <ShoppingCartComponent
+                items={cartItems}
+                onUpdateQuantity={updateCartItemQuantity}
+                onRemoveItem={removeFromCart}
+                onClearCart={clearCart}
+                onCheckout={handleCheckout}
+              />
+            </div>
           </div>
         </div>
       </div>
