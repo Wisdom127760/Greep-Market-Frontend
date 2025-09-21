@@ -6,6 +6,7 @@ import { AppProvider } from './context/AppContext';
 import { StoreProvider } from './context/StoreContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Header } from './components/navigation/Header';
 import { MobileNavigation } from './components/navigation/MobileNavigation';
@@ -23,9 +24,10 @@ function App() {
   return (
     <ThemeProvider>
       <SettingsProvider>
-        <AuthProvider>
-          <StoreProvider>
-            <AppProvider>
+        <NotificationProvider>
+          <AuthProvider>
+            <StoreProvider>
+              <AppProvider>
             <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
             <Routes>
@@ -136,12 +138,13 @@ function App() {
             />
               </div>
             </Router>
-            </AppProvider>
-          </StoreProvider>
-        </AuthProvider>
-      </SettingsProvider>
-    </ThemeProvider>
-  );
-}
+                </AppProvider>
+              </StoreProvider>
+            </AuthProvider>
+          </NotificationProvider>
+        </SettingsProvider>
+      </ThemeProvider>
+    );
+  }
 
 export default App;

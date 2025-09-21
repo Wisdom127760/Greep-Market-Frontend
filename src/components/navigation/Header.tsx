@@ -4,16 +4,23 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { useStore } from '../../context/StoreContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { GlassmorphismIcon } from '../ui/GlassmorphismIcon';
+import { NotificationDropdown } from '../ui/NotificationDropdown';
+import { useNotificationDemo } from '../../hooks/useNotificationDemo';
 // import { Button } from '../ui/Button';
 
 export const Header: React.FC = () => {
   const { inventoryAlerts } = useApp();
   const { user, logout, isLoading } = useAuth();
   const { currentStore } = useStore();
+  const { notifications, markAsRead, markAllAsRead, clearAll, unreadCount } = useNotifications();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const alertCount = inventoryAlerts.length;
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  // Demo notifications - remove this in production
+  useNotificationDemo();
 
   const handleLogout = () => {
     logout();
@@ -43,22 +50,28 @@ export const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-4">
-          {alertCount > 0 && (
-            <div className="relative">
-              <GlassmorphismIcon
-                icon={Bell}
-                size="md"
-                variant="default"
-                onClick={() => {}}
-                className="relative"
-              />
-              {alertCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500/80 backdrop-blur-sm text-white text-xs rounded-full h-5 w-5 flex items-center justify-center border border-red-400/30 shadow-lg">
-                  {alertCount > 9 ? '9+' : alertCount}
-                </span>
-              )}
-            </div>
-          )}
+          <div className="relative">
+            <GlassmorphismIcon
+              icon={Bell}
+              size="md"
+              variant="default"
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative cursor-pointer"
+            />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500/80 backdrop-blur-sm text-white text-xs rounded-full h-5 w-5 flex items-center justify-center border border-red-400/30 shadow-lg">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+            <NotificationDropdown
+              notifications={notifications}
+              onMarkAsRead={markAsRead}
+              onMarkAllAsRead={markAllAsRead}
+              onClearAll={clearAll}
+              isOpen={showNotifications}
+              onClose={() => setShowNotifications(false)}
+            />
+          </div>
 
           {/* User Menu */}
           <div className="relative">

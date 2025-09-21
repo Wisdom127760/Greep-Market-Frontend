@@ -31,24 +31,24 @@ export const GlassmorphismIcon: React.FC<GlassmorphismIconProps> = ({
   };
 
   const variantClasses = {
-    default: 'bg-white/15 backdrop-blur-lg border border-white/25 text-gray-700 dark:text-gray-300 shadow-lg shadow-black/5',
-    active: 'bg-primary-500/15 backdrop-blur-lg border border-primary-400/30 text-primary-600 dark:text-primary-400 shadow-lg shadow-primary-500/20',
-    special: 'bg-gradient-to-br from-green-500/15 to-emerald-500/15 backdrop-blur-lg border border-green-400/30 text-green-600 dark:text-green-400 shadow-lg shadow-green-500/20',
-    subtle: 'bg-gray-100/20 backdrop-blur-md border border-gray-200/30 text-gray-600 dark:text-gray-400 shadow-md shadow-gray-500/10',
-    purple: 'bg-gradient-to-br from-purple-500/15 to-violet-500/15 backdrop-blur-lg border border-purple-400/30 text-purple-600 dark:text-purple-400 shadow-lg shadow-purple-500/20',
-    blue: 'bg-gradient-to-br from-blue-500/15 to-cyan-500/15 backdrop-blur-lg border border-blue-400/30 text-blue-600 dark:text-blue-400 shadow-lg shadow-blue-500/20',
-    green: 'bg-gradient-to-br from-green-500/15 to-teal-500/15 backdrop-blur-lg border border-green-400/30 text-green-600 dark:text-green-400 shadow-lg shadow-green-500/20',
-    orange: 'bg-gradient-to-br from-orange-500/15 to-amber-500/15 backdrop-blur-lg border border-orange-400/30 text-orange-600 dark:text-orange-400 shadow-lg shadow-orange-500/20',
-    pink: 'bg-gradient-to-br from-pink-500/15 to-rose-500/15 backdrop-blur-lg border border-pink-400/30 text-pink-600 dark:text-pink-400 shadow-lg shadow-pink-500/20',
-    red: 'bg-gradient-to-br from-red-500/15 to-pink-500/15 backdrop-blur-lg border border-red-400/30 text-red-600 dark:text-red-400 shadow-lg shadow-red-500/20',
+    default: 'bg-white/8 backdrop-blur-md border border-white/15 text-gray-600 dark:text-gray-400 shadow-sm shadow-black/3',
+    active: 'bg-primary-500/8 backdrop-blur-md border border-primary-400/20 text-primary-600 dark:text-primary-400 shadow-sm shadow-primary-500/10',
+    special: 'bg-gradient-to-br from-green-500/8 to-emerald-500/8 backdrop-blur-md border border-green-400/20 text-green-600 dark:text-green-400 shadow-sm shadow-green-500/10',
+    subtle: 'bg-gray-100/10 backdrop-blur-sm border border-gray-200/20 text-gray-500 dark:text-gray-500 shadow-sm shadow-gray-500/5',
+    purple: 'bg-gradient-to-br from-purple-500/8 to-violet-500/8 backdrop-blur-md border border-purple-400/20 text-purple-500 dark:text-purple-400 shadow-sm shadow-purple-500/10',
+    blue: 'bg-gradient-to-br from-blue-500/8 to-cyan-500/8 backdrop-blur-md border border-blue-400/20 text-blue-500 dark:text-blue-400 shadow-sm shadow-blue-500/10',
+    green: 'bg-gradient-to-br from-green-500/8 to-teal-500/8 backdrop-blur-md border border-green-400/20 text-green-500 dark:text-green-400 shadow-sm shadow-green-500/10',
+    orange: 'bg-gradient-to-br from-orange-500/8 to-amber-500/8 backdrop-blur-md border border-orange-400/20 text-orange-500 dark:text-orange-400 shadow-sm shadow-orange-500/10',
+    pink: 'bg-gradient-to-br from-pink-500/8 to-rose-500/8 backdrop-blur-md border border-pink-400/20 text-pink-500 dark:text-pink-400 shadow-sm shadow-pink-500/10',
+    red: 'bg-gradient-to-br from-red-500/8 to-pink-500/8 backdrop-blur-md border border-red-400/20 text-red-500 dark:text-red-400 shadow-sm shadow-red-500/10',
   };
 
   const baseClasses = `
     inline-flex items-center justify-center
     rounded-2xl
     transition-all duration-300 ease-in-out
-    hover:scale-110 hover:shadow-xl hover:shadow-black/10
-    active:scale-95
+    hover:scale-105 hover:shadow-md hover:shadow-black/5
+    active:scale-98
     ${containerSizes[size]}
     ${variantClasses[variant]}
     ${onClick ? 'cursor-pointer' : ''}
@@ -64,26 +64,26 @@ export const GlassmorphismIcon: React.FC<GlassmorphismIconProps> = ({
 
 // Helper function for color classes
 const getColorClasses = (color: string, isActive: boolean) => {
-  const baseClasses = 'backdrop-blur-lg shadow-lg hover:shadow-xl';
-  const activeModifier = isActive ? 'shadow-xl' : 'shadow-md';
+  const baseClasses = 'backdrop-blur-md shadow-sm hover:shadow-md';
+  const activeModifier = isActive ? 'shadow-md' : 'shadow-sm';
   
   switch (color) {
     case 'purple':
-      return `bg-gradient-to-br from-purple-500/15 to-violet-500/15 border border-purple-400/30 shadow-purple-500/20 hover:shadow-purple-500/30 ${baseClasses} ${activeModifier}`;
+      return `bg-gradient-to-br from-purple-500/8 to-violet-500/8 border border-purple-400/20 shadow-purple-500/10 hover:shadow-purple-500/15 ${baseClasses} ${activeModifier}`;
     case 'blue':
-      return `bg-gradient-to-br from-blue-500/15 to-cyan-500/15 border border-blue-400/30 shadow-blue-500/20 hover:shadow-blue-500/30 ${baseClasses} ${activeModifier}`;
+      return `bg-gradient-to-br from-blue-500/8 to-cyan-500/8 border border-blue-400/20 shadow-blue-500/10 hover:shadow-blue-500/15 ${baseClasses} ${activeModifier}`;
     case 'green':
-      return `bg-gradient-to-br from-green-500/15 to-teal-500/15 border border-green-400/30 shadow-green-500/20 hover:shadow-green-500/30 ${baseClasses} ${activeModifier}`;
+      return `bg-gradient-to-br from-green-500/8 to-teal-500/8 border border-green-400/20 shadow-green-500/10 hover:shadow-green-500/15 ${baseClasses} ${activeModifier}`;
     case 'orange':
-      return `bg-gradient-to-br from-orange-500/15 to-amber-500/15 border border-orange-400/30 shadow-orange-500/20 hover:shadow-orange-500/30 ${baseClasses} ${activeModifier}`;
+      return `bg-gradient-to-br from-orange-500/8 to-amber-500/8 border border-orange-400/20 shadow-orange-500/10 hover:shadow-orange-500/15 ${baseClasses} ${activeModifier}`;
     case 'pink':
-      return `bg-gradient-to-br from-pink-500/15 to-rose-500/15 border border-pink-400/30 shadow-pink-500/20 hover:shadow-pink-500/30 ${baseClasses} ${activeModifier}`;
+      return `bg-gradient-to-br from-pink-500/8 to-rose-500/8 border border-pink-400/20 shadow-pink-500/10 hover:shadow-pink-500/15 ${baseClasses} ${activeModifier}`;
     case 'red':
-      return `bg-gradient-to-br from-red-500/15 to-pink-500/15 border border-red-400/30 shadow-red-500/20 hover:shadow-red-500/30 ${baseClasses} ${activeModifier}`;
+      return `bg-gradient-to-br from-red-500/8 to-pink-500/8 border border-red-400/20 shadow-red-500/10 hover:shadow-red-500/15 ${baseClasses} ${activeModifier}`;
     default:
       return isActive 
-        ? 'bg-primary-500/15 border border-primary-400/30 shadow-primary-500/20 hover:shadow-primary-500/30 backdrop-blur-lg shadow-lg hover:shadow-xl'
-        : 'bg-white/10 border border-white/20 shadow-black/5 hover:bg-white/15 hover:shadow-lg hover:shadow-black/10 backdrop-blur-md shadow-md';
+        ? 'bg-primary-500/8 border border-primary-400/20 shadow-primary-500/10 hover:shadow-primary-500/15 backdrop-blur-md shadow-sm hover:shadow-md'
+        : 'bg-white/8 border border-white/15 shadow-black/3 hover:bg-white/12 hover:shadow-md hover:shadow-black/5 backdrop-blur-md shadow-sm';
   }
 };
 
@@ -91,21 +91,21 @@ const getColorClasses = (color: string, isActive: boolean) => {
 const getIconContainerClasses = (color: string, isActive: boolean) => {
   switch (color) {
     case 'purple':
-      return `bg-purple-500/20 backdrop-blur-sm border border-purple-400/40`;
+      return `bg-purple-500/10 backdrop-blur-sm border border-purple-400/20`;
     case 'blue':
-      return `bg-blue-500/20 backdrop-blur-sm border border-blue-400/40`;
+      return `bg-blue-500/10 backdrop-blur-sm border border-blue-400/20`;
     case 'green':
-      return `bg-green-500/20 backdrop-blur-sm border border-green-400/40`;
+      return `bg-green-500/10 backdrop-blur-sm border border-green-400/20`;
     case 'orange':
-      return `bg-orange-500/20 backdrop-blur-sm border border-orange-400/40`;
+      return `bg-orange-500/10 backdrop-blur-sm border border-orange-400/20`;
     case 'pink':
-      return `bg-pink-500/20 backdrop-blur-sm border border-pink-400/40`;
+      return `bg-pink-500/10 backdrop-blur-sm border border-pink-400/20`;
     case 'red':
-      return `bg-red-500/20 backdrop-blur-sm border border-red-400/40`;
+      return `bg-red-500/10 backdrop-blur-sm border border-red-400/20`;
     default:
       return isActive 
-        ? 'bg-primary-500/20 backdrop-blur-sm border border-primary-400/40'
-        : 'bg-white/15 backdrop-blur-sm border border-white/25';
+        ? 'bg-primary-500/10 backdrop-blur-sm border border-primary-400/20'
+        : 'bg-white/8 backdrop-blur-sm border border-white/15';
   }
 };
 
@@ -113,21 +113,21 @@ const getIconContainerClasses = (color: string, isActive: boolean) => {
 const getIconColorClasses = (color: string, isActive: boolean) => {
   switch (color) {
     case 'purple':
-      return 'text-purple-600 dark:text-purple-400';
+      return 'text-purple-500 dark:text-purple-400';
     case 'blue':
-      return 'text-blue-600 dark:text-blue-400';
+      return 'text-blue-500 dark:text-blue-400';
     case 'green':
-      return 'text-green-600 dark:text-green-400';
+      return 'text-green-500 dark:text-green-400';
     case 'orange':
-      return 'text-orange-600 dark:text-orange-400';
+      return 'text-orange-500 dark:text-orange-400';
     case 'pink':
-      return 'text-pink-600 dark:text-pink-400';
+      return 'text-pink-500 dark:text-pink-400';
     case 'red':
-      return 'text-red-600 dark:text-red-400';
+      return 'text-red-500 dark:text-red-400';
     default:
       return isActive 
-        ? 'text-primary-600 dark:text-primary-400'
-        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200';
+        ? 'text-primary-500 dark:text-primary-400'
+        : 'text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300';
   }
 };
 
@@ -135,21 +135,21 @@ const getIconColorClasses = (color: string, isActive: boolean) => {
 const getTextColorClasses = (color: string, isActive: boolean) => {
   switch (color) {
     case 'purple':
-      return isActive ? 'text-purple-700 dark:text-purple-300' : 'text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200';
+      return isActive ? 'text-purple-600 dark:text-purple-300' : 'text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300';
     case 'blue':
-      return isActive ? 'text-blue-700 dark:text-blue-300' : 'text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200';
+      return isActive ? 'text-blue-600 dark:text-blue-300' : 'text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300';
     case 'green':
-      return isActive ? 'text-green-700 dark:text-green-300' : 'text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200';
+      return isActive ? 'text-green-600 dark:text-green-300' : 'text-green-500 dark:text-green-400 hover:text-green-600 dark:hover:text-green-300';
     case 'orange':
-      return isActive ? 'text-orange-700 dark:text-orange-300' : 'text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200';
+      return isActive ? 'text-orange-600 dark:text-orange-300' : 'text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300';
     case 'pink':
-      return isActive ? 'text-pink-700 dark:text-pink-300' : 'text-pink-600 dark:text-pink-400 hover:text-pink-800 dark:hover:text-pink-200';
+      return isActive ? 'text-pink-600 dark:text-pink-300' : 'text-pink-500 dark:text-pink-400 hover:text-pink-600 dark:hover:text-pink-300';
     case 'red':
-      return isActive ? 'text-red-700 dark:text-red-300' : 'text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200';
+      return isActive ? 'text-red-600 dark:text-red-300' : 'text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300';
     default:
       return isActive 
-        ? 'text-primary-700 dark:text-primary-300'
-        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200';
+        ? 'text-primary-600 dark:text-primary-300'
+        : 'text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300';
   }
 };
 
@@ -170,10 +170,10 @@ export const GlassmorphismButton: React.FC<{
         flex flex-col items-center justify-center
         py-3 px-4 rounded-2xl
         transition-all duration-300 ease-in-out
-        hover:scale-105 active:scale-95
+        hover:scale-102 active:scale-98
         min-w-0 flex-1 mx-1
         ${isSpecial 
-          ? 'bg-gradient-to-br from-green-500/15 to-emerald-500/15 backdrop-blur-lg border border-green-400/30 shadow-lg shadow-green-500/20 hover:shadow-xl hover:shadow-green-500/30' 
+          ? 'bg-gradient-to-br from-green-500/8 to-emerald-500/8 backdrop-blur-md border border-green-400/20 shadow-sm shadow-green-500/10 hover:shadow-md hover:shadow-green-500/15' 
           : isActive 
             ? getColorClasses(color, true)
             : getColorClasses(color, false)
@@ -183,7 +183,7 @@ export const GlassmorphismButton: React.FC<{
     >
       <div className={`p-2 rounded-xl mb-2 transition-all duration-200 ${
         isSpecial 
-          ? 'bg-green-500/20 backdrop-blur-sm border border-green-400/40' 
+          ? 'bg-green-500/10 backdrop-blur-sm border border-green-400/20' 
           : getIconContainerClasses(color, isActive || false)
       }`}>
         <Icon className={`h-5 w-5 transition-colors duration-200 drop-shadow-sm ${
@@ -194,7 +194,7 @@ export const GlassmorphismButton: React.FC<{
       </div>
       <span className={`text-xs font-semibold leading-tight transition-colors duration-200 ${
         isSpecial 
-          ? 'text-green-700 dark:text-green-300 font-bold' 
+          ? 'text-green-600 dark:text-green-300 font-semibold' 
           : getTextColorClasses(color, isActive || false)
       }`}>
         {label}
