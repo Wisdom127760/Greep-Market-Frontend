@@ -82,7 +82,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
       const updatedUser = await apiService.updateUser(user.id, updateData);
       onProfileUpdated(updatedUser);
-      toast.success('Profile updated successfully!');
+      toast.success('Profile updated');
       onClose();
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -109,7 +109,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
     try {
       await apiService.updateUserPassword(user.id, formData.new_password);
-      toast.success('Password updated successfully!');
+      toast.success('Password updated');
       
       // Clear password fields
       setFormData(prev => ({

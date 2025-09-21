@@ -252,7 +252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         created_by: user?.id || '',
       }, images);
       dispatch({ type: 'ADD_PRODUCT', payload: newProduct });
-      toast.success('Product added successfully');
+      toast.success('Product added');
     } catch (error) {
       console.error('Failed to add product:', error);
       toast.error('Failed to add product');
@@ -264,7 +264,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const updatedProduct = await apiService.updateProduct(id, updates);
       dispatch({ type: 'UPDATE_PRODUCT', payload: { id, updates: updatedProduct } });
-      toast.success('Product updated successfully');
+      toast.success('Product updated');
     } catch (error) {
       console.error('Failed to update product:', error);
       toast.error('Failed to update product');
@@ -287,7 +287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Update the product in the state
       dispatch({ type: 'UPDATE_PRODUCT', payload: { id: productId, updates: result.product } });
       
-      toast.success('Price updated successfully');
+      toast.success('Price updated');
     } catch (error) {
       console.error('Failed to update product price:', error);
       toast.error('Failed to update product price');
@@ -392,12 +392,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Refresh products list
       await loadProducts(1, 20);
       
-      if (result.imported > 0) {
+      if (result.imported > 0 && result.errors.length === 0) {
         toast.success(`Successfully imported ${result.imported} products!`);
-      }
-      
-      if (result.errors.length > 0) {
-        toast.error(`Import completed with ${result.errors.length} errors. Check console for details.`);
+      } else if (result.imported > 0 && result.errors.length > 0) {
+        toast.error(`Import completed: ${result.imported} imported, ${result.errors.length} errors`);
+        console.error('Import errors:', result.errors);
+      } else if (result.errors.length > 0) {
+        toast.error(`Import failed: ${result.errors.length} errors`);
         console.error('Import errors:', result.errors);
       }
       
@@ -422,7 +423,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.log('Sending transaction to API:', transactionPayload);
       const newTransaction = await apiService.createTransaction(transactionPayload);
       dispatch({ type: 'ADD_TRANSACTION', payload: newTransaction });
-      toast.success('Transaction completed successfully');
+      toast.success('Transaction completed');
     } catch (error) {
       console.error('Failed to create transaction:', error);
       toast.error('Failed to create transaction');
@@ -438,7 +439,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         reason: 'Manual adjustment',
       });
       await loadProducts(); // Reload products to get updated quantities
-      toast.success('Inventory updated successfully');
+      toast.success('Inventory updated');
     } catch (error) {
       console.error('Failed to update inventory:', error);
       toast.error('Failed to update inventory');

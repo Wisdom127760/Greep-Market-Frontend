@@ -33,15 +33,13 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4 transition-colors duration-300">
       <div className="w-full max-w-md">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <ShoppingBag className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Greep Market</h1>
-          <p className="text-gray-600">Sign in to your account</p>
+          <img src="./icons/GreepMarket-Green_BG-White.svg" alt="Greep Market" className="h-12 w-12 text-white mx-auto mb-4 justify-center" />
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Greep Market</h1>
+          <p className="text-gray-600 dark:text-gray-400">Sign in to your account</p>
         </div>
 
         {/* Login Form */}

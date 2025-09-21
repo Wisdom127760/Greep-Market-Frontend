@@ -47,7 +47,33 @@ class ApiService {
     return !!(this.accessToken && this.isTokenValid(this.accessToken));
   }
 
-  private async request<T>(
+  // Public method for making raw requests (for file downloads, etc.)
+  public async rawRequest(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<Response> {
+    const url = `${API_BASE_URL}${endpoint}`;
+    
+    const config: RequestInit = {
+      headers: {
+        ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
+        ...options.headers,
+      },
+      ...options,
+    };
+
+    return fetch(url, config);
+  }
+
+  // Public method for making authenticated requests
+  public async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    return this.privateRequest<T>(endpoint, options);
+  }
+
+  private async privateRequest<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
@@ -185,7 +211,7 @@ class ApiService {
 
   // Authentication
   async login(email: string, password: string): Promise<AuthResponse> {
-    const response = await this.request<AuthResponse['data']>('/auth/login', {
+    const response = await this.privateRequest<AuthResponse['data']>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
@@ -206,7 +232,7 @@ class ApiService {
     phone?: string;
     store_id?: string;
   }): Promise<AuthResponse> {
-    const response = await this.request<AuthResponse['data']>('/auth/register', {
+    const response = await this.privateRequest<AuthResponse['data']>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
@@ -219,7 +245,7 @@ class ApiService {
   }
 
   async getCurrentUser(): Promise<User> {
-    const response = await this.request<{ success: boolean; data: { user: User } }>('/auth/me');
+    const response = await this.privateRequest<{ success: boolean; data: { user: User } }>('/auth/me');
     return (response as any).data.user;
   }
 
@@ -242,7 +268,7 @@ class ApiService {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-    const response = await this.request<{ success: boolean; data: { products: Product[]; total: number; page: number; pages: number } }>(`/products?${queryParams}`) as any;
+    const response = await this.privateRequest<{ success: boolean; data: { products: Product[]; total: number; page: number; pages: number } }>(`/products?${queryParams}`) as any;
     
     
     // Handle response structure
@@ -267,12 +293,12 @@ class ApiService {
   }
 
   async getProduct(id: string): Promise<Product> {
-    const response = await this.request<Product>(`/products/${id}`);
+    const response = await this.privateRequest<Product>(`/products/${id}`);
     return response.data;
   }
 
   async getProductByBarcode(barcode: string): Promise<Product> {
-    const response = await this.request<Product>(`/products/barcode/${barcode}`);
+    const response = await this.privateRequest<Product>(`/products/barcode/${barcode}`);
     return response.data;
   }
 
@@ -305,7 +331,7 @@ class ApiService {
         formData.append(`images`, image);
       });
       
-      const response = await this.request<Product>('/products', {
+      const response = await this.privateRequest<Product>('/products', {
         method: 'POST',
         body: formData,
       });
@@ -314,7 +340,7 @@ class ApiService {
     } else {
       console.log('Using JSON request (no images)');
       // No images, use regular JSON request
-      const response = await this.request<Product>('/products', {
+      const response = await this.privateRequest<Product>('/products', {
         method: 'POST',
         body: JSON.stringify(productData),
       });
@@ -324,7 +350,7 @@ class ApiService {
   }
 
   async updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
-    const response = await this.request<Product>(`/products/${id}`, {
+    const response = await this.privateRequest<Product>(`/products/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
@@ -339,7 +365,7 @@ class ApiService {
     console.log('Updating product price:', { id, data });
     
     // Use the standard product update endpoint
-    const response = await this.request<Product>(`/products/${id}`, {
+    const response = await this.privateRequest<Product>(`/products/${id}`, {
       method: 'PUT',
       body: JSON.stringify({
         price: data.new_price
@@ -356,7 +382,7 @@ class ApiService {
 
   async getProductPriceHistory(productId: string): Promise<PriceHistory[]> {
     try {
-      const response = await this.request<PriceHistory[]>(`/products/${productId}/price-history`);
+      const response = await this.privateRequest<PriceHistory[]>(`/products/${productId}/price-history`);
       return response.data;
     } catch (error) {
       console.warn('Price history endpoint not available, returning empty array');
@@ -366,13 +392,13 @@ class ApiService {
   }
 
   async deleteProduct(id: string): Promise<void> {
-    await this.request(`/products/${id}`, {
+    await this.privateRequest(`/products/${id}`, {
       method: 'DELETE',
     });
   }
 
   async deleteAllProducts(storeId: string): Promise<{ deletedCount: number }> {
-    const response = await this.request<{ success: boolean; data: { deletedCount: number } }>(`/products/bulk/all?store_id=${storeId}`, {
+    const response = await this.privateRequest<{ success: boolean; data: { deletedCount: number } }>(`/products/bulk/all?store_id=${storeId}`, {
       method: 'DELETE',
     });
     
@@ -415,7 +441,7 @@ class ApiService {
     formData.append('file', file);
     formData.append('store_id', storeId);
 
-    const response = await this.request<{ success: boolean; data: { imported: number; errors: string[] } }>('/products/import', {
+    const response = await this.privateRequest<{ success: boolean; data: { imported: number; errors: string[] } }>('/products/import', {
       method: 'POST',
       body: formData,
     });
@@ -444,7 +470,7 @@ class ApiService {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-    const response = await this.request<Product[]>(`/inventory?${queryParams}`);
+    const response = await this.privateRequest<Product[]>(`/inventory?${queryParams}`);
     return response.data;
   }
 
@@ -452,7 +478,7 @@ class ApiService {
     const queryParams = new URLSearchParams();
     if (store_id) queryParams.append('store_id', store_id);
 
-    const response = await this.request<InventoryAlert[]>(`/inventory/low-stock?${queryParams}`);
+    const response = await this.privateRequest<InventoryAlert[]>(`/inventory/low-stock?${queryParams}`);
     return response.data;
   }
 
@@ -465,7 +491,7 @@ class ApiService {
       notes?: string;
     }
   ): Promise<void> {
-    await this.request(`/inventory/${productId}/adjust`, {
+    await this.privateRequest(`/inventory/${productId}/adjust`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -488,7 +514,7 @@ class ApiService {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-    const response = await this.request<Transaction[]>(`/transactions?${queryParams}`);
+    const response = await this.privateRequest<Transaction[]>(`/transactions?${queryParams}`);
     return {
       transactions: response.data,
       total: response.data.length,
@@ -511,7 +537,7 @@ class ApiService {
     notes?: string;
     cashier_id: string;
   }): Promise<Transaction> {
-    const response = await this.request<Transaction>('/transactions', {
+    const response = await this.privateRequest<Transaction>('/transactions', {
       method: 'POST',
       body: JSON.stringify(transactionData),
     });
@@ -519,7 +545,7 @@ class ApiService {
   }
 
   async completeTransaction(transactionId: string): Promise<Transaction> {
-    const response = await this.request<Transaction>(`/transactions/${transactionId}/complete`, {
+    const response = await this.privateRequest<Transaction>(`/transactions/${transactionId}/complete`, {
       method: 'POST',
     });
     return response.data;
@@ -531,7 +557,7 @@ class ApiService {
     if (store_id) queryParams.append('store_id', store_id);
     if (period) queryParams.append('period', period);
 
-    const response = await this.request<DashboardMetrics>(`/analytics/dashboard?${queryParams}`);
+    const response = await this.privateRequest<DashboardMetrics>(`/analytics/dashboard?${queryParams}`);
     return response.data;
   }
 
@@ -545,16 +571,18 @@ class ApiService {
     if (params?.start_date) queryParams.append('start_date', params.start_date);
     if (params?.end_date) queryParams.append('end_date', params.end_date);
 
-    const response = await this.request(`/analytics/sales?${queryParams}`);
+    const response = await this.privateRequest(`/analytics/sales?${queryParams}`);
     return response.data;
   }
 
-  async getProductPerformance(store_id?: string, period?: string): Promise<any> {
+  async getProductPerformance(store_id?: string, period?: string, startDate?: Date, endDate?: Date): Promise<any> {
     const queryParams = new URLSearchParams();
     if (store_id) queryParams.append('store_id', store_id);
     if (period) queryParams.append('period', period);
+    if (startDate) queryParams.append('start_date', startDate.toISOString().split('T')[0]);
+    if (endDate) queryParams.append('end_date', endDate.toISOString().split('T')[0]);
 
-    const response = await this.request(`/analytics/products?${queryParams}`);
+    const response = await this.privateRequest(`/analytics/products?${queryParams}`);
     return response.data;
   }
 
@@ -562,7 +590,7 @@ class ApiService {
     const queryParams = new URLSearchParams();
     if (store_id) queryParams.append('store_id', store_id);
 
-    const response = await this.request(`/analytics/inventory?${queryParams}`);
+    const response = await this.privateRequest(`/analytics/inventory?${queryParams}`);
     return response.data;
   }
 
@@ -581,12 +609,12 @@ class ApiService {
     if (params?.role) queryParams.append('role', params.role);
     if (params?.store_id) queryParams.append('store_id', params.store_id);
 
-    const response = await this.request<{ success: boolean; data: { users: User[]; total: number; page: number; pages: number } }>(`/users?${queryParams}`);
+    const response = await this.privateRequest<{ success: boolean; data: { users: User[]; total: number; page: number; pages: number } }>(`/users?${queryParams}`);
     return (response as any).data;
   }
 
   async getUserById(userId: string): Promise<User> {
-    const response = await this.request<{ success: boolean; data: User }>(`/users/${userId}`);
+    const response = await this.privateRequest<{ success: boolean; data: User }>(`/users/${userId}`);
     return (response as any).data;
   }
 
@@ -599,7 +627,7 @@ class ApiService {
     phone?: string;
     store_id?: string;
   }): Promise<User> {
-    const response = await this.request<{ success: boolean; data: User }>('/users', {
+    const response = await this.privateRequest<{ success: boolean; data: User }>('/users', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
@@ -615,7 +643,7 @@ class ApiService {
     is_active?: boolean;
     store_id?: string;
   }): Promise<User> {
-    const response = await this.request<{ success: boolean; data: User }>(`/users/${userId}`, {
+    const response = await this.privateRequest<{ success: boolean; data: User }>(`/users/${userId}`, {
       method: 'PUT',
       body: JSON.stringify(userData),
     });
@@ -623,27 +651,27 @@ class ApiService {
   }
 
   async updateUserPassword(userId: string, password: string): Promise<void> {
-    await this.request(`/users/${userId}/password`, {
+    await this.privateRequest(`/users/${userId}/password`, {
       method: 'PUT',
       body: JSON.stringify({ password }),
     });
   }
 
   async deleteUser(userId: string): Promise<void> {
-    await this.request(`/users/${userId}`, {
+    await this.privateRequest(`/users/${userId}`, {
       method: 'DELETE',
     });
   }
 
   async toggleUserStatus(userId: string): Promise<User> {
-    const response = await this.request<{ success: boolean; data: User }>(`/users/${userId}/toggle-status`, {
+    const response = await this.privateRequest<{ success: boolean; data: User }>(`/users/${userId}/toggle-status`, {
       method: 'PATCH',
     });
     return (response as any).data;
   }
 
   async getUsersByRole(role: string): Promise<User[]> {
-    const response = await this.request<{ success: boolean; data: User[] }>(`/users/role/${role}`);
+    const response = await this.privateRequest<{ success: boolean; data: User[] }>(`/users/role/${role}`);
     return (response as any).data;
   }
 
@@ -668,7 +696,7 @@ class ApiService {
     if (params?.end_date) queryParams.append('end_date', params.end_date);
     if (params?.search) queryParams.append('search', params.search);
 
-    const response = await this.request<{ success: boolean; data: any[]; pagination: any }>(`/expenses?${queryParams}`);
+    const response = await this.privateRequest<{ success: boolean; data: any[]; pagination: any }>(`/expenses?${queryParams}`);
     return {
       expenses: (response as any).data || [],
       total: (response as any).pagination?.total || 0,
@@ -678,7 +706,7 @@ class ApiService {
   }
 
   async getExpenseById(expenseId: string): Promise<any> {
-    const response = await this.request<{ success: boolean; data: any }>(`/expenses/${expenseId}`);
+    const response = await this.privateRequest<{ success: boolean; data: any }>(`/expenses/${expenseId}`);
     return (response as any).data;
   }
 
@@ -696,7 +724,7 @@ class ApiService {
     receipt_number?: string;
     vendor_name?: string;
   }): Promise<any> {
-    const response = await this.request<{ success: boolean; data: any }>('/expenses', {
+    const response = await this.privateRequest<{ success: boolean; data: any }>('/expenses', {
       method: 'POST',
       body: JSON.stringify(expenseData),
     });
@@ -716,7 +744,7 @@ class ApiService {
     receipt_number?: string;
     vendor_name?: string;
   }): Promise<any> {
-    const response = await this.request<{ success: boolean; data: any }>(`/expenses/${expenseId}`, {
+    const response = await this.privateRequest<{ success: boolean; data: any }>(`/expenses/${expenseId}`, {
       method: 'PUT',
       body: JSON.stringify(expenseData),
     });
@@ -724,7 +752,7 @@ class ApiService {
   }
 
   async deleteExpense(expenseId: string): Promise<void> {
-    await this.request(`/expenses/${expenseId}`, {
+    await this.privateRequest(`/expenses/${expenseId}`, {
       method: 'DELETE',
     });
   }
@@ -739,7 +767,7 @@ class ApiService {
     if (params?.start_date) queryParams.append('start_date', params.start_date);
     if (params?.end_date) queryParams.append('end_date', params.end_date);
 
-    const response = await this.request<{ success: boolean; data: any }>(`/expenses/stats?${queryParams}`);
+    const response = await this.privateRequest<{ success: boolean; data: any }>(`/expenses/stats?${queryParams}`);
     return (response as any).data;
   }
 
@@ -747,18 +775,18 @@ class ApiService {
     const queryParams = new URLSearchParams();
     if (storeId) queryParams.append('store_id', storeId);
 
-    const response = await this.request<{ success: boolean; data: any[] }>(`/expenses/monthly/${year}?${queryParams}`);
+    const response = await this.privateRequest<{ success: boolean; data: any[] }>(`/expenses/monthly/${year}?${queryParams}`);
     return (response as any).data || [];
   }
 
   // Goal Management Methods (Legacy - kept for compatibility)
   async getGoalsWithProgress(): Promise<any[]> {
-    const response = await this.request<{ success: boolean; data: any[] }>('/goals/progress');
+    const response = await this.privateRequest<{ success: boolean; data: any[] }>('/goals/progress');
     return (response as any).data || [];
   }
 
   async getGoalAnalytics(): Promise<any> {
-    const response = await this.request<{ success: boolean; data: any }>('/goals/analytics');
+    const response = await this.privateRequest<{ success: boolean; data: any }>('/goals/analytics');
     return (response as any).data || {};
   }
 
@@ -773,7 +801,7 @@ class ApiService {
     if (params?.is_active !== undefined) queryParams.append('is_active', params.is_active.toString());
     if (params?.store_id) queryParams.append('store_id', params.store_id);
 
-    const response = await this.request<{ success: boolean; data: any[] }>(`/goals?${queryParams}`);
+    const response = await this.privateRequest<{ success: boolean; data: any[] }>(`/goals?${queryParams}`);
     return (response as any).data || [];
   }
 
@@ -785,7 +813,7 @@ class ApiService {
     period_end: string;
     store_id?: string;
   }): Promise<any> {
-    const response = await this.request<{ success: boolean; data: any }>('/goals', {
+    const response = await this.privateRequest<{ success: boolean; data: any }>('/goals', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -802,7 +830,7 @@ class ApiService {
     period_end?: string;
     is_active?: boolean;
   }): Promise<any> {
-    const response = await this.request<{ success: boolean; data: any }>(`/goals/${goalId}`, {
+    const response = await this.privateRequest<{ success: boolean; data: any }>(`/goals/${goalId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -813,14 +841,14 @@ class ApiService {
   }
 
   async deleteGoal(goalId: string): Promise<boolean> {
-    const response = await this.request<{ success: boolean }>(`/goals/${goalId}`, {
+    const response = await this.privateRequest<{ success: boolean }>(`/goals/${goalId}`, {
       method: 'DELETE',
     });
     return response.success;
   }
 
   async getGoalProgress(goalId: string): Promise<any> {
-    const response = await this.request<{ success: boolean; data: any }>(`/goals/${goalId}/progress`);
+    const response = await this.privateRequest<{ success: boolean; data: any }>(`/goals/${goalId}/progress`);
     return (response as any).data;
   }
 
@@ -838,7 +866,40 @@ class ApiService {
     const queryParams = new URLSearchParams();
     if (storeId) queryParams.append('store_id', storeId);
 
-    const response = await this.request<{ success: boolean; data: any }>(`/stores/settings?${queryParams}`);
+    const response = await this.privateRequest<{ success: boolean; data: any }>(`/stores/settings?${queryParams}`);
+    return (response as any).data;
+  }
+
+  // Audit Logs API Methods
+  async getAuditLogs(queryParams?: string): Promise<{
+    logs: any[];
+    total: number;
+    page: number;
+    pages: number;
+    limit: number;
+  }> {
+    const response = await this.privateRequest<{ success: boolean; data: any }>(`/audit/logs${queryParams ? `?${queryParams}` : ''}`);
+    return (response as any).data;
+  }
+
+  async getResourceAuditTrail(resourceType: string, resourceId: string): Promise<any[]> {
+    const response = await this.privateRequest<{ success: boolean; data: any[] }>(`/audit/resource/${resourceType}/${resourceId}`);
+    return (response as any).data;
+  }
+
+  async getUserActivity(userId?: string): Promise<any[]> {
+    const endpoint = userId ? `/audit/user/${userId}` : '/audit/my-activity';
+    const response = await this.privateRequest<{ success: boolean; data: any[] }>(endpoint);
+    return (response as any).data;
+  }
+
+  async getAuditStats(): Promise<{
+    totalLogs: number;
+    logsByAction: { [key: string]: number };
+    logsByResourceType: { [key: string]: number };
+    recentActivity: any[];
+  }> {
+    const response = await this.privateRequest<{ success: boolean; data: any }>('/audit/stats');
     return (response as any).data;
   }
 
@@ -861,7 +922,76 @@ class ApiService {
     tax_rate: number;
     low_stock_threshold: number;
   }> {
-    const response = await this.request<{ success: boolean; data: any }>(`/stores/${storeId}/settings`, {
+    const response = await this.privateRequest<{ success: boolean; data: any }>(`/stores/${storeId}/settings`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(settings),
+    });
+    return (response as any).data;
+  }
+
+  // Settings API methods
+  async getNotificationSettings(): Promise<{
+    lowStockAlerts: boolean;
+    dailySalesReport: boolean;
+    newUserRegistrations: boolean;
+    browserNotifications: boolean;
+    soundNotifications: boolean;
+  }> {
+    const response = await this.privateRequest<{ success: boolean; data: any }>('/settings/notifications');
+    return (response as any).data;
+  }
+
+  async updateNotificationSettings(settings: {
+    lowStockAlerts?: boolean;
+    dailySalesReport?: boolean;
+    newUserRegistrations?: boolean;
+    browserNotifications?: boolean;
+    soundNotifications?: boolean;
+  }): Promise<{
+    lowStockAlerts: boolean;
+    dailySalesReport: boolean;
+    newUserRegistrations: boolean;
+    browserNotifications: boolean;
+    soundNotifications: boolean;
+  }> {
+    const response = await this.privateRequest<{ success: boolean; data: any }>('/settings/notifications', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(settings),
+    });
+    return (response as any).data;
+  }
+
+  async getSecuritySettings(): Promise<{
+    minPasswordLength: boolean;
+    requireSpecialChars: boolean;
+    passwordExpiration: boolean;
+    autoLogout: boolean;
+    rememberLogin: boolean;
+  }> {
+    const response = await this.privateRequest<{ success: boolean; data: any }>('/settings/security');
+    return (response as any).data;
+  }
+
+  async updateSecuritySettings(settings: {
+    minPasswordLength?: boolean;
+    requireSpecialChars?: boolean;
+    passwordExpiration?: boolean;
+    autoLogout?: boolean;
+    rememberLogin?: boolean;
+  }): Promise<{
+    minPasswordLength: boolean;
+    requireSpecialChars: boolean;
+    passwordExpiration: boolean;
+    autoLogout: boolean;
+    rememberLogin: boolean;
+  }> {
+    const response = await this.privateRequest<{ success: boolean; data: any }>('/settings/security', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

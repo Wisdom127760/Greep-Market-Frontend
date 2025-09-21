@@ -14,6 +14,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { PerformanceDashboard } from '../components/ui/PerformanceDashboard';
+import { ReportPeriodFilter } from '../components/ui/ReportPeriodFilter';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
@@ -36,7 +37,9 @@ import {
 export const Reports: React.FC = () => {
   const { products, dashboardMetrics, sales, loading } = useApp();
   const { user } = useAuth();
-  const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('30d');
+  const [periodStartDate, setPeriodStartDate] = useState<Date | undefined>();
+  const [periodEndDate, setPeriodEndDate] = useState<Date | undefined>();
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedReport, setSelectedReport] = useState<'sales' | 'inventory' | 'products' | 'performance'>('performance');
@@ -46,10 +49,20 @@ export const Reports: React.FC = () => {
       if (user?.store_id) {
         setIsLoading(true);
         try {
+          // Prepare analytics parameters with date range
+          const analyticsParams: any = { store_id: user.store_id };
+          
+          if (periodStartDate && periodEndDate) {
+            analyticsParams.start_date = periodStartDate.toISOString().split('T')[0];
+            analyticsParams.end_date = periodEndDate.toISOString().split('T')[0];
+          } else {
+            analyticsParams.period = selectedPeriod;
+          }
+
           // Load analytics data from backend
           const [salesAnalytics, productPerformance, inventoryAnalytics] = await Promise.all([
-            apiService.getSalesAnalytics({ store_id: user.store_id }),
-            apiService.getProductPerformance(user.store_id, selectedPeriod),
+            apiService.getSalesAnalytics(analyticsParams),
+            apiService.getProductPerformance(user.store_id, selectedPeriod, periodStartDate, periodEndDate),
             apiService.getInventoryAnalytics(user.store_id)
           ]);
           setAnalyticsData({ salesAnalytics, productPerformance, inventoryAnalytics });
@@ -62,7 +75,13 @@ export const Reports: React.FC = () => {
     };
 
     loadAnalytics();
-  }, [user?.store_id, selectedPeriod]);
+  }, [user?.store_id, selectedPeriod, periodStartDate, periodEndDate]);
+
+  const handlePeriodChange = (period: string, startDate?: Date, endDate?: Date) => {
+    setSelectedPeriod(period);
+    setPeriodStartDate(startDate);
+    setPeriodEndDate(endDate);
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('tr-TR', {
@@ -216,12 +235,6 @@ export const Reports: React.FC = () => {
     { id: 'products', label: 'Product Performance', icon: BarChart3 },
   ];
 
-  const periodOptions = [
-    { value: '7d', label: 'Last 7 Days' },
-    { value: '30d', label: 'Last 30 Days' },
-    { value: '90d', label: 'Last 90 Days' },
-    { value: '1y', label: 'Last Year' },
-  ];
 
   if (loading || isLoading) {
     return (
@@ -323,29 +336,10 @@ export const Reports: React.FC = () => {
         </div>
 
         {/* Enhanced Period Filter */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="flex items-center space-x-3">
-              <Calendar className="h-5 w-5 text-gray-400" />
-              <span className="text-lg font-semibold text-gray-700">Report Period:</span>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {periodOptions.map(option => (
-                <button
-                  key={option.value}
-                  onClick={() => setSelectedPeriod(option.value as any)}
-                  className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                    selectedPeriod === option.value
-                      ? 'bg-primary-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-sm'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <ReportPeriodFilter
+          selectedPeriod={selectedPeriod}
+          onPeriodChange={handlePeriodChange}
+        />
 
       {/* Performance Dashboard */}
       {selectedReport === 'performance' && (

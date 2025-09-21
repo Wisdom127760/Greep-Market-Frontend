@@ -1,0 +1,6 @@
+Timestamp,User Email,User Role,Action,Resource Type,Resource Name,Resource ID,IP Address,User Agent,Changes
+"2025-09-21T17:15:20.454Z","test@example.com","cashier","LOGIN","USER","test@example.com","68cc5906a6ad640e67590554","::1","curl/8.7.1","[]"
+"2025-09-21T16:59:55.115Z","test@example.com","cashier","LOGIN","USER","test@example.com","68cc5906a6ad640e67590554","::1","curl/8.7.1","[]"
+"2025-09-21T16:42:55.646Z","test@example.com","cashier","LOGIN","USER","test@example.com","68cc5906a6ad640e67590554","::1","curl/8.7.1","[]"
+"2025-09-21T16:42:45.663Z","test@example.com","cashier","LOGIN","USER","test@example.com","68cc5906a6ad640e67590554","::1","curl/8.7.1","[]"
+"2025-09-21T16:42:28.325Z","test@example.com","cashier","LOGIN","USER","test@example.com","68cc5906a6ad640e67590554","::1","curl/8.7.1","[]"

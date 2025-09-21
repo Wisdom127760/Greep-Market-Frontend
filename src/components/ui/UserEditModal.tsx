@@ -86,7 +86,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
 
       const updatedUser = await apiService.updateUser(user.id, updateData);
       onUserUpdated(updatedUser);
-      toast.success('User updated successfully!');
+      toast.success('User updated');
       onClose();
     } catch (error) {
       console.error('Failed to update user:', error);
@@ -113,7 +113,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
 
     try {
       await apiService.updateUserPassword(user.id, formData.new_password);
-      toast.success('Password updated successfully!');
+      toast.success('Password updated');
       
       // Clear password fields
       setFormData(prev => ({

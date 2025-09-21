@@ -137,19 +137,19 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
         console.log('No meaningful data found, providing sample data for demonstration');
         // Provide sample data for demonstration when no real data exists
         const sampleData: PerformanceData = {
-          daily: {
-            today: 1250,
-            yesterday: 980,
-            thisWeek: 8750,
-            lastWeek: 7200
-          },
-          monthly: {
-            thisMonth: 35200,
-            lastMonth: 28900,
-            thisYear: 185400,
-            lastYear: 142300
-          },
-          trends: {
+        daily: {
+          today: 1250,
+          yesterday: 980,
+          thisWeek: 8750,
+          lastWeek: 7200
+        },
+        monthly: {
+          thisMonth: 35200,
+          lastMonth: 28900,
+          thisYear: 185400,
+          lastYear: 142300
+        },
+        trends: {
             dailyData: [
               { date: 'Mon', sales: 1200, transactions: 8 },
               { date: 'Tue', sales: 1500, transactions: 10 },
@@ -167,22 +167,22 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
               { month: 'May', sales: 38000, transactions: 240 },
               { month: 'Jun', sales: 35200, transactions: 210 }
             ]
-          },
-          goals: {
+        },
+        goals: {
             daily: 1500,
             monthly: 35000,
-            achieved: true,
-            streak: 5
-          },
-          achievements: [
-            {
+          achieved: true,
+          streak: 5
+        },
+        achievements: [
+          {
               id: 'daily-achieved',
               title: 'Daily Goal Achieved',
               description: 'Congratulations! You reached your daily sales goal.',
-              achieved: true,
-              icon: '🎯'
-            },
-            {
+            achieved: true,
+            icon: '🎯'
+          },
+          {
               id: 'monthly-achieved',
               title: 'Monthly Goal Achieved',
               description: 'Outstanding! You exceeded your monthly target.',
@@ -335,80 +335,80 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
   const dailyGrowth = calculateGrowth(daily.today, daily.yesterday);
   const monthlyGrowth = calculateGrowth(monthly.thisMonth, monthly.lastMonth);
 
-          return (
-            <div className="space-y-6">
-              {/* Key Metrics */}
+  return (
+    <div className="space-y-6">
+      {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="h-6 w-6 text-green-600" />
-            </div>
-            <div className={`flex items-center space-x-1 ${getGrowthColor(dailyGrowth)}`}>
-              {getGrowthIcon(dailyGrowth)}
-              <span className="text-sm font-medium">{dailyGrowth > 0 ? '+' : ''}{dailyGrowth.toFixed(1)}%</span>
-            </div>
-          </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Today's Sales</h3>
-          <p className="text-2xl font-bold text-gray-900">₺{daily.today.toLocaleString()}</p>
-          <p className="text-xs text-gray-500 mt-1">vs ₺{daily.yesterday.toLocaleString()} yesterday</p>
-        </Card>
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                </div>
+                <div className={`flex items-center space-x-1 ${getGrowthColor(dailyGrowth)}`}>
+                  {getGrowthIcon(dailyGrowth)}
+                  <span className="text-sm font-medium">{dailyGrowth > 0 ? '+' : ''}{dailyGrowth.toFixed(1)}%</span>
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-600 mb-1">Today's Sales</h3>
+              <p className="text-2xl font-bold text-gray-900">₺{daily.today.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-1">vs ₺{daily.yesterday.toLocaleString()} yesterday</p>
+            </Card>
 
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2 bg-blue-100 rounded-lg">
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 bg-blue-100 rounded-lg">
               <Calendar className="h-6 w-6 text-blue-600" />
-            </div>
+                </div>
             <div className={`flex items-center space-x-1 ${getGrowthColor(monthlyGrowth)}`}>
               {getGrowthIcon(monthlyGrowth)}
               <span className="text-sm font-medium">{monthlyGrowth > 0 ? '+' : ''}{monthlyGrowth.toFixed(1)}%</span>
-            </div>
-          </div>
+                </div>
+              </div>
           <h3 className="text-sm font-medium text-gray-600 mb-1">This Month</h3>
           <p className="text-2xl font-bold text-gray-900">₺{monthly.thisMonth.toLocaleString()}</p>
           <p className="text-xs text-gray-500 mt-1">vs ₺{monthly.lastMonth.toLocaleString()} last month</p>
-        </Card>
+            </Card>
 
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Target className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="flex items-center space-x-1">
-              <span className={`text-sm font-medium ${daily.today >= goals.daily ? 'text-green-600' : 'text-orange-600'}`}>
-                {Math.round((daily.today / goals.daily) * 100)}%
-              </span>
-            </div>
-          </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Daily Goal</h3>
-          <p className="text-2xl font-bold text-gray-900">₺{goals.daily.toLocaleString()}</p>
-          <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-            <div 
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Target className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span className={`text-sm font-medium ${daily.today >= goals.daily ? 'text-green-600' : 'text-orange-600'}`}>
+                    {Math.round((daily.today / goals.daily) * 100)}%
+                  </span>
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-600 mb-1">Daily Goal</h3>
+              <p className="text-2xl font-bold text-gray-900">₺{goals.daily.toLocaleString()}</p>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                <div 
               className={`h-2 rounded-full transition-all duration-300 ${
                 daily.today >= goals.daily ? 'bg-green-500' : 'bg-orange-500'
               }`}
-              style={{ width: `${Math.min((daily.today / goals.daily) * 100, 100)}%` }}
-            ></div>
-          </div>
+                  style={{ width: `${Math.min((daily.today / goals.daily) * 100, 100)}%` }}
+                ></div>
+              </div>
           <p className="text-xs text-gray-500 mt-1">
             {Math.round((daily.today / goals.daily) * 100)}% complete
           </p>
-        </Card>
+            </Card>
 
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Award className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div className="flex items-center space-x-1 text-green-600">
-              <Trophy className="h-4 w-4" />
-              <span className="text-sm font-medium">{achievements.filter(a => a.achieved).length}</span>
-            </div>
-          </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Achievements</h3>
-          <p className="text-2xl font-bold text-gray-900">{achievements.filter(a => a.achieved).length}/{achievements.length}</p>
-          <p className="text-xs text-gray-500 mt-1">goals unlocked</p>
-        </Card>
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <Award className="h-6 w-6 text-yellow-600" />
+                </div>
+                <div className="flex items-center space-x-1 text-green-600">
+                  <Trophy className="h-4 w-4" />
+                  <span className="text-sm font-medium">{achievements.filter(a => a.achieved).length}</span>
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-600 mb-1">Achievements</h3>
+              <p className="text-2xl font-bold text-gray-900">{achievements.filter(a => a.achieved).length}/{achievements.length}</p>
+              <p className="text-xs text-gray-500 mt-1">goals unlocked</p>
+            </Card>
       </div>
 
       {/* Charts */}
@@ -418,24 +418,24 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
             Sales Performance Trend
           </h3>
           {trends.monthlyData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={300}>
               <LineChart data={trends.monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" />
+              <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip 
-                  formatter={(value: number) => [`₺${value.toLocaleString()}`, 'Sales']}
-                  labelStyle={{ color: '#374151' }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="sales" 
-                  stroke="#10B981" 
-                  strokeWidth={3}
-                  dot={{ fill: '#10B981', strokeWidth: 2, r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+              <YAxis />
+              <Tooltip 
+                formatter={(value: number) => [`₺${value.toLocaleString()}`, 'Sales']}
+                labelStyle={{ color: '#374151' }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="sales" 
+                stroke="#10B981" 
+                strokeWidth={3}
+                dot={{ fill: '#10B981', strokeWidth: 2, r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-500">
               <div className="text-center">
@@ -449,35 +449,35 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
         <Card className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Achievements</h3>
           {achievements.length > 0 ? (
-            <div className="space-y-4">
-              {achievements.map((achievement) => (
-                <div 
-                  key={achievement.id}
-                  className={`flex items-center space-x-3 p-3 rounded-lg ${
-                    achievement.achieved 
-                      ? 'bg-green-50 border border-green-200' 
-                      : 'bg-gray-50 border border-gray-200'
-                  }`}
-                >
-                  <div className={`text-2xl ${achievement.achieved ? '' : 'grayscale opacity-50'}`}>
-                    {achievement.icon}
-                  </div>
-                  <div className="flex-1">
-                    <h4 className={`font-medium ${achievement.achieved ? 'text-green-900' : 'text-gray-700'}`}>
-                      {achievement.title}
-                    </h4>
-                    <p className={`text-sm ${achievement.achieved ? 'text-green-700' : 'text-gray-500'}`}>
-                      {achievement.description}
-                    </p>
-                  </div>
-                  {achievement.achieved && (
-                    <div className="text-green-600">
-                      <Trophy className="h-5 w-5" />
-                    </div>
-                  )}
+          <div className="space-y-4">
+            {achievements.map((achievement) => (
+              <div 
+                key={achievement.id}
+                className={`flex items-center space-x-3 p-3 rounded-lg ${
+                  achievement.achieved 
+                    ? 'bg-green-50 border border-green-200' 
+                    : 'bg-gray-50 border border-gray-200'
+                }`}
+              >
+                <div className={`text-2xl ${achievement.achieved ? '' : 'grayscale opacity-50'}`}>
+                  {achievement.icon}
                 </div>
-              ))}
-            </div>
+                <div className="flex-1">
+                  <h4 className={`font-medium ${achievement.achieved ? 'text-green-900' : 'text-gray-700'}`}>
+                    {achievement.title}
+                  </h4>
+                  <p className={`text-sm ${achievement.achieved ? 'text-green-700' : 'text-gray-500'}`}>
+                    {achievement.description}
+                  </p>
+                </div>
+                {achievement.achieved && (
+                  <div className="text-green-600">
+                    <Trophy className="h-5 w-5" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-500">
               <div className="text-center">

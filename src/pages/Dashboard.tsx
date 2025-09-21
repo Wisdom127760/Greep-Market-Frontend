@@ -150,16 +150,16 @@ export const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4 pb-24">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 pb-24 transition-colors duration-300">
         <div className="max-w-7xl mx-auto space-y-6">
-          <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 transition-colors duration-300">
             <div className="text-center">
-              <h1 className="text-2xl font-semibold text-gray-800 mb-1">Dashboard</h1>
-              <p className="text-base text-gray-500">Welcome to Greep Market Management System</p>
+              <h1 className="text-2xl font-semibold text-gray-800 dark:text-white mb-1">Dashboard</h1>
+              <p className="text-base text-gray-500 dark:text-gray-400">Welcome to Greep Market Management System</p>
             </div>
             <div className="flex items-center justify-center py-8">
               <LoadingSpinner size="lg" className="mr-3" />
-              <span className="text-gray-500">Loading dashboard data...</span>
+              <span className="text-gray-500 dark:text-gray-400">Loading dashboard data...</span>
             </div>
           </div>
         </div>
@@ -171,10 +171,10 @@ export const Dashboard: React.FC = () => {
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 transition-colors duration-300">
           <div className="text-center">
-            <h1 className="text-2xl font-semibold text-gray-800 mb-1">Dashboard</h1>
-            <p className="text-base text-gray-500">Welcome to Greep Market Management System</p>
+            <h1 className="text-2xl font-semibold text-gray-800 dark:text-white mb-1">Dashboard</h1>
+            <p className="text-base text-gray-500 dark:text-gray-400">Welcome to Greep Market Management System</p>
           </div>
         </div>
 
@@ -187,8 +187,8 @@ export const Dashboard: React.FC = () => {
                 <div className={`w-10 h-10 ${metric.bgColor} rounded-lg flex items-center justify-center mx-auto mb-2`}>
                   <Icon className={`h-5 w-5 ${metric.color}`} />
                 </div>
-                <h3 className="text-xs font-medium text-gray-500 mb-1">{metric.title}</h3>
-                <p className="text-lg font-semibold text-gray-800">{metric.value}</p>
+                <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{metric.title}</h3>
+                <p className="text-lg font-semibold text-gray-800 dark:text-white">{metric.value}</p>
               </Card>
             );
           })}
@@ -197,8 +197,8 @@ export const Dashboard: React.FC = () => {
         {/* Quick Actions */}
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-800">Quick Actions</h3>
-            <Users className="h-5 w-5 text-gray-400" />
+            <h3 className="text-lg font-medium text-gray-800 dark:text-white">Quick Actions</h3>
+            <Users className="h-5 w-5 text-gray-400 dark:text-gray-500" />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Button
@@ -240,9 +240,9 @@ export const Dashboard: React.FC = () => {
           {/* Sales Overview Chart */}
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-medium text-gray-800">Sales Overview</h3>
+              <h3 className="text-lg font-medium text-gray-800 dark:text-white">Sales Overview</h3>
               <div className="flex items-center space-x-2">
-                <BarChart3 className="h-5 w-5 text-gray-400" />
+                <BarChart3 className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                 <Button
                   variant="outline"
                   size="sm"
@@ -278,8 +278,8 @@ export const Dashboard: React.FC = () => {
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
                     <BarChart3 className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No sales data available</p>
-                    <p className="text-gray-400 text-sm mt-1">Sales data will appear here once transactions are recorded</p>
+                    <p className="text-gray-500 dark:text-gray-400">No sales data available</p>
+                    <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Sales data will appear here once transactions are recorded</p>
                     <Button
                       variant="outline"
                       size="sm"
@@ -297,9 +297,9 @@ export const Dashboard: React.FC = () => {
           {/* Top Products Chart */}
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-medium text-gray-800">Top Products</h3>
+              <h3 className="text-lg font-medium text-gray-800 dark:text-white">Top Products</h3>
               <div className="flex items-center space-x-2">
-                <Package className="h-5 w-5 text-gray-400" />
+                <Package className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                 <Button
                   variant="outline"
                   size="sm"
@@ -328,8 +328,8 @@ export const Dashboard: React.FC = () => {
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
                     <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No product data available</p>
-                    <p className="text-gray-400 text-sm mt-1">Product performance data will appear here</p>
+                    <p className="text-gray-500 dark:text-gray-400">No product data available</p>
+                    <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Product performance data will appear here</p>
                     <Button
                       variant="outline"
                       size="sm"
@@ -350,9 +350,9 @@ export const Dashboard: React.FC = () => {
           {/* Recent Sales */}
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-medium text-gray-800">Recent Sales</h3>
+              <h3 className="text-lg font-medium text-gray-800 dark:text-white">Recent Sales</h3>
               <div className="flex items-center space-x-2">
-                <ShoppingCart className="h-5 w-5 text-gray-400" />
+                <ShoppingCart className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                 {sales && sales.length > 5 && (
                   <Button
                     variant="outline"
@@ -373,13 +373,13 @@ export const Dashboard: React.FC = () => {
                   const hasMoreItems = (sale.items?.length || 0) > 2;
                   
                   return (
-                    <div key={sale._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200">
+                    <div key={sale._id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-800 text-sm truncate">
+                        <p className="font-medium text-gray-800 dark:text-white text-sm truncate">
                           {productNames}
                           {hasMoreItems && ` +${(sale.items?.length || 0) - 2} more`}
                         </p>
-                        <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                        <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
                           <span className="flex items-center">
                             <Calendar className="h-3 w-3 mr-1" />
                             {new Date(sale.created_at).toLocaleDateString()}
@@ -389,8 +389,8 @@ export const Dashboard: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right ml-3">
-                        <p className="font-semibold text-gray-800 text-sm">{formatPrice(sale.total_amount || 0)}</p>
-                        <p className="text-xs text-gray-500">{(sale.items?.length || 0)} items</p>
+                        <p className="font-semibold text-gray-800 dark:text-white text-sm">{formatPrice(sale.total_amount || 0)}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{(sale.items?.length || 0)} items</p>
                       </div>
                     </div>
                   );
@@ -398,8 +398,8 @@ export const Dashboard: React.FC = () => {
               ) : (
                 <div className="text-center py-8">
                   <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No recent sales</p>
-                  <p className="text-gray-400 text-xs mt-1">Sales transactions will appear here</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">No recent sales</p>
+                  <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">Sales transactions will appear here</p>
                 </div>
               )}
             </div>
@@ -408,9 +408,9 @@ export const Dashboard: React.FC = () => {
           {/* Inventory Alerts */}
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-medium text-gray-800">Inventory Alerts</h3>
+              <h3 className="text-lg font-medium text-gray-800 dark:text-white">Inventory Alerts</h3>
               <div className="flex items-center space-x-2">
-                <AlertTriangle className="h-5 w-5 text-gray-400" />
+                <AlertTriangle className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                 {inventoryAlerts && inventoryAlerts.length > 3 && (
                   <Button
                     variant="outline"
@@ -428,15 +428,15 @@ export const Dashboard: React.FC = () => {
               {!inventoryAlerts || inventoryAlerts.length === 0 ? (
                 <div className="text-center py-8">
                   <AlertTriangle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No inventory alerts</p>
-                  <p className="text-gray-400 text-xs mt-1">All products are well stocked</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">No inventory alerts</p>
+                  <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">All products are well stocked</p>
                 </div>
               ) : (
                 inventoryAlerts.slice(0, 3).map((alert) => (
-                  <div key={alert._id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200 hover:bg-red-100 transition-colors duration-200">
+                  <div key={alert._id} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors duration-200">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-800 text-sm truncate">{alert.product_name}</p>
-                      <p className="text-xs text-red-600">
+                      <p className="font-medium text-gray-800 dark:text-white text-sm truncate">{alert.product_name}</p>
+                      <p className="text-xs text-red-600 dark:text-red-400">
                         {alert.alert_type === 'out_of_stock' ? 'Out of Stock' : 'Low Stock'} • 
                         {alert.current_quantity} remaining
                       </p>
@@ -444,8 +444,8 @@ export const Dashboard: React.FC = () => {
                     <div className="text-right ml-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         alert.alert_type === 'out_of_stock' 
-                          ? 'bg-red-100 text-red-800' 
-                          : 'bg-yellow-100 text-yellow-800'
+                          ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' 
+                          : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
                       }`}>
                         {alert.alert_type === 'out_of_stock' ? 'Critical' : 'Warning'}
                       </span>

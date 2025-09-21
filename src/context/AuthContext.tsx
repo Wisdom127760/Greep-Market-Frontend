@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'AUTH_START' });
       const response = await apiService.login(email, password);
       dispatch({ type: 'AUTH_SUCCESS', payload: response.data.user });
-      toast.success(`Welcome back, ${response.data.user.first_name}!`);
+      toast.success(`Welcome back, ${response.data.user.first_name}`);
     } catch (error: any) {
       const errorMessage = error.message || 'Login failed';
       dispatch({ type: 'AUTH_FAILURE', payload: errorMessage });
@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'AUTH_START' });
       const response = await apiService.register(userData);
       dispatch({ type: 'AUTH_SUCCESS', payload: response.data.user });
-      toast.success(`Welcome to Greep Market, ${response.data.user.first_name}!`);
+      toast.success(`Welcome, ${response.data.user.first_name}`);
     } catch (error: any) {
       const errorMessage = error.message || 'Registration failed';
       dispatch({ type: 'AUTH_FAILURE', payload: errorMessage });
@@ -152,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     apiService.logout();
     dispatch({ type: 'AUTH_LOGOUT' });
-    toast.success('Logged out successfully');
+    toast.success('Logged out');
   };
 
   const clearError = () => {

@@ -220,7 +220,7 @@ export const Products: React.FC = () => {
     try {
       // Generate SKU if not provided
       const sku = newProduct.sku || `SKU-${newProduct.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-3)}`;
-      
+
       await addProduct({
         name: newProduct.name,
         description: newProduct.description || '',
@@ -438,24 +438,24 @@ export const Products: React.FC = () => {
               <div className="flex flex-row gap-3 items-center">
                 {/* Secondary Actions */}
                 <div className="flex gap-2">
-                  <Button 
+                <Button 
                     onClick={() => setIsExcelImportOpen(true)}
-                    variant="outline"
+                  variant="outline"
                     size="md"
-                    className="flex-shrink-0"
-                  >
+                  className="flex-shrink-0"
+                >
                     <Upload className="h-4 w-4 mr-2" />
                     Import Excel
-                  </Button>
-                  <Button 
+                </Button>
+                <Button 
                     onClick={handleExportProducts}
-                    variant="outline"
+                  variant="outline"
                     size="md"
-                    className="flex-shrink-0"
-                  >
+                  className="flex-shrink-0"
+                >
                     <Download className="h-4 w-4 mr-2" />
                     Export
-                  </Button>
+                </Button>
                   <label className="flex-shrink-0">
                     <input
                       type="file"
@@ -486,15 +486,15 @@ export const Products: React.FC = () => {
                       Delete ({selectedProducts.length})
                     </Button>
                   )}
-                  <Button 
-                    onClick={() => setIsAddModalOpen(true)}
+                <Button 
+                  onClick={() => setIsAddModalOpen(true)}
                     variant="primary"
                     size="md"
                     className="flex-shrink-0"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Product
-                  </Button>
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Product
+                </Button>
                 </div>
               </div>
             </div>
@@ -1207,7 +1207,7 @@ export const Products: React.FC = () => {
             {/* Price Update Modal */}
             <PriceUpdateModal
               isOpen={isPriceUpdateModalOpen}
-              onClose={() => {
+                onClose={() => {
                 setIsPriceUpdateModalOpen(false);
                 setPriceUpdateProduct(null);
               }}

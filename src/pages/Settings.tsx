@@ -3,11 +3,7 @@ import {
   Users, 
   UserPlus, 
   Shield, 
-  CreditCard, 
-  Bell, 
-  Palette, 
   Database, 
-  Globe,
   Trash2,
   Edit,
   Eye,
@@ -19,6 +15,7 @@ import { apiService } from '../services/api';
 import { User } from '../types';
 import { UserProfileModal } from '../components/ui/UserProfileModal';
 import { UserEditModal } from '../components/ui/UserEditModal';
+import { AuditLogs } from '../components/ui/AuditLogs';
 import toast from 'react-hot-toast';
 
 interface NewUser {
@@ -55,16 +52,7 @@ export const Settings: React.FC = () => {
     last_name: '',
     role: 'cashier'
   });
-  const [storeSettings, setStoreSettings] = useState<StoreSettings>({
-    name: '',
-    address: '',
-    phone: '',
-    email: '',
-    currency: 'TRY',
-    timezone: 'Europe/Istanbul',
-    tax_rate: 0,
-    low_stock_threshold: 10
-  });
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showEditUserModal, setShowEditUserModal] = useState<User | null>(null);
@@ -88,7 +76,7 @@ export const Settings: React.FC = () => {
     e.preventDefault();
     try {
       await apiService.createUser(newUser);
-      toast.success('User created successfully');
+      toast.success('User created');
       setShowAddUser(false);
       setNewUser({
         email: '',
@@ -118,31 +106,29 @@ export const Settings: React.FC = () => {
   };
 
   const loadStoreSettings = useCallback(async () => {
-    if (!currentUser?.store_id) return;
+    // Check if user is authenticated
+    if (!currentUser) {
+      console.log('No user found, skipping store settings load');
+      return;
+    }
+
+    // Use fallback store_id if user doesn't have one
+    const storeId = currentUser?.store_id || 'default-store';
+    console.log('Loading store settings for storeId:', storeId, 'user:', currentUser.email);
     
     try {
       setStoreSettingsLoading(true);
-      const settings = await apiService.getStoreSettings(currentUser.store_id);
+      const settings = await apiService.getStoreSettings(storeId);
       setStoreSettings(settings);
+      console.log('Store settings loaded successfully:', settings);
     } catch (error) {
       console.error('Failed to load store settings:', error);
-      // Use mock data as fallback when API fails
-      const mockSettings = {
-        name: 'Greep Market',
-        address: '123 Market Street, Istanbul, Turkey',
-        phone: '+90 555 123 4567',
-        email: 'info@greepmarket.com',
-        currency: 'TRY',
-        timezone: 'Europe/Istanbul',
-        tax_rate: 0,
-        low_stock_threshold: 10
-      };
-      setStoreSettings(mockSettings);
-      toast.error('Using default settings - Store ID format not compatible with backend');
+      setStoreSettings(null);
+      toast.error('Failed to load store settings. Please check your authentication.');
     } finally {
       setStoreSettingsLoading(false);
     }
-  }, [currentUser?.store_id]);
+  }, [currentUser]);
 
   // Load users and store settings on component mount
   useEffect(() => {
@@ -152,22 +138,28 @@ export const Settings: React.FC = () => {
 
   const saveStoreSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser?.store_id || !storeSettings) return;
+    if (!storeSettings) return;
+
+    // Check if user is authenticated
+    if (!currentUser) {
+      toast.error('Please log in to save store settings');
+      return;
+    }
+
+    // Use fallback store_id if user doesn't have one
+    const storeId = currentUser?.store_id || 'default-store';
+    console.log('Saving store settings for storeId:', storeId, 'user:', currentUser.email);
 
     try {
       setStoreSettingsLoading(true);
-      const updatedSettings = await apiService.updateStoreSettings(currentUser.store_id, storeSettings);
+      const updatedSettings = await apiService.updateStoreSettings(storeId, storeSettings);
       setStoreSettings(updatedSettings);
       // Refresh store context to update the header
       await refreshStores();
-      toast.success('Store settings saved successfully!');
+      toast.success('Store settings saved');
     } catch (error) {
       console.error('Failed to save store settings:', error);
-      // For now, just update local state and show success message
-      // This allows the form to work even if the backend endpoint doesn't exist yet
-      // Also update the store context to reflect changes in the header
-      await refreshStores();
-      toast.success('Store settings updated locally! (Store ID format not compatible with backend)');
+      toast.error('Failed to save store settings. Please check your authentication.');
     } finally {
       setStoreSettingsLoading(false);
     }
@@ -176,7 +168,7 @@ export const Settings: React.FC = () => {
   const handleDeleteUser = async (userId: string) => {
     try {
       await apiService.deleteUser(userId);
-      toast.success('User deleted successfully');
+      toast.success('User deleted');
       setShowDeleteConfirm(null);
       loadUsers();
     } catch (error) {
@@ -187,7 +179,7 @@ export const Settings: React.FC = () => {
   const toggleUserStatus = async (userId: string, isActive: boolean) => {
     try {
       await apiService.toggleUserStatus(userId);
-      toast.success(`User ${isActive ? 'activated' : 'deactivated'} successfully`);
+      toast.success(`User ${isActive ? 'activated' : 'deactivated'}`);
       loadUsers();
     } catch (error) {
       toast.error('Failed to update user status');
@@ -198,10 +190,7 @@ export const Settings: React.FC = () => {
     { id: 'profile', label: 'My Profile', icon: Users },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'store', label: 'Store Settings', icon: Database },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'integrations', label: 'Integrations', icon: Globe }
+    { id: 'audit', label: 'Audit Logs', icon: Shield }
   ];
 
   const handleProfileUpdated = (updatedUser: User) => {
@@ -409,6 +398,16 @@ export const Settings: React.FC = () => {
     </div>
   );
 
+  const renderAuditLogs = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900">Audit Logs</h2>
+        <p className="text-gray-600">Track all user activities and system changes</p>
+      </div>
+      <AuditLogs />
+    </div>
+  );
+
   const renderStoreSettings = () => (
     <div className="space-y-6">
       <div>
@@ -442,7 +441,7 @@ export const Settings: React.FC = () => {
               <input
                 type="text"
                 value={storeSettings?.name || ''}
-                onChange={(e) => setStoreSettings(prev => ({...prev, name: e.target.value}))}
+                onChange={(e) => setStoreSettings(prev => prev ? {...prev, name: e.target.value} : null)}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                 title="Enter your store name"
                 placeholder="Enter store name"
@@ -453,7 +452,7 @@ export const Settings: React.FC = () => {
               <input
                 type="tel"
                 value={storeSettings?.phone || ''}
-                onChange={(e) => setStoreSettings(prev => ({...prev, phone: e.target.value}))}
+                onChange={(e) => setStoreSettings(prev => prev ? {...prev, phone: e.target.value} : null)}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                 title="Enter your store phone number"
                 placeholder="Enter phone number"
@@ -465,7 +464,7 @@ export const Settings: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700">Address</label>
             <textarea
               value={storeSettings?.address || ''}
-              onChange={(e) => setStoreSettings(prev => ({...prev, address: e.target.value}))}
+              onChange={(e) => setStoreSettings(prev => prev ? {...prev, address: e.target.value} : null)}
               rows={3}
               className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
               title="Enter your store address"
@@ -479,7 +478,7 @@ export const Settings: React.FC = () => {
               <input
                 type="email"
                 value={storeSettings?.email || ''}
-                onChange={(e) => setStoreSettings(prev => ({...prev, email: e.target.value}))}
+                onChange={(e) => setStoreSettings(prev => prev ? {...prev, email: e.target.value} : null)}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                 title="Enter your store email address"
                 placeholder="Enter email address"
@@ -488,11 +487,12 @@ export const Settings: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700">Currency</label>
               <select
-                value={storeSettings?.currency || 'TRY'}
-                onChange={(e) => setStoreSettings(prev => ({...prev, currency: e.target.value}))}
+                value={storeSettings?.currency || ''}
+                onChange={(e) => setStoreSettings(prev => prev ? {...prev, currency: e.target.value} : null)}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                 title="Select your store currency"
               >
+                <option value="">Select Currency</option>
                 <option value="TRY">Turkish Lira (₺)</option>
                 <option value="USD">US Dollar ($)</option>
                 <option value="EUR">Euro (€)</option>
@@ -505,22 +505,22 @@ export const Settings: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700">Tax Rate (%)</label>
               <input
                 type="number"
-                value={storeSettings?.tax_rate || 0}
-                onChange={(e) => setStoreSettings(prev => ({...prev, tax_rate: Number(e.target.value)}))}
+                value={storeSettings?.tax_rate || ''}
+                onChange={(e) => setStoreSettings(prev => prev ? {...prev, tax_rate: Number(e.target.value)} : null)}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                 title="Enter tax rate percentage"
-                placeholder="0"
+                placeholder=""
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Low Stock Threshold</label>
               <input
                 type="number"
-                value={storeSettings?.low_stock_threshold || 10}
-                onChange={(e) => setStoreSettings(prev => ({...prev, low_stock_threshold: Number(e.target.value)}))}
+                value={storeSettings?.low_stock_threshold || ''}
+                onChange={(e) => setStoreSettings(prev => prev ? {...prev, low_stock_threshold: Number(e.target.value)} : null)}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                 title="Enter low stock threshold number"
-                placeholder="10"
+                placeholder=""
               />
             </div>
           </div>
@@ -543,220 +543,9 @@ export const Settings: React.FC = () => {
     </div>
   );
 
-  const renderSecuritySettings = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Security Settings</h2>
-        <p className="text-gray-600">Manage password policies and security preferences</p>
-      </div>
 
-      <div className="bg-white rounded-lg shadow p-6 space-y-6">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Password Policy</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Minimum Password Length</label>
-                <p className="text-sm text-gray-500">Require passwords to be at least 8 characters</p>
-              </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Require Special Characters</label>
-                <p className="text-sm text-gray-500">Passwords must contain special characters</p>
-              </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Password Expiration</label>
-                <p className="text-sm text-gray-500">Require password changes every 90 days</p>
-              </div>
-              <input type="checkbox" className="h-4 w-4 text-primary-600" title="Toggle setting" />
-            </div>
-          </div>
-        </div>
 
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Session Management</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Auto Logout</label>
-                <p className="text-sm text-gray-500">Automatically logout inactive users after 30 minutes</p>
-              </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Remember Login</label>
-                <p className="text-sm text-gray-500">Allow users to stay logged in for 7 days</p>
-              </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
-  const renderNotifications = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Notification Settings</h2>
-        <p className="text-gray-600">Configure how you receive notifications</p>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-6 space-y-6">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Email Notifications</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Low Stock Alerts</label>
-                <p className="text-sm text-gray-500">Get notified when products are running low</p>
-              </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Daily Sales Report</label>
-                <p className="text-sm text-gray-500">Receive daily sales summary</p>
-              </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700">New User Registrations</label>
-                <p className="text-sm text-gray-500">Get notified when new users are added</p>
-              </div>
-              <input type="checkbox" className="h-4 w-4 text-primary-600" title="Toggle setting" />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-4">In-App Notifications</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Browser Notifications</label>
-                <p className="text-sm text-gray-500">Show notifications in browser</p>
-              </div>
-              <input type="checkbox" defaultChecked className="h-4 w-4 text-primary-600" title="Toggle setting" />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Sound Notifications</label>
-                <p className="text-sm text-gray-500">Play sound for important notifications</p>
-              </div>
-              <input type="checkbox" className="h-4 w-4 text-primary-600" title="Toggle setting" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderAppearance = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Appearance Settings</h2>
-        <p className="text-gray-600">Customize the look and feel of your application</p>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-6 space-y-6">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Theme</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="border-2 border-primary-600 rounded-lg p-4 text-center cursor-pointer">
-              <div className="w-12 h-12 bg-gray-900 rounded-lg mx-auto mb-2"></div>
-              <span className="text-sm font-medium">Dark</span>
-            </div>
-            <div className="border-2 border-gray-200 rounded-lg p-4 text-center cursor-pointer">
-              <div className="w-12 h-12 bg-white rounded-lg mx-auto mb-2 border"></div>
-              <span className="text-sm font-medium">Light</span>
-            </div>
-            <div className="border-2 border-gray-200 rounded-lg p-4 text-center cursor-pointer">
-              <div className="w-12 h-12 bg-blue-500 rounded-lg mx-auto mb-2"></div>
-              <span className="text-sm font-medium">Auto</span>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Language</h3>
-          <select className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500" title="Select application language">
-            <option value="en">English</option>
-            <option value="tr">Türkçe</option>
-          </select>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderIntegrations = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Integrations</h2>
-        <p className="text-gray-600">Connect with external services and APIs</p>
-      </div>
-
-      <div className="space-y-4">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                <CreditCard className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">Payment Gateway</h3>
-                <p className="text-sm text-gray-500">Connect your payment processor</p>
-              </div>
-            </div>
-            <button className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700">
-              Configure
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-                <Bell className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">Email Service</h3>
-                <p className="text-sm text-gray-500">Configure email notifications</p>
-              </div>
-            </div>
-            <button className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700">
-              Configure
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
-                <Database className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">Cloud Storage</h3>
-                <p className="text-sm text-gray-500">Configure cloud storage for backups</p>
-              </div>
-            </div>
-            <button className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700">
-              Configure
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -766,31 +555,25 @@ export const Settings: React.FC = () => {
         return renderUserManagement();
       case 'store':
         return renderStoreSettings();
-      case 'security':
-        return renderSecuritySettings();
-      case 'notifications':
-        return renderNotifications();
-      case 'appearance':
-        return renderAppearance();
-      case 'integrations':
-        return renderIntegrations();
+      case 'audit':
+        return renderAuditLogs();
       default:
         return renderMyProfile();
     }
   };
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-4 space-y-6 bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600">Manage your application settings and preferences</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+          <p className="text-gray-600 dark:text-gray-400">Manage your application settings and preferences</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 transition-colors duration-300">
+        <div className="border-b border-gray-200 dark:border-gray-700">
           <nav className="-mb-px flex space-x-8 px-6">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -798,10 +581,10 @@ export const Settings: React.FC = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-colors duration-200 ${
                     activeTab === tab.id
-                      ? 'border-primary-500 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -820,17 +603,17 @@ export const Settings: React.FC = () => {
       {/* Add User Modal */}
       {showAddUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Add New User</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md border border-gray-200 dark:border-gray-700 transition-colors duration-300">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Add New User</h3>
             <form onSubmit={handleAddUser} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
                 <input
                   type="email"
                   value={newUser.email}
                   onChange={(e) => setNewUser({...newUser, email: e.target.value})}
                   required
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                  className="mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                   title="Enter user email address"
                   placeholder="Enter email address"
                 />
