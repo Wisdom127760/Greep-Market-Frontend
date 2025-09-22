@@ -64,35 +64,31 @@ export const Products: React.FC = () => {
 
   // Load products on initial mount
   useEffect(() => {
-    loadProducts(1, 20);
+    loadProducts(1, 20, searchQuery, selectedCategory);
   }, [loadProducts]); // Load initial page on mount
 
-  // For now, we'll keep client-side filtering since the API might not support search/category filtering
-  // In a production app, you'd want to move this to server-side
-  const filteredProducts = useMemo(() => {
-    if (!Array.isArray(products)) return [];
-    return products.filter(product => {
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = !searchQuery || 
-        product.name.toLowerCase().includes(searchLower) ||
-        product.barcode?.toLowerCase().includes(searchLower) ||
-        product.sku.toLowerCase().includes(searchLower) ||
-        product.category.toLowerCase().includes(searchLower) ||
-        product.description?.toLowerCase().includes(searchLower) ||
-        product.tags?.some(tag => tag.toLowerCase().includes(searchLower)) ||
-        product.unit.toLowerCase().includes(searchLower);
-      
-      const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [products, searchQuery, selectedCategory]);
+  // Load products when search query or category changes
+  useEffect(() => {
+    loadProducts(1, 20, searchQuery, selectedCategory);
+  }, [searchQuery, selectedCategory, loadProducts]);
+
+  // Use products directly since filtering is now done server-side
+  const filteredProducts = products || [];
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
+    // Reset to page 1 when searching
+    loadProducts(1, 20, query, selectedCategory);
   };
 
   const handlePageChange = (newPage: number) => {
-    loadProducts(newPage, 20);
+    loadProducts(newPage, 20, searchQuery, selectedCategory);
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+    // Reset to page 1 when changing category
+    loadProducts(1, 20, searchQuery, category);
   };
 
 
@@ -524,7 +520,7 @@ export const Products: React.FC = () => {
                 <div className="relative">
                   <select
                     value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    onChange={(e) => handleCategoryChange(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white shadow-sm appearance-none cursor-pointer"
                     title="Select category"
                   >
@@ -605,6 +601,7 @@ export const Products: React.FC = () => {
                   onClick={() => {
                     setSearchQuery('');
                     setSelectedCategory('all');
+                    loadProducts(1, 20, '', 'all');
                   }}
                   className="text-sm text-gray-500 hover:text-gray-700 flex items-center space-x-1"
                 >
@@ -708,11 +705,12 @@ export const Products: React.FC = () => {
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 {(searchQuery || selectedCategory !== 'all') && (
-                  <Button 
+                  <Button
                     variant="outline"
                     onClick={() => {
                       setSearchQuery('');
                       setSelectedCategory('all');
+                      loadProducts(1, 20, '', 'all');
                     }}
                   >
                     Clear Filters
