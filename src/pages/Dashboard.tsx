@@ -19,6 +19,7 @@ import { Button } from '../components/ui/Button';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
+import { app } from '../config/environment';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 export const Dashboard: React.FC = () => {
@@ -196,7 +197,7 @@ export const Dashboard: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 transition-colors duration-300">
             <div className="text-center">
             <h1 className="text-xl font-semibold text-gray-800 dark:text-white mb-1">Dashboard</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Welcome to Greep Market Management System</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Welcome to {app.name} Management System</p>
             </div>
             <div className="flex items-center justify-center py-8">
               <LoadingSpinner size="lg" className="mr-3" />
@@ -222,7 +223,7 @@ export const Dashboard: React.FC = () => {
               Dashboard
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-              Welcome to Greep Market Management System
+              Welcome to {app.name} Management System
             </p>
           </div>
         </div>
