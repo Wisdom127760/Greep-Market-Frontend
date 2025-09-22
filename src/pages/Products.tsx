@@ -387,8 +387,8 @@ export const Products: React.FC = () => {
                   <Package className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Product Catalog</h1>
-                  <p className="text-gray-600">Manage and organize your inventory</p>
+                  <h1 className="text-xl font-bold text-gray-900">Product Catalog</h1>
+                  <p className="text-sm text-gray-600">Manage and organize your inventory</p>
                 </div>
               </div>
               <div className="flex items-center justify-center py-12">
@@ -416,8 +416,8 @@ export const Products: React.FC = () => {
                     <Package className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Product Catalog</h1>
-                    <p className="text-gray-600">Manage and organize your inventory</p>
+                    <h1 className="text-xl font-bold text-gray-900">Product Catalog</h1>
+                    <p className="text-sm text-gray-600">Manage and organize your inventory</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-4 text-sm text-gray-500">
@@ -574,7 +574,7 @@ export const Products: React.FC = () => {
             {/* Results Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-gray-900">
                   {searchQuery || selectedCategory !== 'all' ? 'Search Results' : 'All Products'}
                 </h2>
                 <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
@@ -694,7 +694,7 @@ export const Products: React.FC = () => {
               <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <Filter className="h-12 w-12 text-gray-400" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-3">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">
                 {searchQuery || selectedCategory !== 'all' ? 'No products found' : 'No products yet'}
               </h3>
               <p className="text-gray-500 mb-8 leading-relaxed">
