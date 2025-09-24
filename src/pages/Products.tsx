@@ -13,6 +13,7 @@ import { PriceUpdateModal } from '../components/ui/PriceUpdateModal';
 import { PriceHistoryModal } from '../components/ui/PriceHistoryModal';
 import CategorySelect from '../components/ui/CategorySelect';
 import { TagsDropdown } from '../components/ui/TagsDropdown';
+import { EnhancedProductForm } from '../components/ui/EnhancedProductForm';
 import { useApp } from '../context/AppContext';
 import { Product, PriceHistory } from '../types';
 
@@ -52,6 +53,22 @@ export const Products: React.FC = () => {
   const [priceUpdateProduct, setPriceUpdateProduct] = useState<Product | null>(null);
   const [priceHistoryProduct, setPriceHistoryProduct] = useState<Product | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([]);
+
+  const resetForm = () => {
+    setNewProduct({
+      name: '',
+      barcode: '',
+      price: '',
+      category: '',
+      unit: 'piece',
+      stock_quantity: '',
+      min_stock_level: '5',
+      description: '',
+      sku: '',
+      tags: [],
+    });
+    setSelectedImages([]);
+  };
 
   const categories = useMemo(() => {
     if (!Array.isArray(products)) return ['all'];
@@ -209,56 +226,74 @@ export const Products: React.FC = () => {
     }
   };
 
-  const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.price || !newProduct.category) {
-      toast.error('Please fill in all required fields (Name, Price, Category)');
-      return;
-    }
-
+  const handleAddProduct = async (formData: any, images: File[]) => {
     setIsSubmitting(true);
     try {
       // Generate SKU if not provided
-      const sku = newProduct.sku || `SKU-${newProduct.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-3)}`;
+      const sku = formData.sku || `SKU-${formData.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-3)}`;
 
       await addProduct({
-        name: newProduct.name,
-        description: newProduct.description || '',
-        price: parseFloat(newProduct.price),
-        category: newProduct.category,
+        name: formData.name,
+        description: formData.description || '',
+        price: parseFloat(formData.price),
+        category: formData.category,
         sku: sku,
-        barcode: newProduct.barcode || undefined,
-        stock_quantity: parseInt(newProduct.stock_quantity) || 0,
-        min_stock_level: parseInt(newProduct.min_stock_level) || 5,
-        unit: newProduct.unit,
+        barcode: formData.barcode || undefined,
+        stock_quantity: formData.stock_quantity ? parseInt(formData.stock_quantity) : 0,
+        min_stock_level: formData.min_stock_level ? parseInt(formData.min_stock_level) : 5,
+        unit: formData.unit,
         weight: undefined,
         dimensions: undefined,
         images: [], // Will be populated by the API after image upload
-        tags: newProduct.tags,
+        tags: formData.tags,
         is_active: true,
         is_featured: false,
         created_by: '',
         store_id: '',
-      }, selectedImages); // Pass the selected images
+      }, images); // Pass the selected images
 
       // Reset form
-      setNewProduct({
-        name: '',
-        barcode: '',
-        price: '',
-        category: '',
-        unit: 'piece',
-        stock_quantity: '',
-        min_stock_level: '5',
-        description: '',
-        sku: '',
-        tags: [],
-      });
-      setSelectedImages([]);
+      resetForm();
       setIsAddModalOpen(false);
       // Success message is already shown by the addProduct function
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to add product:', error);
-      toast.error('Failed to add product. Please try again.');
+      
+      // Enhanced error handling with specific messages
+      let errorMessage = 'Failed to add product. Please try again.';
+      
+      if (error?.message) {
+        const message = error.message.toLowerCase();
+        
+        if (message.includes('barcode') && message.includes('already exists')) {
+          errorMessage = 'A product with this barcode already exists. Please use a different barcode.';
+        } else if (message.includes('sku') && message.includes('already exists')) {
+          errorMessage = 'A product with this SKU already exists. Please use a different SKU.';
+        } else if (message.includes('name') && message.includes('already exists')) {
+          errorMessage = 'A product with this name already exists. Please use a different name.';
+        } else if (message.includes('validation')) {
+          errorMessage = 'Please check your input data and try again.';
+        } else if (message.includes('network') || message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (message.includes('timeout')) {
+          errorMessage = 'Request timed out. Please try again.';
+        } else if (message.includes('unauthorized')) {
+          errorMessage = 'You are not authorized to perform this action. Please log in again.';
+        } else if (message.includes('server')) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      toast.error(errorMessage, {
+        duration: 5000,
+        style: {
+          background: '#fee2e2',
+          color: '#dc2626',
+          border: '1px solid #fecaca',
+        },
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -297,8 +332,8 @@ export const Products: React.FC = () => {
         category: newProduct.category,
         sku: newProduct.sku,
         barcode: newProduct.barcode || undefined,
-        stock_quantity: parseInt(newProduct.stock_quantity) || 0,
-        min_stock_level: parseInt(newProduct.min_stock_level) || 5,
+        stock_quantity: newProduct.stock_quantity ? parseInt(newProduct.stock_quantity) : 0,
+        min_stock_level: newProduct.min_stock_level ? parseInt(newProduct.min_stock_level) : 5,
         unit: newProduct.unit,
         tags: newProduct.tags,
       }, editingImages.length > 0 ? editingImages : undefined);
@@ -376,28 +411,12 @@ export const Products: React.FC = () => {
     setEditingImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const resetForm = () => {
-    setNewProduct({
-      name: '',
-      barcode: '',
-      price: '',
-      category: '',
-      unit: 'piece',
-      stock_quantity: '',
-      min_stock_level: '5',
-      description: '',
-      sku: '',
-      tags: [],
-    });
-    setSelectedImages([]);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 pb-24">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/20 dark:to-blue-900/20 opacity-50"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 opacity-50"></div>
             <div className="relative p-6">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -764,197 +783,17 @@ export const Products: React.FC = () => {
         title="Add New Product"
         size="xl"
       >
-        <div className="space-y-6">
-          {/* Basic Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-              Basic Information
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <Input
-                  label="Product Name *"
-                  value={newProduct.name}
-                  onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                  placeholder="Enter product name"
-                  required
-                />
-              </div>
-              <Input
-                label="SKU"
-                value={newProduct.sku}
-                onChange={(e) => setNewProduct({ ...newProduct, sku: e.target.value })}
-                placeholder="Auto-generated if empty"
-              />
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Barcode
-                </label>
-                <div className="flex space-x-2">
-                  <Input
-                    value={newProduct.barcode}
-                    onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
-                    placeholder="Enter barcode or scan"
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-              <CategorySelect
-                label="Category *"
-                value={newProduct.category}
-                onChange={(category: string) => setNewProduct({ ...newProduct, category })}
-                existingCategories={categories.filter(cat => cat !== 'all')}
-                placeholder="Select or add a category"
-                required
-              />
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Unit *
-                </label>
-                <select
-                  value={newProduct.unit}
-                  onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  required
-                  aria-label="Select unit"
-                >
-                  <option value="piece">Piece</option>
-                  <option value="kg">Kg</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Description
-              </label>
-              <textarea
-                value={newProduct.description}
-                onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                placeholder="Enter product description"
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
-              />
-            </div>
-          </div>
-
-          {/* Pricing & Inventory */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-              Pricing & Inventory
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input
-                label="Price (₺) *"
-                type="number"
-                step="0.01"
-                value={newProduct.price}
-                onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                placeholder="0.00"
-                required
-              />
-              <Input
-                label="Stock Quantity"
-                type="number"
-                value={newProduct.stock_quantity}
-                onChange={(e) => setNewProduct({ ...newProduct, stock_quantity: e.target.value })}
-                placeholder="0"
-              />
-              <Input
-                label="Minimum Stock Level"
-                type="number"
-                value={newProduct.min_stock_level}
-                onChange={(e) => setNewProduct({ ...newProduct, min_stock_level: e.target.value })}
-                placeholder="5"
-              />
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-              Tags
-            </h3>
-            <TagsDropdown
-              label="Tags"
-              value={newProduct.tags}
-              onChange={(tags) => setNewProduct({ ...newProduct, tags })}
-              existingTags={existingTags}
-              placeholder="Add tags..."
-              maxTags={10}
-            />
-          </div>
-
-          {/* Image Upload */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-              Product Images
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-center w-full">
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg className="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                      <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-                    </svg>
-                    <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-                      <span className="font-semibold">Click to upload</span> product images
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">PNG, JPG or WEBP (MAX. 5 images)</p>
-                  </div>
-                  <input
-                    type="file"
-                    className="hidden"
-                    multiple
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                  />
-                </label>
-              </div>
-              
-              {selectedImages.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {selectedImages.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={URL.createObjectURL(image)}
-                        alt={`Preview ${index + 1}`}
-                        className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600 transition-colors"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Form Actions */}
-          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsAddModalOpen(false);
-                resetForm();
-              }}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleAddProduct}
-              disabled={isSubmitting}
-              loading={isSubmitting}
-            >
-              {isSubmitting ? 'Adding Product...' : 'Add Product'}
-            </Button>
-          </div>
-        </div>
+        <EnhancedProductForm
+          onSubmit={handleAddProduct}
+          onCancel={() => {
+            setIsAddModalOpen(false);
+            resetForm();
+          }}
+          isSubmitting={isSubmitting}
+          existingProducts={products || []}
+          existingCategories={categories.filter(cat => cat !== 'all')}
+          existingTags={existingTags}
+        />
       </Modal>
 
       {/* Edit Product Modal */}

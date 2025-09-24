@@ -25,6 +25,7 @@ import { Audit } from './pages/Audit';
 import { RiderManagementPage } from './pages/RiderManagement';
 import { CashTrackingPage } from './pages/CashTracking';
 import { SalesHistory } from './pages/SalesHistory';
+import { ScrollToTopWrapper } from './components/ScrollToTopWrapper';
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
                   <RefreshProvider>
             <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <NavigationProvider>
+              <ScrollToTopWrapper>
               <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
             <Routes>
               <Route path="/login" element={<Login />} />
@@ -173,6 +175,7 @@ function App() {
               }}
             />
               </div>
+              </ScrollToTopWrapper>
               </NavigationProvider>
             </Router>
                   </RefreshProvider>

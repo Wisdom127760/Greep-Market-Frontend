@@ -705,9 +705,9 @@ export const Dashboard: React.FC = () => {
       title: 'Transactions',
       value: totalTransactions.toString(),
       icon: ShoppingCart,
-      gradient: 'from-blue-500 to-indigo-600',
-      iconBg: 'bg-gradient-to-br from-blue-100 to-indigo-100',
-      iconColor: 'text-blue-600',
+      gradient: 'from-green-500 to-green-700',
+      iconBg: 'bg-gradient-to-br from-green-100 to-green-200',
+      iconColor: 'text-green-600',
       change: `${transactionGrowthRate > 0 ? '+' : ''}${transactionGrowthRate.toFixed(1)}% ${comparisonLabel}`,
       changeColor: transactionGrowthRate >= 0 ? 'text-blue-600' : 'text-red-600',
     },
@@ -733,13 +733,13 @@ export const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-green-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 pb-24">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-white via-white to-blue-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-700 rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300 hover:shadow-2xl">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5 dark:from-blue-400/5 dark:to-purple-400/5"></div>
+        <div className="relative overflow-hidden bg-gradient-to-r from-white via-white to-green-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-700 rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300 hover:shadow-2xl">
+          <div className="absolute inset-0 bg-gradient-to-r from-green-600/5 to-green-700/5 dark:from-green-400/5 dark:to-green-500/5"></div>
           <div className="relative text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-green-700 rounded-2xl mb-4 shadow-lg">
               <Activity className="h-8 w-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-2">
@@ -755,7 +755,7 @@ export const Dashboard: React.FC = () => {
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6 transition-all duration-300">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-700 rounded-xl flex items-center justify-center">
                 <Filter className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -794,11 +794,7 @@ export const Dashboard: React.FC = () => {
                   }
                 </span>
               </Button>
-              {dateRange === 'today' && (
-                <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                  Auto-refresh: 15s
-                </div>
-              )}
+              
             </div>
           </div>
 
@@ -1035,14 +1031,14 @@ export const Dashboard: React.FC = () => {
 
           {/* Top Products Chart */}
           <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300 hover:shadow-2xl">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-indigo-600/5 dark:from-blue-400/5 dark:to-indigo-400/5"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-green-600/5 to-green-700/5 dark:from-green-400/5 dark:to-green-500/5"></div>
             <div className="relative">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Top Products</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Best performing products</p>
                 </div>
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-700 rounded-2xl flex items-center justify-center shadow-lg">
                   <Package className="h-6 w-6 text-white" />
                 </div>
             </div>
@@ -1103,14 +1099,14 @@ export const Dashboard: React.FC = () => {
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
-                      <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Package className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                      <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <Package className="h-8 w-8 text-green-600 dark:text-green-400" />
                       </div>
                       <p className="text-gray-600 dark:text-gray-400 font-medium">No product data available</p>
                       <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">Product performance data will appear here</p>
                       <button
                         onClick={() => window.location.href = '/products'}
-                        className="mt-4 inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-sm font-medium rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg"
+                        className="mt-4 inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white text-sm font-medium rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg"
                       >
                         Manage Products
                       </button>
@@ -1121,7 +1117,7 @@ export const Dashboard: React.FC = () => {
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={() => window.location.href = '/products'}
-                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-sm font-medium rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg"
+                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white text-sm font-medium rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg"
                 >
                   View All
                   <ArrowRight className="h-4 w-4 ml-2" />
@@ -1279,7 +1275,7 @@ export const Dashboard: React.FC = () => {
         <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 dark:border-gray-700/50 p-4 transition-all duration-300">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-green-700 rounded-lg flex items-center justify-center">
                 <Activity className="h-4 w-4 text-white" />
               </div>
               <span className="text-sm font-semibold text-gray-900 dark:text-white">Quick Actions</span>
