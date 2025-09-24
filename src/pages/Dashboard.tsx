@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   TrendingUp, 
   Package, 
@@ -11,7 +11,10 @@ import {
   Calendar,
   TrendingDown,
   Activity,
-  Zap
+  Zap,
+  Filter,
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -20,38 +23,72 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { app } from '../config/environment';
+import { usePageRefresh } from '../hooks/usePageRefresh';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 export const Dashboard: React.FC = () => {
-  const { dashboardMetrics, inventoryAlerts, sales, loading } = useApp();
+  const { inventoryAlerts, loading, dashboardMetrics, refreshDashboard, sales } = useApp();
   const { user } = useAuth();
   const [totalExpenses, setTotalExpenses] = useState(0);
+  const [filteredSales, setFilteredSales] = useState<any[]>([]);
+  
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [dateRange, setDateRange] = useState<'today' | 'this_month' | 'custom'>('this_month');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
+  // Enable automatic refresh for dashboard (conservative settings)
+  usePageRefresh({
+    refreshOnMount: true,
+    refreshOnFocus: false, // Disabled to prevent excessive refreshing
+    refreshInterval: 60000, // Refresh every 60 seconds (increased from 30)
+    refreshOnVisibilityChange: false, // Disabled to prevent excessive refreshing
+    silent: true
+  });
 
   // Load expenses data
-  useEffect(() => {
-    const loadExpenses = async () => {
-      if (user?.store_id) {
+  const loadExpenses = useCallback(async () => {
+    if (user?.store_id) {
+      try {
+        console.log('=== DASHBOARD EXPENSES DEBUG ===');
+        console.log('Loading expense stats for store_id:', user.store_id);
+        
+        const stats = await apiService.getExpenseStats({
+          store_id: user.store_id
+        });
+        
+        console.log('Expense Stats API Response:', stats);
+        console.log('Total Amount from stats:', stats.totalAmount);
+        
+        setTotalExpenses(stats.totalAmount || 0);
+        console.log('================================');
+      } catch (error) {
+        console.error('Failed to load expense stats:', error);
+        // Try to get expenses from the expenses API directly
         try {
-          console.log('=== DASHBOARD EXPENSES DEBUG ===');
-          console.log('Loading expense stats for store_id:', user.store_id);
-          
-          const stats = await apiService.getExpenseStats({
-            store_id: user.store_id
+          console.log('Trying to load expenses directly...');
+          const expenses = await apiService.getExpenses({
+            store_id: user.store_id,
+            limit: 1000 // Get all expenses
           });
+          console.log('Direct expenses response:', expenses);
           
-          console.log('Expense Stats API Response:', stats);
-          console.log('Total Amount from stats:', stats.totalAmount);
-          
-          setTotalExpenses(stats.totalAmount || 0);
-          console.log('================================');
-        } catch (error) {
-          console.error('Failed to load expense stats:', error);
+          if (expenses && expenses.expenses && Array.isArray(expenses.expenses)) {
+            const total = expenses.expenses.reduce((sum: number, expense: any) => sum + (expense.amount || 0), 0);
+            console.log('Calculated total from expenses array:', total);
+            setTotalExpenses(total);
+          }
+        } catch (directError) {
+          console.error('Failed to load expenses directly:', directError);
         }
       }
-    };
-
-    loadExpenses();
+    }
   }, [user?.store_id]);
+
+  useEffect(() => {
+    loadExpenses();
+  }, [loadExpenses]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('tr-TR', {
@@ -60,53 +97,205 @@ export const Dashboard: React.FC = () => {
     }).format(price);
   };
 
-  // Use real sales data from the API
-  const salesData = dashboardMetrics?.salesByMonth?.map(item => ({
-    month: item.month,
-    sales: item.sales
-  })) || [];
+  // Load filtered sales data from server
+  const loadFilteredSales = useCallback(async () => {
+    if (!user?.store_id) return;
+    
+    try {
+      const now = new Date();
+      let startDate: string;
+      let endDate: string;
+      
+      // Calculate date range based on selection
+      switch (dateRange) {
+        case 'today':
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          startDate = today.toISOString().split('T')[0];
+          endDate = today.toISOString().split('T')[0];
+          break;
+        case 'this_month':
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          startDate = monthStart.toISOString().split('T')[0];
+          endDate = monthEnd.toISOString().split('T')[0];
+          break;
+        case 'custom':
+          if (!customStartDate || !customEndDate) {
+            // Load all transactions if no custom dates
+            const response = await apiService.getTransactions({
+              store_id: user.store_id,
+              limit: 1000 // Load more transactions for dashboard
+            });
+            setFilteredSales(response.transactions);
+            return;
+          }
+          startDate = customStartDate;
+          endDate = customEndDate;
+          break;
+        default:
+          // Load all transactions
+          const response = await apiService.getTransactions({
+            store_id: user.store_id,
+            limit: 1000
+          });
+          setFilteredSales(response.transactions);
+          return;
+      }
+      
+      // Load filtered transactions from server
+      const response = await apiService.getTransactions({
+        store_id: user.store_id,
+        start_date: startDate,
+        end_date: endDate,
+        limit: 1000 // Load more transactions for dashboard
+      });
+      
+      setFilteredSales(response.transactions);
+    } catch (error) {
+      console.error('Failed to load filtered sales:', error);
+      setFilteredSales([]);
+    }
+  }, [user?.store_id, dateRange, customStartDate, customEndDate]);
 
-  const topProductsData = dashboardMetrics?.topProducts?.map(product => ({
-    name: product.productName?.length > 15 
-      ? product.productName.substring(0, 15) + '...' 
-      : product.productName || 'Unknown Product',
-    revenue: product.revenue || 0,
-    quantity: product.quantitySold || 0,
-  })) || [];
+  // Load filtered sales when filters change
+  useEffect(() => {
+    loadFilteredSales();
+  }, [loadFilteredSales]);
 
-  // Calculate metrics from real data with fallback
+  // Use API sales data for charts, fallback to filtered sales
+  const salesData = useMemo(() => {
+    // Use API data if available
+    if (dashboardMetrics?.salesByMonth && dashboardMetrics.salesByMonth.length > 0) {
+      return dashboardMetrics.salesByMonth.map(item => ({
+        month: item.month,
+        sales: item.sales
+      }));
+    }
+    
+    // Fallback to filtered sales calculation
+    if (!filteredSales || filteredSales.length === 0) return [];
+    
+    // Group sales by month
+    const monthlySales = filteredSales.reduce((acc, sale) => {
+      const saleDate = new Date(sale.created_at);
+      const monthKey = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      if (!acc[monthKey]) {
+        acc[monthKey] = { month: monthKey, sales: 0 };
+      }
+      acc[monthKey].sales += sale.total_amount;
+      
+      return acc;
+    }, {} as Record<string, { month: string; sales: number }>);
+    
+    return Object.values(monthlySales).sort((a: any, b: any) => a.month.localeCompare(b.month));
+  }, [dashboardMetrics?.salesByMonth, filteredSales]);
+
+  // Use API top products data, fallback to filtered sales calculation
+  const topProductsData = useMemo(() => {
+    // Use API data if available
+    if (dashboardMetrics?.topProducts && dashboardMetrics.topProducts.length > 0) {
+      return dashboardMetrics.topProducts.map(product => ({
+        name: product.productName?.length > 12 
+          ? product.productName.substring(0, 12) + '...' 
+          : product.productName,
+        fullName: product.productName,
+        revenue: product.revenue,
+        quantity: product.quantitySold,
+      }));
+    }
+    
+    // Fallback to filtered sales calculation
+    if (!filteredSales || filteredSales.length === 0) return [];
+    
+    // Aggregate product sales from filtered transactions
+    const productSales = filteredSales.reduce((acc, sale) => {
+      sale.items?.forEach((item: any) => {
+        const productId = item.product_id;
+        if (!acc[productId]) {
+          acc[productId] = {
+            productId,
+            productName: item.product_name,
+            revenue: 0,
+            quantitySold: 0
+          };
+        }
+        acc[productId].revenue += item.total_price;
+        acc[productId].quantitySold += item.quantity;
+      });
+      return acc;
+    }, {} as Record<string, { productId: string; productName: string; revenue: number; quantitySold: number }>);
+    
+    // Convert to array and sort by revenue
+    return Object.values(productSales)
+      .sort((a: any, b: any) => b.revenue - a.revenue)
+      .slice(0, 10) // Top 10 products
+      .map((product: any) => ({
+        name: product.productName?.length > 12 
+          ? product.productName.substring(0, 12) + '...' 
+          : product.productName || 'Unknown Product',
+        fullName: product.productName || 'Unknown Product',
+        revenue: product.revenue,
+        quantity: product.quantitySold,
+      }));
+  }, [dashboardMetrics?.topProducts, filteredSales]);
+
+  // Calculate metrics from filtered sales data
   const calculateMetricsFromSales = () => {
-    if (!sales || sales.length === 0) {
+    if (!filteredSales || filteredSales.length === 0) {
       return {
-        totalSales: 440, // Sample data to match your image
+        totalSales: 0,
         totalTransactions: 0,
         averageTransactionValue: 0,
         growthRate: 0
       };
     }
 
-    const totalSales = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
-    const totalTransactions = sales.length;
+    const totalSales = filteredSales.reduce((sum, sale) => sum + sale.total_amount, 0);
+    const totalTransactions = filteredSales.length;
     const averageTransactionValue = totalTransactions > 0 ? totalSales / totalTransactions : 0;
     
-    // Calculate growth rate (month-over-month)
+    // Calculate growth rate (period-over-period based on date range)
     const now = new Date();
-    const thisMonth = sales.filter(sale => {
+    let previousPeriodStart: Date;
+    let previousPeriodEnd: Date;
+    
+    switch (dateRange) {
+      case 'today':
+        // Compare with yesterday
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        previousPeriodStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+        previousPeriodEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59);
+        break;
+      case 'this_month':
+        // Compare with last month
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        previousPeriodStart = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
+        previousPeriodEnd = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0, 23, 59, 59);
+        break;
+      case 'custom':
+        // For custom range, compare with same length period before
+        if (!customStartDate || !customEndDate) {
+          return { totalSales, totalTransactions, averageTransactionValue, growthRate: 0 };
+        }
+        const customStart = new Date(customStartDate);
+        const customEnd = new Date(customEndDate);
+        const periodLength = customEnd.getTime() - customStart.getTime();
+        previousPeriodEnd = new Date(customStart.getTime() - 1);
+        previousPeriodStart = new Date(previousPeriodEnd.getTime() - periodLength);
+        break;
+      default:
+        return { totalSales, totalTransactions, averageTransactionValue, growthRate: 0 };
+    }
+    
+    const currentPeriodSales = filteredSales.reduce((sum, sale) => sum + sale.total_amount, 0);
+    const previousPeriodSales = sales?.filter(sale => {
       const saleDate = new Date(sale.created_at);
-      return saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear();
-    });
+      return saleDate >= previousPeriodStart && saleDate <= previousPeriodEnd;
+    }).reduce((sum, sale) => sum + sale.total_amount, 0) || 0;
     
-    const lastMonth = sales.filter(sale => {
-      const saleDate = new Date(sale.created_at);
-      const lastMonthDate = new Date(now);
-      lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
-      return saleDate.getMonth() === lastMonthDate.getMonth() && saleDate.getFullYear() === lastMonthDate.getFullYear();
-    });
-    
-    const thisMonthSales = thisMonth.reduce((sum, sale) => sum + sale.total_amount, 0);
-    const lastMonthSales = lastMonth.reduce((sum, sale) => sum + sale.total_amount, 0);
-    
-    const growthRate = lastMonthSales > 0 ? ((thisMonthSales - lastMonthSales) / lastMonthSales) * 100 : 0;
+    const growthRate = previousPeriodSales > 0 ? ((currentPeriodSales - previousPeriodSales) / previousPeriodSales) * 100 : 0;
     
     return {
       totalSales,
@@ -117,15 +306,43 @@ export const Dashboard: React.FC = () => {
   };
 
   const calculatedMetrics = calculateMetricsFromSales();
+  // Use dashboard metrics if available, otherwise use calculated metrics
   const totalSales = dashboardMetrics?.totalSales || calculatedMetrics.totalSales;
   const totalTransactions = dashboardMetrics?.totalTransactions || calculatedMetrics.totalTransactions;
-  const averageTransactionValue = dashboardMetrics?.totalTransactions > 0 
-    ? (dashboardMetrics?.totalSales || 0) / (dashboardMetrics?.totalTransactions || 1)
-    : calculatedMetrics.averageTransactionValue;
+  const averageTransactionValue = dashboardMetrics?.averageTransactionValue || calculatedMetrics.averageTransactionValue;
   const growthRate = dashboardMetrics?.growthRate || calculatedMetrics.growthRate;
   
-  // Calculate net profit
-  const netProfit = totalSales - totalExpenses;
+  // Use expense data from dashboard metrics if available, otherwise use local state
+  const totalExpensesFromMetrics = dashboardMetrics?.totalExpenses || 0;
+  const monthlyExpensesFromMetrics = dashboardMetrics?.monthlyExpenses || 0;
+  const netProfitFromMetrics = dashboardMetrics?.netProfit || 0;
+  
+  // Calculate net profit (use metrics if available, otherwise calculate locally)
+  const netProfit = netProfitFromMetrics || (totalSales - totalExpenses);
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('=== DASHBOARD METRICS DEBUG ===');
+    console.log('Dashboard Metrics:', dashboardMetrics);
+    console.log('Total Sales (from metrics):', dashboardMetrics?.totalSales);
+    console.log('Total Sales (calculated):', calculatedMetrics.totalSales);
+    console.log('Total Sales (final):', totalSales);
+    console.log('Total Transactions (from metrics):', dashboardMetrics?.totalTransactions);
+    console.log('Total Transactions (calculated):', calculatedMetrics.totalTransactions);
+    console.log('Total Transactions (final):', totalTransactions);
+    console.log('Average Transaction (from metrics):', dashboardMetrics?.averageTransactionValue);
+    console.log('Average Transaction (calculated):', calculatedMetrics.averageTransactionValue);
+    console.log('Average Transaction (final):', averageTransactionValue);
+    console.log('Growth Rate (from metrics):', dashboardMetrics?.growthRate);
+    console.log('Growth Rate (calculated):', calculatedMetrics.growthRate);
+    console.log('Growth Rate (final):', growthRate);
+    console.log('Total Expenses (from metrics):', totalExpensesFromMetrics);
+    console.log('Total Expenses (local):', totalExpenses);
+    console.log('Monthly Expenses (from metrics):', monthlyExpensesFromMetrics);
+    console.log('Net Profit (from metrics):', netProfitFromMetrics);
+    console.log('Net Profit (calculated):', netProfit);
+    console.log('================================');
+  }, [dashboardMetrics, totalSales, totalTransactions, averageTransactionValue, growthRate, totalExpenses, netProfit, totalExpensesFromMetrics, monthlyExpensesFromMetrics, netProfitFromMetrics, calculatedMetrics]);
 
   const metricCards = [
     {
@@ -140,7 +357,7 @@ export const Dashboard: React.FC = () => {
     },
     {
       title: 'Total Expenses',
-      value: formatPrice(totalExpenses),
+      value: formatPrice(totalExpensesFromMetrics || totalExpenses),
       icon: TrendingDown,
       gradient: 'from-red-500 to-pink-600',
       iconBg: 'bg-gradient-to-br from-red-100 to-pink-100',
@@ -225,6 +442,146 @@ export const Dashboard: React.FC = () => {
             <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
               Welcome to {app.name} Management System
             </p>
+          </div>
+        </div>
+
+        {/* Filters Section */}
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6 transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                <Filter className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Dashboard Filters</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Filter your dashboard data</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center space-x-2"
+              >
+                <Filter className="h-4 w-4" />
+                <span>{showFilters ? 'Hide' : 'Show'} Filters</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  loadExpenses();
+                  refreshDashboard();
+                  loadFilteredSales();
+                }}
+                className="flex items-center space-x-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Refresh Data</span>
+              </Button>
+            </div>
+          </div>
+
+          {showFilters && (
+            <div className="space-y-4">
+              {/* Quick Date Range Buttons */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Quick Select
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setDateRange('today')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      dateRange === 'today'
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    onClick={() => setDateRange('this_month')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      dateRange === 'this_month'
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    This Month
+                  </button>
+                  <button
+                    onClick={() => setDateRange('custom')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      dateRange === 'custom'
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Custom Range
+                  </button>
+                </div>
+              </div>
+
+              {/* Custom Date Range */}
+              {dateRange === 'custom' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      From Date
+                    </label>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      aria-label="Select start date"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      To Date
+                    </label>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      aria-label="Select end date"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Active Filters Summary */}
+          <div className="mt-4 flex flex-wrap items-center justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Active filter:</span>
+              {dateRange !== 'this_month' && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                  {dateRange === 'today' ? 'Today' : 
+                   dateRange === 'custom' ? 
+                     (customStartDate && customEndDate ? 
+                       `${new Date(customStartDate).toLocaleDateString()} - ${new Date(customEndDate).toLocaleDateString()}` : 
+                       'Custom Range') : 
+                   'This Month'}
+                  <button
+                    onClick={() => setDateRange('this_month')}
+                    className="ml-1 hover:text-blue-600"
+                    title="Reset to This Month"
+                    aria-label="Reset to This Month"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Showing {filteredSales.length} of {sales?.length || 0} transactions
+            </div>
           </div>
         </div>
 
@@ -426,7 +783,7 @@ export const Dashboard: React.FC = () => {
                   <Package className="h-6 w-6 text-white" />
                 </div>
               </div>
-              <div className="h-80">
+              <div className="h-96">
                 {topProductsData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topProductsData}>
@@ -434,9 +791,14 @@ export const Dashboard: React.FC = () => {
                       <XAxis 
                         dataKey="name" 
                         stroke="#6b7280" 
-                        fontSize={12}
+                        fontSize={10}
                         tickLine={false}
                         axisLine={false}
+                        angle={-45}
+                        textAnchor="end"
+                        height={100}
+                        interval={0}
+                        tick={{ fontSize: 10 }}
                       />
                       <YAxis 
                         stroke="#6b7280" 
@@ -446,7 +808,14 @@ export const Dashboard: React.FC = () => {
                         tickFormatter={(value) => `₺${(value / 1000).toFixed(0)}k`}
                       />
                       <Tooltip 
-                        formatter={(value: number) => [formatPrice(value), 'Revenue']}
+                        formatter={(value: number, name: string, props: any) => [
+                          formatPrice(value), 
+                          'Revenue'
+                        ]}
+                        labelFormatter={(label: string, payload: any) => {
+                          const data = payload?.[0]?.payload;
+                          return data?.fullName || label;
+                        }}
                         contentStyle={{ 
                           backgroundColor: '#1f2937', 
                           border: 'none', 
@@ -521,13 +890,19 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
             <div className="space-y-2">
-              {sales && sales.length > 0 ? (
-                sales.slice(0, 4).map((sale) => {
-                  const productNames = sale.items?.slice(0, 2).map(item => item.product_name || 'Unknown Product').join(', ') || 'No items';
-                  const hasMoreItems = (sale.items?.length || 0) > 2;
+              {(dashboardMetrics?.recentTransactions && dashboardMetrics.recentTransactions.length > 0) || (filteredSales && filteredSales.length > 0) ? (
+                (dashboardMetrics?.recentTransactions || filteredSales)?.slice(0, 4).map((sale: any) => {
+                  // Handle API data format vs filtered sales format
+                  const isApiData = dashboardMetrics?.recentTransactions?.includes(sale);
+                  const productNames = isApiData ? 'Transaction' : (sale.items?.slice(0, 2).map((item: any) => item.product_name || 'Unknown Product').join(', ') || 'No items');
+                  const hasMoreItems = isApiData ? false : (sale.items?.length || 0) > 2;
+                  const saleDate = isApiData ? sale.createdAt : sale.created_at;
+                  const paymentMethod = isApiData ? sale.paymentMethod : sale.payment_method;
+                  const totalAmount = isApiData ? sale.totalAmount : sale.total_amount;
+                  const itemCount = isApiData ? 1 : (sale.items?.length || 0);
                   
                   return (
-                    <div key={sale._id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200">
+                    <div key={isApiData ? sale.id : sale._id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200">
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-800 dark:text-white text-sm truncate">
                           {productNames}
@@ -536,17 +911,17 @@ export const Dashboard: React.FC = () => {
                         <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
                           <span className="flex items-center">
                             <Calendar className="h-3 w-3 mr-1" />
-                            {new Date(sale.created_at).toLocaleDateString()}
+                            {new Date(saleDate).toLocaleDateString()}
                           </span>
                           <span>•</span>
                           <span className="capitalize">
-                            {sale.payment_method || 'N/A'}
+                            {paymentMethod || 'N/A'}
                           </span>
                         </div>
                       </div>
                       <div className="text-right ml-3">
-                        <p className="font-semibold text-gray-800 dark:text-white text-sm">{formatPrice(sale.total_amount || 0)}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{(sale.items?.length || 0)} items</p>
+                        <p className="font-semibold text-gray-800 dark:text-white text-sm">{formatPrice(totalAmount || 0)}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{itemCount} items</p>
                       </div>
                     </div>
                   );

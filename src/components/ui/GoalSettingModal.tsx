@@ -135,20 +135,20 @@ export const GoalSettingModal: React.FC<GoalSettingModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose}>
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 w-full max-w-md mx-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6 w-full max-w-md mx-4">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-              <Target className="h-5 w-5 text-primary-600" />
+            <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/20 rounded-lg flex items-center justify-center">
+              <Target className="h-5 w-5 text-primary-600 dark:text-primary-400" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Set Your Goals</h2>
-              <p className="text-sm text-gray-500">Motivate yourself with achievable targets</p>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Set Your Goals</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Motivate yourself with achievable targets</p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
             title="Close modal"
             aria-label="Close goal setting modal"
           >
@@ -158,12 +158,12 @@ export const GoalSettingModal: React.FC<GoalSettingModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="dailyGoal" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="dailyGoal" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Daily Sales Goal
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <DollarSign className="h-5 w-5 text-gray-400" />
+                <DollarSign className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
               <Input
                 id="dailyGoal"
@@ -177,18 +177,18 @@ export const GoalSettingModal: React.FC<GoalSettingModalProps> = ({
                 required
               />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Target sales amount for each day
             </p>
           </div>
 
           <div>
-            <label htmlFor="monthlyGoal" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="monthlyGoal" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Monthly Sales Goal
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Calendar className="h-5 w-5 text-gray-400" />
+                <Calendar className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
               <Input
                 id="monthlyGoal"
@@ -202,15 +202,15 @@ export const GoalSettingModal: React.FC<GoalSettingModalProps> = ({
                 required
               />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Target sales amount for each month
             </p>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
             <div className="flex items-start space-x-3">
-              <Trophy className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-blue-800">
+              <Trophy className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-blue-800 dark:text-blue-300">
                 <p className="font-medium mb-1">Pro Tip:</p>
                 <p>Set realistic but challenging goals. Aim for 10-20% growth over your current performance.</p>
               </div>

@@ -62,7 +62,11 @@ const initialState: AppState = {
     todaySales: 0,
     monthlySales: 0,
     totalTransactions: 0,
+    averageTransactionValue: 0,
     growthRate: 0,
+    totalExpenses: 0,
+    monthlyExpenses: 0,
+    netProfit: 0,
     topProducts: [],
     recentTransactions: [],
     salesByMonth: [],
@@ -239,10 +243,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
+      console.log('=== LOAD TRANSACTIONS DEBUG ===');
+      console.log('Loading transactions for store_id:', user?.store_id);
       const response = await apiService.getTransactions({ 
         store_id: user?.store_id,
-        limit: 50 
+        limit: 200 // Increased from 50 to 200 for better data coverage
       });
+      console.log('Transactions API response:', response);
+      console.log('Transactions count:', response.transactions?.length);
+      console.log('Sample transaction:', response.transactions?.[0]);
+      console.log('================================');
       dispatch({ type: 'SET_TRANSACTIONS', payload: response.transactions });
     } catch (error) {
       console.error('Failed to load transactions:', error);

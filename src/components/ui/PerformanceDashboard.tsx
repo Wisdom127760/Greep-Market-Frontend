@@ -293,9 +293,9 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white rounded-xl p-6 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded mb-2"></div>
-              <div className="h-8 bg-gray-200 rounded"></div>
+            <div key={i} className="bg-white dark:bg-gray-800 rounded-xl p-6 animate-pulse">
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+              <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
             </div>
           ))}
         </div>
@@ -308,8 +308,8 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
       <div className="space-y-6">
         <div className="text-center py-12">
           <div className="text-6xl mb-4">📊</div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Performance Data Available</h3>
-          <p className="text-gray-600 mb-6">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Performance Data Available</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
             Start making sales or set up goals to see your performance metrics and track your progress.
           </p>
           <div className="flex justify-center space-x-4">
@@ -341,48 +341,48 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <DollarSign className="h-6 w-6 text-green-600" />
+                <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                  <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
                 </div>
                 <div className={`flex items-center space-x-1 ${getGrowthColor(dailyGrowth)}`}>
                   {getGrowthIcon(dailyGrowth)}
                   <span className="text-sm font-medium">{dailyGrowth > 0 ? '+' : ''}{dailyGrowth.toFixed(1)}%</span>
                 </div>
               </div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">Today's Sales</h3>
-              <p className="text-2xl font-bold text-gray-900">₺{daily.today.toLocaleString()}</p>
-              <p className="text-xs text-gray-500 mt-1">vs ₺{daily.yesterday.toLocaleString()} yesterday</p>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Today's Sales</h3>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">₺{daily.today.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">vs ₺{daily.yesterday.toLocaleString()} yesterday</p>
             </Card>
 
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-blue-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-blue-600" />
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+              <Calendar className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
             <div className={`flex items-center space-x-1 ${getGrowthColor(monthlyGrowth)}`}>
               {getGrowthIcon(monthlyGrowth)}
               <span className="text-sm font-medium">{monthlyGrowth > 0 ? '+' : ''}{monthlyGrowth.toFixed(1)}%</span>
                 </div>
               </div>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">This Month</h3>
-          <p className="text-2xl font-bold text-gray-900">₺{monthly.thisMonth.toLocaleString()}</p>
-          <p className="text-xs text-gray-500 mt-1">vs ₺{monthly.lastMonth.toLocaleString()} last month</p>
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">This Month</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">₺{monthly.thisMonth.toLocaleString()}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">vs ₺{monthly.lastMonth.toLocaleString()} last month</p>
             </Card>
 
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Target className="h-6 w-6 text-purple-600" />
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                  <Target className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="flex items-center space-x-1">
-                  <span className={`text-sm font-medium ${daily.today >= goals.daily ? 'text-green-600' : 'text-orange-600'}`}>
+                  <span className={`text-sm font-medium ${daily.today >= goals.daily ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
                     {Math.round((daily.today / goals.daily) * 100)}%
                   </span>
                 </div>
               </div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">Daily Goal</h3>
-              <p className="text-2xl font-bold text-gray-900">₺{goals.daily.toLocaleString()}</p>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Daily Goal</h3>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">₺{goals.daily.toLocaleString()}</p>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
                 <div 
               className={`h-2 rounded-full transition-all duration-300 ${
                 daily.today >= goals.daily ? 'bg-green-500' : 'bg-orange-500'
@@ -390,42 +390,48 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
                   style={{ width: `${Math.min((daily.today / goals.daily) * 100, 100)}%` }}
                 ></div>
               </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {Math.round((daily.today / goals.daily) * 100)}% complete
           </p>
             </Card>
 
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                  <Award className="h-6 w-6 text-yellow-600" />
+                <div className="p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
+                  <Award className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
                 </div>
-                <div className="flex items-center space-x-1 text-green-600">
+                <div className="flex items-center space-x-1 text-green-600 dark:text-green-400">
                   <Trophy className="h-4 w-4" />
                   <span className="text-sm font-medium">{achievements.filter(a => a.achieved).length}</span>
                 </div>
               </div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">Achievements</h3>
-              <p className="text-2xl font-bold text-gray-900">{achievements.filter(a => a.achieved).length}/{achievements.length}</p>
-              <p className="text-xs text-gray-500 mt-1">goals unlocked</p>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Achievements</h3>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{achievements.filter(a => a.achieved).length}/{achievements.length}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">goals unlocked</p>
             </Card>
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Sales Performance Trend
           </h3>
           {trends.monthlyData.length > 0 ? (
           <ResponsiveContainer width="100%" height={300}>
               <LineChart data={trends.monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-              <YAxis />
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="month" stroke="#9CA3AF" />
+              <YAxis stroke="#9CA3AF" />
               <Tooltip 
                 formatter={(value: number) => [`₺${value.toLocaleString()}`, 'Sales']}
-                labelStyle={{ color: '#374151' }}
+                contentStyle={{ 
+                  backgroundColor: '#1F2937', 
+                  border: '1px solid #374151', 
+                  borderRadius: '8px',
+                  color: '#F9FAFB'
+                }}
+                labelStyle={{ color: '#F9FAFB' }}
               />
               <Line 
                 type="monotone" 
@@ -437,7 +443,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
             </LineChart>
           </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
+            <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
               <div className="text-center">
                 <div className="text-4xl mb-2">📊</div>
                 <p>No sales data available</p>
@@ -447,7 +453,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
         </Card>
 
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Achievements</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Achievements</h3>
           {achievements.length > 0 ? (
           <div className="space-y-4">
             {achievements.map((achievement) => (
@@ -455,23 +461,23 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
                 key={achievement.id}
                 className={`flex items-center space-x-3 p-3 rounded-lg ${
                   achievement.achieved 
-                    ? 'bg-green-50 border border-green-200' 
-                    : 'bg-gray-50 border border-gray-200'
+                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
+                    : 'bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
                 }`}
               >
                 <div className={`text-2xl ${achievement.achieved ? '' : 'grayscale opacity-50'}`}>
                   {achievement.icon}
                 </div>
                 <div className="flex-1">
-                  <h4 className={`font-medium ${achievement.achieved ? 'text-green-900' : 'text-gray-700'}`}>
+                  <h4 className={`font-medium ${achievement.achieved ? 'text-green-900 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'}`}>
                     {achievement.title}
                   </h4>
-                  <p className={`text-sm ${achievement.achieved ? 'text-green-700' : 'text-gray-500'}`}>
+                  <p className={`text-sm ${achievement.achieved ? 'text-green-700 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
                     {achievement.description}
                   </p>
                 </div>
                 {achievement.achieved && (
-                  <div className="text-green-600">
+                  <div className="text-green-600 dark:text-green-400">
                     <Trophy className="h-5 w-5" />
                   </div>
                 )}
@@ -479,7 +485,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
             ))}
           </div>
           ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
+            <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
               <div className="text-center">
                 <div className="text-4xl mb-2">🏆</div>
                 <p>No achievements available yet</p>
@@ -491,13 +497,13 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
       </div>
 
       {/* Motivational Message */}
-      <Card className="p-6 bg-gradient-to-r from-primary-50 to-blue-50 border-primary-200">
+      <Card className="p-6 bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/20 dark:to-blue-900/20 border-primary-200 dark:border-primary-800">
         <div className="text-center">
           <div className="text-4xl mb-2">🚀</div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
             {dailyGrowth > 0 ? "You're on fire! 🔥" : daily.today > 0 ? "Keep pushing forward! 💪" : "Ready to start your journey! 🌟"}
           </h3>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             {dailyGrowth > 0 
               ? `Great job! You're ${dailyGrowth.toFixed(1)}% ahead of yesterday. Keep up the momentum!`
               : daily.today > 0 

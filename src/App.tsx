@@ -8,6 +8,8 @@ import { ThemeProvider } from './context/ThemeContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { RiderProvider } from './context/RiderContext';
+import { NavigationProvider } from './context/NavigationContext';
+import { RefreshProvider } from './context/RefreshContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Header } from './components/navigation/Header';
 import { MobileNavigation } from './components/navigation/MobileNavigation';
@@ -33,7 +35,9 @@ function App() {
             <AuthProvider>
               <StoreProvider>
                 <AppProvider>
+                  <RefreshProvider>
             <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <NavigationProvider>
               <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
             <Routes>
               <Route path="/login" element={<Login />} />
@@ -169,7 +173,9 @@ function App() {
               }}
             />
               </div>
+              </NavigationProvider>
             </Router>
+                  </RefreshProvider>
                   </AppProvider>
                 </StoreProvider>
               </AuthProvider>

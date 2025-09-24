@@ -394,23 +394,23 @@ export const Products: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 pb-24">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 pb-24">
         <div className="max-w-7xl mx-auto space-y-6">
-          <div className="relative overflow-hidden bg-white rounded-2xl shadow-lg border border-gray-100">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary-50 to-blue-50 opacity-50"></div>
+          <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+            <div className="absolute inset-0 bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/20 dark:to-blue-900/20 opacity-50"></div>
             <div className="relative p-6">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg">
                   <Package className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-gray-900">Product Catalog</h1>
-                  <p className="text-sm text-gray-600">Manage and organize your inventory</p>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">Product Catalog</h1>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Manage and organize your inventory</p>
                 </div>
               </div>
               <div className="flex items-center justify-center py-12">
                 <LoadingSpinner size="lg" className="mr-4" />
-                <span className="text-gray-500 text-lg">Loading products...</span>
+                <span className="text-gray-500 dark:text-gray-400 dark:text-gray-400 text-lg">Loading products...</span>
               </div>
             </div>
           </div>
@@ -420,11 +420,11 @@ export const Products: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 pb-24">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Modern Header */}
-        <div className="relative overflow-hidden bg-white rounded-2xl shadow-lg border border-gray-100">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary-50 to-blue-50 opacity-50"></div>
+        <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+          <div className="absolute inset-0 bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/20 dark:to-blue-900/20 opacity-50"></div>
           <div className="relative p-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
               <div className="space-y-2">
@@ -433,11 +433,11 @@ export const Products: React.FC = () => {
                     <Package className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-gray-900">Product Catalog</h1>
-                    <p className="text-sm text-gray-600">Manage and organize your inventory</p>
+                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">Product Catalog</h1>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Manage and organize your inventory</p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-400">
                   <span className="flex items-center space-x-1">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                     <span>{filteredProducts.length} products</span>
@@ -485,7 +485,7 @@ export const Products: React.FC = () => {
                       onChange={handleImportProducts}
                       className="hidden"
                     />
-                    <div className="font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 border border-gray-300 hover:bg-gray-50 text-gray-700 focus:ring-gray-500 px-4 py-2 text-base cursor-pointer flex items-center justify-center">
+                    <div className="font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 focus:ring-gray-500 px-4 py-2 text-base cursor-pointer flex items-center justify-center">
                       <FileText className="h-4 w-4 mr-2" />
                       Import
                     </div>
@@ -493,7 +493,7 @@ export const Products: React.FC = () => {
                 </div>
                 
                 {/* Divider */}
-                <div className="w-px h-10 bg-gray-300 mx-2 flex-shrink-0"></div>
+                <div className="w-px h-10 bg-gray-300 dark:bg-gray-600 mx-2 flex-shrink-0"></div>
                 
                 {/* Primary Actions */}
                 <div className="flex gap-2">
@@ -524,7 +524,7 @@ export const Products: React.FC = () => {
         </div>
 
         {/* Enhanced Search and Filters */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
           <div className="space-y-6">
             {/* Search Bar */}
             <div className="relative">
@@ -540,14 +540,14 @@ export const Products: React.FC = () => {
             {/* Filters Row */}
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
                   Filter by Category
                 </label>
                 <div className="relative">
                   <select
                     value={selectedCategory}
                     onChange={(e) => handleCategoryChange(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white shadow-sm appearance-none cursor-pointer"
+                    className="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm appearance-none cursor-pointer"
                     title="Select category"
                   >
                     {categories.map(category => (
@@ -557,7 +557,7 @@ export const Products: React.FC = () => {
                     ))}
                   </select>
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-gray-400 dark:text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
@@ -565,13 +565,13 @@ export const Products: React.FC = () => {
               </div>
               
               <div className="flex items-end">
-                <div className="flex bg-gray-100 rounded-xl p-1">
+                <div className="flex bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
                   <button
                     onClick={() => setViewMode('grid')}
                     className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
                       viewMode === 'grid' 
-                        ? 'bg-white text-primary-600 shadow-sm' 
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white dark:bg-gray-600 text-primary-600 dark:text-primary-400 shadow-sm' 
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                     }`}
                   >
                     <Grid className="h-4 w-4" />
@@ -581,8 +581,8 @@ export const Products: React.FC = () => {
                     onClick={() => setViewMode('list')}
                     className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
                       viewMode === 'list' 
-                        ? 'bg-white text-primary-600 shadow-sm' 
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white dark:bg-gray-600 text-primary-600 dark:text-primary-400 shadow-sm' 
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                     }`}
                   >
                     <List className="h-4 w-4" />
@@ -600,21 +600,21 @@ export const Products: React.FC = () => {
             {/* Results Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   {searchQuery || selectedCategory !== 'all' ? 'Search Results' : 'All Products'}
                 </h2>
-                <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
+                <span className="px-3 py-1 bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 rounded-full text-sm font-medium">
                   {filteredProducts.length} of {productsPagination.totalProducts} {filteredProducts.length === 1 ? 'product' : 'products'}
                 </span>
                 {filteredProducts.length > 0 && (
                   <button
                     onClick={handleSelectAll}
-                    className="flex items-center space-x-2 px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                    className="flex items-center space-x-2 px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
                   >
                     {selectedProducts.length === filteredProducts.length ? (
-                      <CheckSquare className="h-4 w-4 text-primary-600" />
+                      <CheckSquare className="h-4 w-4 text-primary-600 dark:text-primary-400" />
                     ) : (
-                      <Square className="h-4 w-4 text-gray-400" />
+                      <Square className="h-4 w-4 text-gray-400 dark:text-gray-500 dark:text-gray-400" />
                     )}
                     <span>
                       {selectedProducts.length === filteredProducts.length ? 'Deselect All' : 'Select All'}
@@ -629,7 +629,7 @@ export const Products: React.FC = () => {
                     setSelectedCategory('all');
                     loadProducts(1, 20, '', 'all');
                   }}
-                  className="text-sm text-gray-500 hover:text-gray-700 flex items-center space-x-1"
+                  className="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center space-x-1"
                 >
                   <span>Clear filters</span>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -665,27 +665,27 @@ export const Products: React.FC = () => {
 
             {/* Pagination */}
             {productsPagination.totalPages > 1 && (
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex-1 flex justify-between sm:hidden">
                     <button
                       onClick={() => handlePageChange(Math.max(1, productsPagination.currentPage - 1))}
                       disabled={productsPagination.currentPage === 1}
-                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Previous
                     </button>
                     <button
                       onClick={() => handlePageChange(Math.min(productsPagination.totalPages, productsPagination.currentPage + 1))}
                       disabled={productsPagination.currentPage === productsPagination.totalPages}
-                      className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Next
                     </button>
                   </div>
                   <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-sm text-gray-700">
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
                         Showing page <span className="font-medium">{productsPagination.currentPage}</span> of{' '}
                         <span className="font-medium">{productsPagination.totalPages}</span>
                         {' '}({productsPagination.totalProducts} total products)
@@ -696,14 +696,14 @@ export const Products: React.FC = () => {
                         <button
                           onClick={() => handlePageChange(Math.max(1, productsPagination.currentPage - 1))}
                           disabled={productsPagination.currentPage === 1}
-                          className="relative inline-flex items-center px-3 py-2 rounded-l-lg border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="relative inline-flex items-center px-3 py-2 rounded-l-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Previous
                         </button>
                         <button
                           onClick={() => handlePageChange(Math.min(productsPagination.totalPages, productsPagination.currentPage + 1))}
                           disabled={productsPagination.currentPage === productsPagination.totalPages}
-                          className="relative inline-flex items-center px-3 py-2 rounded-r-lg border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="relative inline-flex items-center px-3 py-2 rounded-r-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Next
                         </button>
@@ -715,15 +715,15 @@ export const Products: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-12">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-12">
             <div className="text-center max-w-md mx-auto">
-              <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <Filter className="h-12 w-12 text-gray-400" />
+              <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Filter className="h-12 w-12 text-gray-400 dark:text-gray-500 dark:text-gray-400" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-3">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
                 {searchQuery || selectedCategory !== 'all' ? 'No products found' : 'No products yet'}
               </h3>
-              <p className="text-gray-500 mb-8 leading-relaxed">
+              <p className="text-gray-500 dark:text-gray-400 dark:text-gray-400 mb-8 leading-relaxed">
                 {searchQuery || selectedCategory !== 'all' 
                   ? 'Try adjusting your search terms or filter criteria to find what you\'re looking for.'
                   : 'Start building your product catalog by adding your first product to get started.'
@@ -767,7 +767,7 @@ export const Products: React.FC = () => {
         <div className="space-y-6">
           {/* Basic Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
               Basic Information
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -787,7 +787,7 @@ export const Products: React.FC = () => {
                 placeholder="Auto-generated if empty"
               />
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Barcode
                 </label>
                 <div className="flex space-x-2">
@@ -808,13 +808,13 @@ export const Products: React.FC = () => {
                 required
               />
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Unit *
                 </label>
                 <select
                   value={newProduct.unit}
                   onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   required
                   aria-label="Select unit"
                 >
@@ -824,7 +824,7 @@ export const Products: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Description
               </label>
               <textarea
@@ -832,14 +832,14 @@ export const Products: React.FC = () => {
                 onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
                 placeholder="Enter product description"
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
               />
             </div>
           </div>
 
           {/* Pricing & Inventory */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
               Pricing & Inventory
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -871,7 +871,7 @@ export const Products: React.FC = () => {
 
           {/* Tags */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
               Tags
             </h3>
             <TagsDropdown
@@ -886,20 +886,20 @@ export const Products: React.FC = () => {
 
           {/* Image Upload */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
               Product Images
             </h3>
             <div className="space-y-4">
               <div className="flex items-center justify-center w-full">
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600">
                   <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg className="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                    <svg className="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
                       <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
                     </svg>
-                    <p className="mb-2 text-sm text-gray-500">
+                    <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
                       <span className="font-semibold">Click to upload</span> product images
                     </p>
-                    <p className="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 5 images)</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">PNG, JPG or WEBP (MAX. 5 images)</p>
                   </div>
                   <input
                     type="file"
@@ -918,7 +918,7 @@ export const Products: React.FC = () => {
                       <img
                         src={URL.createObjectURL(image)}
                         alt={`Preview ${index + 1}`}
-                        className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                        className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                       />
                       <button
                         type="button"
@@ -935,7 +935,7 @@ export const Products: React.FC = () => {
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
             <Button
               variant="outline"
               onClick={() => {
@@ -971,7 +971,7 @@ export const Products: React.FC = () => {
         <div className="space-y-6">
           {/* Basic Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
               Basic Information
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -991,7 +991,7 @@ export const Products: React.FC = () => {
                 placeholder="Product SKU"
               />
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Barcode
                 </label>
                 <div className="flex space-x-2">
@@ -1012,13 +1012,13 @@ export const Products: React.FC = () => {
                 required
               />
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Unit *
                 </label>
                 <select
                   value={newProduct.unit}
                   onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   required
                   aria-label="Select unit"
                 >
@@ -1028,7 +1028,7 @@ export const Products: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Description
               </label>
               <textarea
@@ -1036,14 +1036,14 @@ export const Products: React.FC = () => {
                 onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
                 placeholder="Enter product description"
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
               />
             </div>
           </div>
 
           {/* Pricing & Inventory */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
               Pricing & Inventory
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1075,7 +1075,7 @@ export const Products: React.FC = () => {
 
           {/* Tags */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
               Tags
             </h3>
             <TagsDropdown
@@ -1091,7 +1091,7 @@ export const Products: React.FC = () => {
           {/* Current Images */}
           {editingProduct?.images && editingProduct.images.length > 0 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
                 Current Images
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -1100,7 +1100,7 @@ export const Products: React.FC = () => {
                     <img
                       src={image.url}
                       alt={`Current ${index + 1}`}
-                      className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                      className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                     />
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
                       <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1115,20 +1115,20 @@ export const Products: React.FC = () => {
 
           {/* Image Upload */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
               Update Images
             </h3>
             <div className="space-y-4">
               <div className="flex items-center justify-center w-full">
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600">
                   <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg className="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                    <svg className="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
                       <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
                     </svg>
-                    <p className="mb-2 text-sm text-gray-500">
+                    <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
                       <span className="font-semibold">Click to upload</span> new product images
                     </p>
-                    <p className="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 5 images)</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">PNG, JPG or WEBP (MAX. 5 images)</p>
                   </div>
                   <input
                     type="file"
@@ -1147,7 +1147,7 @@ export const Products: React.FC = () => {
                       <img
                         src={URL.createObjectURL(image)}
                         alt={`New Preview ${index + 1}`}
-                        className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                        className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                       />
                       <button
                         type="button"
@@ -1168,7 +1168,7 @@ export const Products: React.FC = () => {
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
             <Button
               variant="outline"
               onClick={() => {
@@ -1225,7 +1225,7 @@ export const Products: React.FC = () => {
                       </div>
                       <div className="text-left">
                         <p className="font-medium text-gray-900">{deletingProduct.name}</p>
-                        <p className="text-sm text-gray-500">{deletingProduct.category} • {deletingProduct.unit}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{deletingProduct.category} • {deletingProduct.unit}</p>
                         <p className="text-sm font-semibold text-primary-600">
                           {new Intl.NumberFormat('tr-TR', {
                             style: 'currency',

@@ -147,7 +147,11 @@ export interface DashboardMetrics {
   todaySales: number;
   monthlySales: number;
   totalTransactions: number;
+  averageTransactionValue: number;
   growthRate: number;
+  totalExpenses: number;
+  monthlyExpenses: number;
+  netProfit: number;
   topProducts: Array<{
     productId: string;
     productName: string;

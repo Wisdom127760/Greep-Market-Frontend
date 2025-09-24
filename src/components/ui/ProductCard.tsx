@@ -43,10 +43,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   };
 
   return (
-    <div className={`group relative bg-white rounded-2xl border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden transform hover:-translate-y-1 ${
+    <div className={`group relative bg-white dark:bg-gray-800 rounded-2xl border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden transform hover:-translate-y-1 ${
       isSelected 
         ? 'ring-2 ring-primary-500/50 shadow-primary-200/50' 
-        : 'hover:shadow-gray-200/50'
+        : 'hover:shadow-gray-200/50 dark:hover:shadow-gray-700/50'
     }`}>
       {/* Selection Checkbox */}
       {showSelection && (
@@ -81,7 +81,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       )}
       
       {/* Product Image with Overlay */}
-      <div className="relative h-48 bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 overflow-hidden">
+      <div className="relative h-48 bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-500 overflow-hidden">
         {product.images && product.images.length > 0 ? (
           <>
             <img
@@ -92,8 +92,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
           </>
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-            <Package className="h-16 w-16 text-gray-400" />
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-600 dark:to-gray-500">
+            <Package className="h-16 w-16 text-gray-400 dark:text-gray-500" />
           </div>
         )}
         
@@ -117,30 +117,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div className="p-5 space-y-3">
         {/* Header */}
         <div className="space-y-2">
-          <h3 className="text-lg font-bold text-gray-900 line-clamp-2 leading-tight group-hover:text-primary-600 transition-colors duration-200">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-2 leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-200">
             {product.name}
           </h3>
           <div className="flex items-center justify-between">
             <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full text-xs font-semibold shadow-sm">
               {product.category}
             </span>
-            <span className="text-xs text-gray-500 font-medium">{product.unit}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">{product.unit}</span>
           </div>
         </div>
         
         {/* Price & Stock */}
         <div className="flex items-center justify-between">
-          <span className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-700 bg-clip-text text-transparent">
+          <span className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-700 dark:from-primary-400 dark:to-primary-500 bg-clip-text text-transparent">
             {formatPrice(product.price)}
           </span>
           <div className="text-right">
-            <div className="text-xs text-gray-500 font-medium mb-1">Stock</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Stock</div>
             <span className={`text-sm font-bold px-2 py-1 rounded-full ${
               isOutOfStock 
-                ? 'bg-red-100 text-red-700' 
+                ? 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400' 
                 : isLowStock 
-                  ? 'bg-amber-100 text-amber-700' 
-                  : 'bg-green-100 text-green-700'
+                  ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' 
+                  : 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
             }`}>
               {product.stock_quantity}
             </span>
@@ -149,10 +149,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         
         {/* Barcode */}
         {product.barcode && (
-          <div className="pt-2 border-t border-gray-100">
+          <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500 font-medium">Barcode</span>
-              <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded-md text-gray-700">
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Barcode</span>
+              <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md text-gray-700 dark:text-gray-300">
                 {product.barcode}
               </span>
             </div>
@@ -161,7 +161,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         
         {/* Action Buttons */}
         {showActions && (
-          <div className="pt-3 border-t border-gray-100">
+          <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
             <div className="flex gap-2">
               {onAddToCart && (
                 <button
@@ -169,7 +169,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   disabled={isOutOfStock}
                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                     isOutOfStock
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                       : 'bg-gradient-to-r from-primary-500 to-primary-600 text-white hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/30 transform hover:scale-105'
                   }`}
                 >
@@ -180,7 +180,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               {onEdit && (
                 <button
                   onClick={() => onEdit(product)}
-                  className="px-3 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 hover:scale-105"
+                  className="px-3 py-2.5 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200 hover:scale-105"
                   aria-label="Edit product"
                   title="Edit product"
                 >
@@ -190,7 +190,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               {onDelete && (
                 <button
                   onClick={() => onDelete(product)}
-                  className="px-3 py-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all duration-200 hover:scale-105"
+                  className="px-3 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-all duration-200 hover:scale-105"
                   aria-label="Delete product"
                   title="Delete product"
                 >
@@ -203,12 +203,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
         {/* Price Action Buttons */}
         {showPriceActions && (
-          <div className="pt-3 border-t border-gray-100">
+          <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
             <div className="grid grid-cols-2 gap-2">
               {onPriceUpdate && (
                 <button
                   onClick={() => onPriceUpdate(product)}
-                  className="flex items-center justify-center gap-2 px-3 py-2 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 text-sm font-medium hover:scale-105"
+                  className="flex items-center justify-center gap-2 px-3 py-2 border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 text-sm font-medium hover:scale-105"
                 >
                   <DollarSign className="h-4 w-4" />
                   Price
@@ -217,7 +217,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               {onPriceHistory && (
                 <button
                   onClick={() => onPriceHistory(product)}
-                  className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 text-sm font-medium hover:scale-105"
+                  className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200 text-sm font-medium hover:scale-105"
                 >
                   <History className="h-4 w-4" />
                   History

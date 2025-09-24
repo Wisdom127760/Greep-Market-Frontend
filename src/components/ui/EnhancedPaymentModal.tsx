@@ -298,7 +298,7 @@ export const EnhancedPaymentModal: React.FC<EnhancedPaymentModalProps> = ({
                       onChange={(e) => updatePaymentMethod(index, 'type', e.target.value)}
                       title="Select payment method type"
                       aria-label="Payment method type"
-                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     >
                       {paymentTypes.map((pt) => (
                         <option key={pt.id} value={pt.id}>{pt.label}</option>

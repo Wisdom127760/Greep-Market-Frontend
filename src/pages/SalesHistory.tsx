@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Calendar, 
   Filter, 
@@ -19,8 +19,12 @@ import { Button } from '../components/ui/Button';
 import { SearchBar } from '../components/ui/SearchBar';
 import { Card } from '../components/ui/Card';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
+import { SmartNavButton } from '../components/ui/SmartNavButton';
+import { BackButton } from '../components/ui/BackButton';
+import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { useApp } from '../context/AppContext';
 import { Transaction } from '../types';
+import { apiService } from '../services/api';
 
 interface SoldProduct {
   productId: string;
@@ -37,7 +41,9 @@ interface SoldProduct {
 }
 
 export const SalesHistory: React.FC = () => {
-  const { sales, products, loading, loadTransactions } = useApp();
+  const { products, loading } = useApp();
+  const [sales, setSales] = useState<Transaction[]>([]);
+  const [isLoadingSales, setIsLoadingSales] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -45,8 +51,51 @@ export const SalesHistory: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalSales, setTotalSales] = useState(0);
   const [exportLoading, setExportLoading] = useState(false);
   const [showTransactionIds, setShowTransactionIds] = useState(false);
+
+  // Load sales data from server with filtering
+  const loadSales = useCallback(async () => {
+    setIsLoadingSales(true);
+    try {
+      // Calculate date range based on month/year selection
+      let startDate: string | undefined;
+      let endDate: string | undefined;
+      
+      if (selectedMonth !== 'all' && selectedYear !== 'all') {
+        const month = parseInt(selectedMonth);
+        const year = parseInt(selectedYear);
+        startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
+        endDate = new Date(year, month, 0).toISOString().split('T')[0];
+      }
+      
+      const response = await apiService.getTransactions({
+        page: currentPage,
+        limit: 20,
+        start_date: startDate,
+        end_date: endDate,
+        // Note: API doesn't support category/tags filtering for transactions yet
+        // This would need to be implemented on the backend
+      });
+      
+      setSales(response.transactions);
+      setTotalPages(response.total || 1);
+      setTotalSales(response.total || 0);
+    } catch (error) {
+      console.error('Failed to load sales:', error);
+      toast.error('Failed to load sales data');
+    } finally {
+      setIsLoadingSales(false);
+    }
+  }, [currentPage, selectedMonth, selectedYear]);
+
+  // Load sales when filters change
+  useEffect(() => {
+    loadSales();
+  }, [loadSales]);
 
   // Process sales data to extract sold products
   const soldProducts = useMemo(() => {
@@ -59,7 +108,11 @@ export const SalesHistory: React.FC = () => {
     sales.forEach((transaction: Transaction) => {
       if (transaction.items && Array.isArray(transaction.items)) {
         transaction.items.forEach((item: any) => {
-          const product = products.find(p => p._id === item.product_id);
+          // Try different possible field names for product ID
+          const productId = item.product_id || item.productId || item._id;
+          
+          const product = products.find(p => p._id === productId);
+          
           if (product) {
             // Ensure tags is always an array
             let productTags: string[] = [];
@@ -98,7 +151,8 @@ export const SalesHistory: React.FC = () => {
     });
 
     // Sort by most recent sales first
-    return soldItems.sort((a, b) => b.saleDate.getTime() - a.saleDate.getTime());
+    const sortedItems = soldItems.sort((a, b) => b.saleDate.getTime() - a.saleDate.getTime());
+    return sortedItems;
   }, [sales, products]);
 
   // Get unique categories from sold products
@@ -110,17 +164,6 @@ export const SalesHistory: React.FC = () => {
   // Get unique tags from sold products
   const availableTags = useMemo(() => {
     const allTags = soldProducts.flatMap(item => item.tags);
-    
-    // Debug logging
-    if (soldProducts.length > 0) {
-      console.log('=== SALES HISTORY TAGS DEBUG ===');
-      console.log('Total sold products:', soldProducts.length);
-      console.log('Sample sold product:', soldProducts[0]);
-      console.log('All tags from sold products:', allTags);
-      console.log('Available tags:', Array.from(new Set(allTags)));
-      console.log('================================');
-    }
-    
     return Array.from(new Set(allTags)).sort();
   }, [soldProducts]);
 
@@ -194,6 +237,11 @@ export const SalesHistory: React.FC = () => {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  const handleRefresh = () => {
+    loadSales();
   };
 
   const handleCategoryChange = (category: string) => {
@@ -218,7 +266,7 @@ export const SalesHistory: React.FC = () => {
 
   const refreshData = async () => {
     try {
-      await loadTransactions();
+      await loadSales();
       toast.success('Sales data refreshed');
     } catch (error) {
       console.error('Failed to refresh sales data:', error);
@@ -273,18 +321,26 @@ export const SalesHistory: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Back Navigation */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            <BackButton />
+            <Breadcrumb />
+          </div>
+        </div>
+        
         {/* Enhanced Header */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center space-x-4">
               <div className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl">
                 <Package className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Sales Summary</h1>
-                <p className="text-gray-600">View and analyze your sold products with detailed insights</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sales Summary</h1>
+                <p className="text-gray-600 dark:text-gray-400">View and analyze your sold products with detailed insights</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -299,7 +355,7 @@ export const SalesHistory: React.FC = () => {
               <Button
                 variant="outline"
                 onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center space-x-2 ${showFilters ? 'bg-blue-50 border-blue-200 text-blue-700' : ''}`}
+                className={`flex items-center space-x-2 ${showFilters ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' : ''}`}
               >
                 <Filter className="h-4 w-4" />
                 <span>Filters</span>
@@ -314,7 +370,7 @@ export const SalesHistory: React.FC = () => {
                 <Download className="h-4 w-4" />
                 <span>{exportLoading ? 'Exporting...' : 'Export CSV'}</span>
               </Button>
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+              <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                 <Button
                   variant={viewMode === 'grid' ? 'primary' : 'outline'}
                   size="sm"
@@ -341,9 +397,9 @@ export const SalesHistory: React.FC = () => {
           <Card className="p-6 hover:shadow-lg transition-all duration-300 border-l-4 border-l-green-500">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Total Revenue</p>
-                <p className="text-3xl font-bold text-gray-900">₺{summaryStats.totalRevenue.toLocaleString()}</p>
-                <p className="text-xs text-gray-500 mt-1">From {summaryStats.totalTransactions} transactions</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Revenue</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">₺{summaryStats.totalRevenue.toLocaleString()}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">From {summaryStats.totalTransactions} transactions</p>
               </div>
               <div className="p-4 bg-gradient-to-r from-green-500 to-green-600 rounded-xl">
                 <DollarSign className="h-7 w-7 text-white" />
@@ -354,9 +410,9 @@ export const SalesHistory: React.FC = () => {
           <Card className="p-6 hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Items Sold</p>
-                <p className="text-3xl font-bold text-gray-900">{summaryStats.totalQuantity.toLocaleString()}</p>
-                <p className="text-xs text-gray-500 mt-1">Across all categories</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Items Sold</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">{summaryStats.totalQuantity.toLocaleString()}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Across all categories</p>
               </div>
               <div className="p-4 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl">
                 <Package className="h-7 w-7 text-white" />
@@ -367,9 +423,9 @@ export const SalesHistory: React.FC = () => {
           <Card className="p-6 hover:shadow-lg transition-all duration-300 border-l-4 border-l-purple-500">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Unique Products</p>
-                <p className="text-3xl font-bold text-gray-900">{summaryStats.uniqueProducts}</p>
-                <p className="text-xs text-gray-500 mt-1">Different items sold</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Unique Products</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">{summaryStats.uniqueProducts}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Different items sold</p>
               </div>
               <div className="p-4 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl">
                 <TrendingUp className="h-7 w-7 text-white" />
@@ -380,9 +436,9 @@ export const SalesHistory: React.FC = () => {
           <Card className="p-6 hover:shadow-lg transition-all duration-300 border-l-4 border-l-orange-500">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Transactions</p>
-                <p className="text-3xl font-bold text-gray-900">{summaryStats.totalTransactions}</p>
-                <p className="text-xs text-gray-500 mt-1">Completed sales</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Transactions</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">{summaryStats.totalTransactions}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Completed sales</p>
               </div>
               <div className="p-4 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl">
                 <Calendar className="h-7 w-7 text-white" />
@@ -393,14 +449,14 @@ export const SalesHistory: React.FC = () => {
 
         {/* Enhanced Filters */}
         {showFilters && (
-          <Card className="p-6 border border-blue-200 bg-blue-50/30">
+          <Card className="p-6 border border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/20">
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Filter className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">Advanced Filters</h3>
+                  <Filter className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Advanced Filters</h3>
                 </div>
-                <Button variant="outline" size="sm" onClick={clearAllFilters} className="text-red-600 border-red-200 hover:bg-red-50">
+                <Button variant="outline" size="sm" onClick={clearAllFilters} className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20">
                   Clear All Filters
                 </Button>
               </div>
@@ -408,14 +464,14 @@ export const SalesHistory: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Category Filter */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     <Package className="h-4 w-4 inline mr-1" />
                     Category
                   </label>
                   <select
                     value={selectedCategory}
                     onChange={(e) => handleCategoryChange(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     aria-label="Select category"
                   >
                     {categories.map(category => (
@@ -428,7 +484,7 @@ export const SalesHistory: React.FC = () => {
 
                 {/* Year Filter */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     <Calendar className="h-4 w-4 inline mr-1" />
                     Year
                   </label>
@@ -438,7 +494,7 @@ export const SalesHistory: React.FC = () => {
                       setSelectedYear(e.target.value);
                       setSelectedMonth('all');
                     }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     aria-label="Select year"
                   >
                     {availableYears.map(year => (
@@ -449,14 +505,14 @@ export const SalesHistory: React.FC = () => {
 
                 {/* Month Filter */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     <Calendar className="h-4 w-4 inline mr-1" />
                     Month
                   </label>
                   <select
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     aria-label="Select month"
                   >
                     <option value="all">All Months</option>
@@ -468,27 +524,27 @@ export const SalesHistory: React.FC = () => {
 
                 {/* Tags Filter */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     <TrendingUp className="h-4 w-4 inline mr-1" />
                     Tags
                   </label>
-                  <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-3 bg-white">
+                  <div className="max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700">
                     {availableTags.length > 0 ? (
                       <div className="space-y-2">
                         {availableTags.map(tag => (
-                          <label key={tag} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                          <label key={tag} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 p-2 rounded">
                             <input
                               type="checkbox"
                               checked={selectedTags.includes(tag)}
                               onChange={() => handleTagToggle(tag)}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800"
                             />
-                            <span className="text-sm text-gray-700 font-medium">{tag}</span>
+                            <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">{tag}</span>
                           </label>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 text-center py-4">No tags available</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No tags available</p>
                     )}
                   </div>
                 </div>
@@ -496,21 +552,21 @@ export const SalesHistory: React.FC = () => {
 
               {/* Active Filters Display */}
               {(selectedCategory !== 'all' || selectedTags.length > 0 || selectedMonth !== 'all') && (
-                <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Active Filters:</p>
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Active Filters:</p>
                   <div className="flex flex-wrap gap-2">
                     {selectedCategory !== 'all' && (
-                      <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                      <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-sm rounded-full">
                         Category: {selectedCategory}
                       </span>
                     )}
                     {selectedMonth !== 'all' && (
-                      <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                      <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-sm rounded-full">
                         Month: {availableMonths.find(m => m.value === selectedMonth)?.label}
                       </span>
                     )}
                     {selectedTags.map(tag => (
-                      <span key={tag} className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full">
+                      <span key={tag} className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 text-sm rounded-full">
                         {tag}
                       </span>
                     ))}
@@ -522,7 +578,7 @@ export const SalesHistory: React.FC = () => {
         )}
 
         {/* Enhanced Search Bar */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
           <div className="flex items-center space-x-4">
             <div className="flex-1">
               <SearchBar
@@ -545,26 +601,26 @@ export const SalesHistory: React.FC = () => {
         </div>
 
         {/* Enhanced Results Count */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
-                <Search className="h-5 w-5 text-gray-400" />
-                <p className="text-gray-700 font-medium">
-                  Showing <span className="text-blue-600 font-bold">{filteredProducts.length}</span> of <span className="text-gray-900 font-bold">{soldProducts.length}</span> sold items
+                <Search className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                <p className="text-gray-700 dark:text-gray-300 font-medium">
+                  Showing <span className="text-blue-600 dark:text-blue-400 font-bold">{filteredProducts.length}</span> of <span className="text-gray-900 dark:text-white font-bold">{soldProducts.length}</span> sold items
                 </p>
               </div>
             </div>
             {filteredProducts.length > 0 && (
               <div className="flex items-center space-x-4">
                 <div className="text-right">
-                  <p className="text-sm text-gray-500">Filtered Revenue</p>
-                  <p className="text-lg font-bold text-green-600">₺{summaryStats.totalRevenue.toLocaleString()}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Filtered Revenue</p>
+                  <p className="text-lg font-bold text-green-600 dark:text-green-400">₺{summaryStats.totalRevenue.toLocaleString()}</p>
                 </div>
                 {soldProducts.length !== filteredProducts.length && (
                   <div className="text-right">
-                    <p className="text-sm text-gray-500">Total Revenue</p>
-                    <p className="text-lg font-bold text-gray-600">₺{soldProducts.reduce((sum, item) => sum + item.totalRevenue, 0).toLocaleString()}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Total Revenue</p>
+                    <p className="text-lg font-bold text-gray-600 dark:text-gray-400">₺{soldProducts.reduce((sum, item) => sum + item.totalRevenue, 0).toLocaleString()}</p>
                   </div>
                 )}
               </div>
@@ -574,74 +630,74 @@ export const SalesHistory: React.FC = () => {
 
         {/* Enhanced Products Display */}
         {filteredProducts.length > 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
             {viewMode === 'list' ? (
               /* Table View for List Mode */
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                     <tr>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
-                      <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                      <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
-                      <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Product</th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tags</th>
+                      <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quantity</th>
+                      <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Unit Price</th>
+                      <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total</th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Payment</th>
                       {showTransactionIds && (
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction ID</th>
+                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Transaction ID</th>
                       )}
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {filteredProducts.map((item, index) => (
-                      <tr key={`${item.transactionId}-${item.productId}-${index}`} className="hover:bg-gray-50 transition-colors duration-150">
+                      <tr key={`${item.transactionId}-${item.productId}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{item.productName}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{item.productName}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs rounded-full">
                             {item.category}
                           </span>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-wrap gap-1">
                             {item.tags.slice(0, 2).map(tag => (
-                              <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                              <span key={tag} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded">
                                 {tag}
                               </span>
                             ))}
                             {item.tags.length > 2 && (
-                              <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded">
+                              <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded">
                                 +{item.tags.length - 2}
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-white">
                           {item.quantitySold}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
                           ₺{item.unitPrice.toFixed(2)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-green-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-green-600 dark:text-green-400">
                           ₺{item.totalRevenue.toFixed(2)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.saleDate.toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs rounded-full capitalize ${
-                            item.paymentMethod === 'cash' ? 'bg-green-100 text-green-800' :
-                            item.paymentMethod === 'pos' ? 'bg-blue-100 text-blue-800' :
-                            'bg-purple-100 text-purple-800'
+                            item.paymentMethod === 'cash' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                            item.paymentMethod === 'pos' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
+                            'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
                           }`}>
                             {item.paymentMethod}
                           </span>
                         </td>
                         {showTransactionIds && (
-                          <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-mono">
+                          <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 font-mono">
                             #{item.transactionId.slice(-8)}
                           </td>
                         )}
@@ -655,13 +711,13 @@ export const SalesHistory: React.FC = () => {
               <div className="p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {filteredProducts.map((item, index) => (
-                    <Card key={`${item.transactionId}-${item.productId}-${index}`} className="p-5 hover:shadow-lg transition-all duration-300 border border-gray-200 hover:border-blue-300">
+                    <Card key={`${item.transactionId}-${item.productId}-${index}`} className="p-5 hover:shadow-lg transition-all duration-300 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600">
                       <div className="space-y-4">
                         {/* Header */}
                         <div className="flex items-start justify-between">
-                          <h3 className="font-semibold text-gray-900 text-lg leading-tight">{item.productName}</h3>
+                          <h3 className="font-semibold text-gray-900 dark:text-white text-lg leading-tight">{item.productName}</h3>
                           {showTransactionIds && (
-                            <span className="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-1 rounded">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
                               #{item.transactionId.slice(-6)}
                             </span>
                           )}
@@ -670,7 +726,7 @@ export const SalesHistory: React.FC = () => {
                         {/* Category and Tags */}
                         <div className="space-y-3">
                           <div className="flex items-center space-x-2">
-                            <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full font-medium">
+                            <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-sm rounded-full font-medium">
                               {item.category}
                             </span>
                           </div>
@@ -678,12 +734,12 @@ export const SalesHistory: React.FC = () => {
                           {item.tags.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                               {item.tags.slice(0, 3).map(tag => (
-                                <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
+                                <span key={tag} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded-full">
                                   {tag}
                                 </span>
                               ))}
                               {item.tags.length > 3 && (
-                                <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-full">
+                                <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded-full">
                                   +{item.tags.length - 3}
                                 </span>
                               )}
@@ -692,31 +748,31 @@ export const SalesHistory: React.FC = () => {
                         </div>
 
                         {/* Sales Details */}
-                        <div className="space-y-3 pt-4 border-t border-gray-100">
+                        <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-700">
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <p className="text-xs text-gray-500 mb-1">Quantity</p>
-                              <p className="text-lg font-semibold text-gray-900">{item.quantitySold}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Quantity</p>
+                              <p className="text-lg font-semibold text-gray-900 dark:text-white">{item.quantitySold}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-gray-500 mb-1">Unit Price</p>
-                              <p className="text-lg font-semibold text-gray-900">₺{item.unitPrice.toFixed(2)}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Unit Price</p>
+                              <p className="text-lg font-semibold text-gray-900 dark:text-white">₺{item.unitPrice.toFixed(2)}</p>
                             </div>
                           </div>
                           
-                          <div className="bg-green-50 rounded-lg p-3">
+                          <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
                             <div className="flex justify-between items-center">
-                              <span className="text-sm font-medium text-green-800">Total Revenue</span>
-                              <span className="text-xl font-bold text-green-600">₺{item.totalRevenue.toFixed(2)}</span>
+                              <span className="text-sm font-medium text-green-800 dark:text-green-300">Total Revenue</span>
+                              <span className="text-xl font-bold text-green-600 dark:text-green-400">₺{item.totalRevenue.toFixed(2)}</span>
                             </div>
                           </div>
                           
-                          <div className="flex justify-between items-center text-xs text-gray-500">
+                          <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
                             <span>{item.saleDate.toLocaleDateString()}</span>
                             <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
-                              item.paymentMethod === 'cash' ? 'bg-green-100 text-green-800' :
-                              item.paymentMethod === 'pos' ? 'bg-blue-100 text-blue-800' :
-                              'bg-purple-100 text-purple-800'
+                              item.paymentMethod === 'cash' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                              item.paymentMethod === 'pos' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
+                              'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
                             }`}>
                               {item.paymentMethod}
                             </span>
@@ -731,22 +787,22 @@ export const SalesHistory: React.FC = () => {
           </div>
         ) : (
           /* Empty State */
-          <Card className="p-12 text-center bg-white rounded-2xl shadow-lg border border-gray-100">
+          <Card className="p-12 text-center bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
             <div className="max-w-md mx-auto">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Package className="h-10 w-10 text-gray-400" />
+              <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Package className="h-10 w-10 text-gray-400 dark:text-gray-500" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No Sales Found</h3>
-              <p className="text-gray-600 mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Sales Found</h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
                 {soldProducts.length === 0 
                   ? "No sales have been recorded yet. Start making sales to see them here."
                   : "No sales match your current filters. Try adjusting your search criteria."
                 }
               </p>
               {soldProducts.length === 0 ? (
-                <Button onClick={() => window.location.href = '/pos'} className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
+                <SmartNavButton to="/pos" className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
                   Go to POS
-                </Button>
+                </SmartNavButton>
               ) : (
                 <Button onClick={clearAllFilters} variant="outline">
                   Clear Filters

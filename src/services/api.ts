@@ -600,8 +600,8 @@ class ApiService {
     if (store_id) queryParams.append('store_id', store_id);
     if (period) queryParams.append('period', period);
 
-    const response = await this.privateRequest<DashboardMetrics>(`/analytics/dashboard?${queryParams}`);
-    return response.data;
+    const response = await this.privateRequest<{ success: boolean; data: DashboardMetrics }>(`/analytics/dashboard?${queryParams}`);
+    return (response as any).data;
   }
 
   async getSalesAnalytics(params?: {
