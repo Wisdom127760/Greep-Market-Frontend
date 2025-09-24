@@ -7,6 +7,7 @@ interface UsePageRefreshOptions {
   refreshOnFocus?: boolean;
   refreshInterval?: number; // Auto-refresh interval in ms
   refreshOnVisibilityChange?: boolean;
+  refreshFunction?: () => Promise<void>; // Custom refresh function
   silent?: boolean;
 }
 
@@ -16,6 +17,7 @@ export function usePageRefresh(options: UsePageRefreshOptions = {}) {
     refreshOnFocus = false, // Changed default to false
     refreshInterval,
     refreshOnVisibilityChange = false, // Changed default to false
+    refreshFunction,
     silent = true
   } = options;
 
@@ -24,14 +26,19 @@ export function usePageRefresh(options: UsePageRefreshOptions = {}) {
   const lastRefreshRef = useRef<number>(0);
   const refreshCooldown = 5000; // 5 second cooldown between refreshes
 
-  const throttledRefresh = () => {
+  const throttledRefresh = async () => {
     const now = Date.now();
     if (now - lastRefreshRef.current < refreshCooldown) {
       console.log('Refresh throttled: Too soon since last refresh');
       return;
     }
     lastRefreshRef.current = now;
-    refreshAll();
+    
+    if (refreshFunction) {
+      await refreshFunction();
+    } else {
+      refreshAll();
+    }
   };
 
   // Refresh on mount (only if authenticated)

@@ -118,19 +118,31 @@ export const SalesHistory: React.FC = () => {
             let productTags: string[] = [];
             const rawTags = product.tags;
             
+            console.log('=== TAGS DEBUG ===');
+            console.log('Product:', product.name);
+            console.log('Raw tags:', rawTags);
+            console.log('Raw tags type:', typeof rawTags);
+            console.log('Raw tags is array:', Array.isArray(rawTags));
+            
             if (Array.isArray(rawTags)) {
               productTags = rawTags;
+              console.log('Using array tags:', productTags);
             } else if (typeof rawTags === 'string') {
               // If tags is a string, try to parse it as JSON or split by comma
               try {
                 const parsed = JSON.parse(rawTags);
                 productTags = Array.isArray(parsed) ? parsed : [];
+                console.log('Parsed JSON tags:', productTags);
               } catch {
                 // If JSON.parse fails, treat it as a comma-separated string
                 const tagsString = rawTags as string;
                 productTags = tagsString.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0);
+                console.log('Split comma tags:', productTags);
               }
             }
+            
+            console.log('Final productTags:', productTags);
+            console.log('==================');
             
             soldItems.push({
               productId: product._id,
@@ -227,11 +239,19 @@ export const SalesHistory: React.FC = () => {
     const uniqueProducts = new Set(filteredProducts.map(item => item.productId)).size;
     const totalTransactions = new Set(filteredProducts.map(item => item.transactionId)).size;
 
+    // Calculate payment method amounts
+    const paymentMethodAmounts = filteredProducts.reduce((acc, item) => {
+      const method = item.paymentMethod?.toLowerCase() || 'unknown';
+      acc[method] = (acc[method] || 0) + item.totalRevenue;
+      return acc;
+    }, {} as Record<string, number>);
+
     return {
       totalRevenue,
       totalQuantity,
       uniqueProducts,
-      totalTransactions
+      totalTransactions,
+      paymentMethodAmounts
     };
   }, [filteredProducts]);
 
@@ -446,6 +466,61 @@ export const SalesHistory: React.FC = () => {
             </div>
           </Card>
         </div>
+
+        {/* Payment Method Statistics */}
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+            <DollarSign className="h-5 w-5 mr-2 text-blue-600 dark:text-blue-400" />
+            Payment Methods
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Cash Payments */}
+            <Card className="p-4 hover:shadow-lg transition-all duration-300 border-l-4 border-l-green-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Cash</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    ₺{(summaryStats.paymentMethodAmounts.cash || 0).toLocaleString()}
+                  </p>
+                </div>
+                <div className="p-3 bg-gradient-to-r from-green-500 to-green-600 rounded-lg">
+                  <DollarSign className="h-5 w-5 text-white" />
+                </div>
+              </div>
+            </Card>
+
+            {/* POS Payments */}
+            <Card className="p-4 hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">POS</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    ₺{(summaryStats.paymentMethodAmounts.pos || 0).toLocaleString()}
+                  </p>
+                </div>
+                <div className="p-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg">
+                  <Package className="h-5 w-5 text-white" />
+                </div>
+              </div>
+            </Card>
+
+            {/* Transfer Payments */}
+            <Card className="p-4 hover:shadow-lg transition-all duration-300 border-l-4 border-l-purple-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Transfer</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    ₺{(summaryStats.paymentMethodAmounts.transfer || 0).toLocaleString()}
+                  </p>
+                </div>
+                <div className="p-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg">
+                  <TrendingUp className="h-5 w-5 text-white" />
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+
 
         {/* Enhanced Filters */}
         {showFilters && (

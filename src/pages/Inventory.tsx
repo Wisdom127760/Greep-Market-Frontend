@@ -173,7 +173,7 @@ export const Inventory: React.FC = () => {
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button 
-                  onClick={refreshDashboard}
+                  onClick={() => refreshDashboard()}
                   variant="outline"
                   className="w-full sm:w-auto"
                 >

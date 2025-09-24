@@ -1,6 +1,5 @@
 import React from 'react';
 import { Package, AlertTriangle, CheckSquare, Square, DollarSign, History, Edit3, Trash2, Plus } from 'lucide-react';
-import { Button } from './Button';
 import { Product } from '../../types';
 
 interface ProductCardProps {

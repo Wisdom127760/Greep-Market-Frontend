@@ -432,11 +432,21 @@ export const Reports: React.FC = () => {
                         formatter={(value: number) => [formatPrice(value), 'Sales']}
                         contentStyle={{ 
                           backgroundColor: '#1F2937', 
-                          border: '1px solid #374151', 
+                          border: '1px solid #4B5563', 
                           borderRadius: '8px',
-                          color: '#F9FAFB'
+                          color: '#FFFFFF',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          padding: '8px 12px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                         }}
-                        labelStyle={{ color: '#F9FAFB' }}
+                        labelStyle={{ 
+                          color: '#FFFFFF',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          marginBottom: '4px'
+                        }}
+                        itemStyle={{ color: '#FFFFFF' }}
                       />
                       <Line 
                         type="monotone" 
@@ -475,14 +485,28 @@ export const Reports: React.FC = () => {
                         ))}
                       </Pie>
                       <Tooltip 
-                        formatter={(value: number) => [`${value}%`, 'Percentage']}
+                        formatter={(value: number, name: string, props: any) => {
+                          const percentage = props.payload?.percentage || '0.0';
+                          const paymentMethod = props.payload?.name || 'Unknown';
+                          return [`${percentage}%`, paymentMethod];
+                        }}
                         contentStyle={{ 
                           backgroundColor: '#1F2937', 
-                          border: '1px solid #374151', 
+                          border: '1px solid #4B5563', 
                           borderRadius: '8px',
-                          color: '#F9FAFB'
+                          color: '#FFFFFF',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          padding: '8px 12px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                         }}
-                        labelStyle={{ color: '#F9FAFB' }}
+                        labelStyle={{ 
+                          color: '#FFFFFF',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          marginBottom: '4px'
+                        }}
+                        itemStyle={{ color: '#FFFFFF' }}
                       />
                       <Legend />
                     </PieChart>
@@ -521,14 +545,27 @@ export const Reports: React.FC = () => {
                         ))}
                       </Pie>
                       <Tooltip 
-                        formatter={(value: number) => [value, 'Products']}
+                        formatter={(value: number, name: string, props: any) => {
+                          const status = props.payload?.name || 'Unknown';
+                          return [`${value} products`, status];
+                        }}
                         contentStyle={{ 
                           backgroundColor: '#1F2937', 
-                          border: '1px solid #374151', 
+                          border: '1px solid #4B5563', 
                           borderRadius: '8px',
-                          color: '#F9FAFB'
+                          color: '#FFFFFF',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          padding: '8px 12px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                         }}
-                        labelStyle={{ color: '#F9FAFB' }}
+                        labelStyle={{ 
+                          color: '#FFFFFF',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          marginBottom: '4px'
+                        }}
+                        itemStyle={{ color: '#FFFFFF' }}
                       />
                       <Legend />
                     </PieChart>
@@ -563,11 +600,21 @@ export const Reports: React.FC = () => {
                             formatter={(value: number) => [formatPrice(value), 'Value']}
                             contentStyle={{ 
                               backgroundColor: '#1F2937', 
-                              border: '1px solid #374151', 
+                              border: '1px solid #4B5563', 
                               borderRadius: '8px',
-                              color: '#F9FAFB'
+                              color: '#FFFFFF',
+                              fontSize: '14px',
+                              fontWeight: '500',
+                              padding: '8px 12px',
+                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                             }}
-                            labelStyle={{ color: '#F9FAFB' }}
+                            labelStyle={{ 
+                              color: '#FFFFFF',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              marginBottom: '4px'
+                            }}
+                            itemStyle={{ color: '#FFFFFF' }}
                           />
                           <Bar dataKey="value" fill="#3b82f6" />
                         </BarChart>
@@ -599,11 +646,21 @@ export const Reports: React.FC = () => {
                       formatter={(value: number) => [formatPrice(value), 'Revenue']}
                       contentStyle={{ 
                         backgroundColor: '#1F2937', 
-                        border: '1px solid #374151', 
+                        border: '1px solid #4B5563', 
                         borderRadius: '8px',
-                        color: '#F9FAFB'
+                        color: '#FFFFFF',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        padding: '8px 12px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                       }}
-                      labelStyle={{ color: '#F9FAFB' }}
+                      labelStyle={{ 
+                        color: '#FFFFFF',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        marginBottom: '4px'
+                      }}
+                      itemStyle={{ color: '#FFFFFF' }}
                     />
                     <Bar dataKey="revenue" fill="#8b5cf6" />
                   </BarChart>

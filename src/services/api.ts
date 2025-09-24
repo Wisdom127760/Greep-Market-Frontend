@@ -110,7 +110,6 @@ class ApiService {
       });
       
       clearTimeout(timeoutId);
-      console.log(`API response received: ${response.status} ${response.statusText}`);
       
       // Check if response has content before trying to parse JSON
       let data;
@@ -304,31 +303,24 @@ class ApiService {
   }
 
   async createProduct(productData: Partial<Product>, images?: File[]): Promise<Product> {
-    console.log('Creating product with images:', images?.length || 0);
-    
     // If there are images, use FormData, otherwise use JSON
     if (images && images.length > 0) {
-      console.log('Using FormData for image upload');
       const formData = new FormData();
       
       // Add each product field individually to FormData
-      console.log('Product data being sent:', productData);
       Object.keys(productData).forEach(key => {
         const value = productData[key as keyof Product];
         if (value !== undefined && value !== null) {
           if (typeof value === 'object') {
             formData.append(key, JSON.stringify(value));
-            console.log(`Added ${key} as JSON:`, JSON.stringify(value));
           } else {
             formData.append(key, String(value));
-            console.log(`Added ${key} as string:`, String(value));
           }
         }
       });
       
       // Add each image file
-      images.forEach((image, index) => {
-        console.log(`Adding image ${index + 1}:`, image.name, image.size, 'bytes');
+      images.forEach((image) => {
         formData.append(`images`, image);
       });
       
@@ -336,16 +328,13 @@ class ApiService {
         method: 'POST',
         body: formData,
       });
-      console.log('Product created with images:', response.data);
       return response.data;
     } else {
-      console.log('Using JSON request (no images)');
       // No images, use regular JSON request
       const response = await this.privateRequest<Product>('/products', {
         method: 'POST',
         body: JSON.stringify(productData),
       });
-      console.log('Product created without images:', response.data);
       return response.data;
     }
   }
@@ -556,6 +545,9 @@ class ApiService {
     if (params?.status) queryParams.append('status', params.status);
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
+    
+    // Add cache-busting parameter to ensure fresh data when filters change
+    queryParams.append('_t', Date.now().toString());
 
     const response = await this.privateRequest<Transaction[]>(`/transactions?${queryParams}`);
     return {
@@ -595,11 +587,27 @@ class ApiService {
   }
 
   // Analytics
-  async getDashboardAnalytics(store_id?: string, period?: string): Promise<DashboardMetrics> {
+  async getDashboardAnalytics(params?: {
+    store_id?: string;
+    dateRange?: string;
+    paymentMethod?: string;
+    orderSource?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<DashboardMetrics> {
     const queryParams = new URLSearchParams();
-    if (store_id) queryParams.append('store_id', store_id);
-    if (period) queryParams.append('period', period);
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+    if (params?.dateRange) queryParams.append('dateRange', params.dateRange);
+    if (params?.paymentMethod) queryParams.append('paymentMethod', params.paymentMethod);
+    if (params?.orderSource) queryParams.append('orderSource', params.orderSource);
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.startDate) queryParams.append('startDate', params.startDate);
+    if (params?.endDate) queryParams.append('endDate', params.endDate);
 
+    // Add cache-busting parameter to ensure fresh data when filters change
+    queryParams.append('_t', Date.now().toString());
+    
     const response = await this.privateRequest<{ success: boolean; data: DashboardMetrics }>(`/analytics/dashboard?${queryParams}`);
     return (response as any).data;
   }

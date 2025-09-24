@@ -15,7 +15,14 @@ interface AppContextType extends AppState {
   importProducts: (file: File) => Promise<{ imported: number; errors: string[] }>;
   addTransaction: (transaction: any) => Promise<void>;
   updateInventory: (productId: string, quantity: number) => Promise<void>;
-  refreshDashboard: () => Promise<void>;
+  refreshDashboard: (filters?: {
+    dateRange?: string;
+    paymentMethod?: string;
+    orderSource?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => Promise<void>;
   loadProducts: (page?: number, limit?: number, search?: string, category?: string) => Promise<void>;
   loadAllProducts: () => Promise<void>;
   loadTransactions: () => Promise<void>;
@@ -203,7 +210,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadAllProducts = useCallback(async () => {
     if (!isAuthenticated || !user) {
-      console.log('User not authenticated, skipping all products load');
       return;
     }
     try {
@@ -213,13 +219,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         page: 1,
         limit: 1000 // Set high limit to get all products
       });
-      console.log('=== LOAD ALL PRODUCTS DEBUG ===');
-      console.log('API Response:', response);
-      console.log('Products count:', response.products.length);
-      console.log('Total from API:', response.total);
-      console.log('Store ID:', user?.store_id);
-      console.log('Request params:', { store_id: user?.store_id, page: 1, limit: 1000 });
-      console.log('================================');
       dispatch({ type: 'SET_PRODUCTS', payload: response.products });
       dispatch({ 
         type: 'SET_PRODUCTS_PAGINATION', 
@@ -239,20 +238,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadTransactions = async () => {
     if (!isAuthenticated || !user) {
-      console.log('User not authenticated, skipping transactions load');
       return;
     }
     try {
-      console.log('=== LOAD TRANSACTIONS DEBUG ===');
-      console.log('Loading transactions for store_id:', user?.store_id);
       const response = await apiService.getTransactions({ 
         store_id: user?.store_id,
         limit: 200 // Increased from 50 to 200 for better data coverage
       });
-      console.log('Transactions API response:', response);
-      console.log('Transactions count:', response.transactions?.length);
-      console.log('Sample transaction:', response.transactions?.[0]);
-      console.log('================================');
       dispatch({ type: 'SET_TRANSACTIONS', payload: response.transactions });
     } catch (error) {
       console.error('Failed to load transactions:', error);
@@ -477,14 +469,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshDashboard = async () => {
+  const refreshDashboard = async (filters?: {
+    dateRange?: string;
+    paymentMethod?: string;
+    orderSource?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
     if (!isAuthenticated || !user) {
       console.log('User not authenticated, skipping dashboard refresh');
       return;
     }
     
     try {
-      const metrics = await apiService.getDashboardAnalytics(user?.store_id);
+      const metrics = await apiService.getDashboardAnalytics({
+        store_id: user?.store_id,
+        ...filters
+      });
       dispatch({ type: 'SET_DASHBOARD_METRICS', payload: metrics });
     } catch (error) {
       console.error('Failed to refresh dashboard:', error);

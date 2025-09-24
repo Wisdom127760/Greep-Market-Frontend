@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { CreditCard, X, Users, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-// import { useNavigate } from 'react-router-dom'; // No longer needed with SmartNavButton
 import { Button } from '../components/ui/Button';
 import { SearchBar } from '../components/ui/SearchBar';
 import { ProductCard } from '../components/ui/ProductCard';
@@ -19,10 +18,7 @@ export const POS: React.FC = () => {
   const { products, addTransaction, updateInventory, loadAllProducts } = useApp();
   const { user, isAuthenticated, isLoading } = useAuth();
   const { riders, loadRiders } = useRiders();
-  // const navigate = useNavigate(); // No longer needed with SmartNavButton
   
-  // Debug user information
-  console.log('POS - User info:', { user, isAuthenticated, isLoading });
   
   // Enable automatic refresh for POS (conservative settings)
   usePageRefresh({

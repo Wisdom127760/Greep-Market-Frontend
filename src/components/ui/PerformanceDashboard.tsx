@@ -68,7 +68,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
     try {
       // Load real data from existing API methods and goals
       const [dashboardMetrics, salesAnalytics, goals] = await Promise.all([
-        apiService.getDashboardAnalytics(storeId).catch(err => {
+        apiService.getDashboardAnalytics({ store_id: storeId }).catch(err => {
           console.warn('Failed to load dashboard analytics:', err);
           return null;
         }),
