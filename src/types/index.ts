@@ -85,7 +85,8 @@ export interface Transaction {
   discount_amount: number;
   tax_amount: number;
   total_amount: number;
-  payment_method: 'cash' | 'card' | 'transfer' | 'crypto'; // Single payment method
+  payment_methods: PaymentMethod[]; // Multiple payment methods
+  payment_method?: 'cash' | 'card' | 'transfer' | 'crypto'; // Legacy single payment method (for backward compatibility)
   payment_status: 'pending' | 'completed' | 'failed' | 'refunded';
   status: 'pending' | 'completed' | 'cancelled' | 'voided';
   order_source: 'in_store' | 'online' ;

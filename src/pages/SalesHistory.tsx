@@ -28,10 +28,10 @@ import { SmartNavButton } from '../components/ui/SmartNavButton';
 import { BackButton } from '../components/ui/BackButton';
 import { Breadcrumb } from '../components/ui/Breadcrumb';
 import { EditTransactionModal } from '../components/ui/EditTransactionModal';
-import { BackendSupportNotice } from '../components/ui/BackendSupportNotice';
+import { PaymentMethodsDisplay } from '../components/ui/PaymentMethodsDisplay';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { Transaction } from '../types';
+import { Transaction, PaymentMethod } from '../types';
 import { apiService } from '../services/api';
 
 interface SoldProduct {
@@ -44,7 +44,8 @@ interface SoldProduct {
   totalRevenue: number;
   saleDate: Date;
   transactionId: string;
-  paymentMethod: string;
+  paymentMethods: PaymentMethod[];
+  paymentMethod: string; // Legacy field for backward compatibility
   customerId?: string;
 }
 
@@ -214,7 +215,8 @@ export const SalesHistory: React.FC = () => {
               totalRevenue: item.quantity * item.unit_price,
               saleDate: new Date(transaction.created_at),
               transactionId: transaction._id,
-              paymentMethod: transaction.payment_method,
+              paymentMethods: transaction.payment_methods || (transaction.payment_method ? [{ type: transaction.payment_method as 'cash' | 'card' | 'transfer' | 'crypto', amount: transaction.total_amount }] : []),
+              paymentMethod: transaction.payment_method || (transaction.payment_methods && transaction.payment_methods.length > 0 ? transaction.payment_methods[0].type : 'cash'),
               customerId: transaction.customer_id
             });
           }
@@ -325,8 +327,18 @@ export const SalesHistory: React.FC = () => {
 
     // Calculate payment method amounts
     const paymentMethodAmounts = filteredProducts.reduce((acc, item) => {
-      const method = item.paymentMethod?.toLowerCase() || 'unknown';
-      acc[method] = (acc[method] || 0) + item.totalRevenue;
+      // Handle multiple payment methods
+      if (item.paymentMethods && item.paymentMethods.length > 0) {
+        item.paymentMethods.forEach(method => {
+          const methodKey = method.type === 'card' ? 'pos' : method.type;
+          acc[methodKey] = (acc[methodKey] || 0) + method.amount;
+        });
+      } else {
+        // Fallback to legacy single payment method
+        const method = item.paymentMethod?.toLowerCase() || 'unknown';
+        const methodKey = method === 'card' ? 'pos' : method;
+        acc[methodKey] = (acc[methodKey] || 0) + item.totalRevenue;
+      }
       return acc;
     }, {} as Record<string, number>);
 
@@ -444,11 +456,6 @@ export const SalesHistory: React.FC = () => {
           </div>
         </div>
 
-        {/* Backend Support Notice */}
-        <BackendSupportNotice 
-          feature="transaction edit/delete" 
-          isVisible={isAdmin} 
-        />
         
         {/* Enhanced Header */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
@@ -966,14 +973,11 @@ export const SalesHistory: React.FC = () => {
                           })}
                         </td>
                         <td className="px-4 py-3 text-sm border-r border-gray-200 dark:border-gray-700">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
-                            item.paymentMethod === 'cash' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                            item.paymentMethod === 'pos' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
-                            item.paymentMethod === 'crypto' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                            'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
-                          }`}>
-                            {item.paymentMethod}
-                          </span>
+                          <PaymentMethodsDisplay 
+                            paymentMethods={item.paymentMethods}
+                            compact={true}
+                            showAmounts={false}
+                          />
                         </td>
                         {showTransactionIds && (
                           <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-mono">
@@ -1089,13 +1093,11 @@ export const SalesHistory: React.FC = () => {
                           
                           <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
                             <span>{item.saleDate.toLocaleDateString()}</span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
-                              item.paymentMethod === 'cash' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                              item.paymentMethod === 'pos' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
-                              'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
-                            }`}>
-                              {item.paymentMethod}
-                            </span>
+                            <PaymentMethodsDisplay 
+                              paymentMethods={item.paymentMethods}
+                              compact={true}
+                              showAmounts={false}
+                            />
                           </div>
                         </div>
                       </div>
