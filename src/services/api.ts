@@ -579,6 +579,45 @@ class ApiService {
     return response.data;
   }
 
+  async updateTransaction(transactionId: string, updates: {
+    items?: Array<{
+      product_id: string;
+      quantity: number;
+      unit_price: number;
+    }>;
+    payment_method?: string;
+    customer_id?: string;
+    notes?: string;
+  }): Promise<Transaction> {
+    try {
+      const response = await this.privateRequest<Transaction>(`/transactions/${transactionId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Update transaction error:', error);
+      if (error.message?.includes('Access denied') || error.message?.includes('Cannot manage')) {
+        throw new Error('Transaction update not supported by backend yet. Please contact your administrator.');
+      }
+      throw error;
+    }
+  }
+
+  async deleteTransaction(transactionId: string): Promise<void> {
+    try {
+      await this.privateRequest(`/transactions/${transactionId}`, {
+        method: 'DELETE',
+      });
+    } catch (error: any) {
+      console.error('Delete transaction error:', error);
+      if (error.message?.includes('Access denied') || error.message?.includes('Cannot manage')) {
+        throw new Error('Transaction deletion not supported by backend yet. Please contact your administrator.');
+      }
+      throw error;
+    }
+  }
+
   // Analytics
   async getDashboardAnalytics(params?: {
     store_id?: string;
@@ -688,6 +727,20 @@ class ApiService {
     store_id?: string;
   }): Promise<User> {
     const response = await this.privateRequest<{ success: boolean; data: User }>(`/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    });
+    return (response as any).data;
+  }
+
+  // Update current user's own profile (for self-editing)
+  async updateProfile(userData: {
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+  }): Promise<User> {
+    const response = await this.privateRequest<{ success: boolean; data: User }>('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(userData),
     });

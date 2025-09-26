@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { 
-  Package, 
-  AlertTriangle, 
+import {
+  Package,
+  AlertTriangle,
   DollarSign,
   ShoppingCart,
   BarChart3,
@@ -40,17 +40,17 @@ export const Dashboard: React.FC = () => {
   const [localDashboardMetrics, setLocalDashboardMetrics] = useState<any>(null);
   const [isGoalSettingModalOpen, setIsGoalSettingModalOpen] = useState(false);
   const isRefreshingRef = useRef(false);
-  
+
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState<'today' | 'this_month' | 'custom'>('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  
+
   // For initial load with 'today' filter, completely ignore dashboardMetrics to prevent flashing
   // Temporarily disable this to fix the empty KPI issue
   // const shouldIgnoreDashboardMetrics = false; // isInitialLoad && dateRange === 'today';
-  
+
   // Enable automatic refresh for dashboard with smart intervals based on filter (currently disabled)
   // const refreshInterval = useMemo(() => {
   //   // More frequent refresh for "Today" filter since sales happen in real-time
@@ -72,6 +72,42 @@ export const Dashboard: React.FC = () => {
     }).format(price);
   };
 
+  // Format date for chart display (user-friendly format)
+  const formatChartDate = (dateString: string) => {
+    try {
+      // Handle different date formats from API
+      let date: Date;
+
+      if (dateString.includes('T') || dateString.includes(' ')) {
+        // Handle ISO format or datetime format
+        date = new Date(dateString);
+      } else if (dateString.includes('-')) {
+        // Handle YYYY-MM-DD format
+        date = new Date(dateString + 'T00:00:00');
+      } else {
+        // Fallback
+        date = new Date(dateString);
+      }
+
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return dateString; // Return original if invalid
+      }
+
+      // Format as "Sep 26", "Sep 21", etc.
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+      const month = monthNames[date.getMonth()];
+      const day = date.getDate();
+
+      return `${month} ${day}`;
+    } catch (error) {
+      console.error('Error formatting chart date:', error);
+      return dateString; // Return original if error
+    }
+  };
+
   // Filter sales data locally from AppContext instead of making separate API calls
   // Sales data now comes from unified dashboard analytics API - no separate filtering needed
 
@@ -81,22 +117,22 @@ export const Dashboard: React.FC = () => {
       console.log('🔄 Unified refresh skipped - already refreshing');
       return;
     }
-    
+
     isRefreshingRef.current = true;
     console.log('🔄 Unified refresh triggered');
-    
+
     try {
       // Calculate filter parameters based on current date range
       const now = new Date();
       let filterParams: any = {};
-          // Expense dates no longer needed - handled by dashboard metrics API
-      
+      // Expense dates no longer needed - handled by dashboard metrics API
+
       switch (dateRange) {
         case 'today':
           // Use local timezone to ensure correct "today" calculation
           const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-          
+
           // Send date strings in YYYY-MM-DD format to avoid timezone issues
           filterParams = {
             dateRange: 'today',
@@ -108,7 +144,7 @@ export const Dashboard: React.FC = () => {
           // Use local timezone for month boundaries
           const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
           const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-          
+
           // Send date strings in YYYY-MM-DD format to avoid timezone issues
           filterParams = {
             dateRange: 'this_month',
@@ -139,12 +175,12 @@ export const Dashboard: React.FC = () => {
           todayDate: new Date().toISOString().split('T')[0],
           apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&dateRange=${filterParams.dateRange}&startDate=${filterParams.startDate}&endDate=${filterParams.endDate}`
         });
-        
+
         const metrics = await apiService.getDashboardAnalytics({
           store_id: user?.store_id,
           ...filterParams
         });
-        
+
         setLocalDashboardMetrics(metrics);
         console.log('🔍 Dashboard Metrics Debug (Unified):', {
           totalExpenses: metrics?.totalExpenses,
@@ -162,23 +198,23 @@ export const Dashboard: React.FC = () => {
           topProducts: metrics?.topProducts?.length || 0,
           apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&startDate=${filterParams.startDate}&endDate=${filterParams.endDate}`
         });
-        
+
         // Update goal progress with the loaded metrics
         if (metrics) {
           updateGoalProgress(metrics, metrics);
         }
-        
+
         // Dashboard metrics are now managed locally - no need to update AppContext
-        
+
       } catch (error) {
         console.error('Failed to load dashboard metrics:', error);
       }
-      
+
       // Mark initial load as complete
       if (isInitialLoad) {
         setIsInitialLoad(false);
       }
-      
+
     } catch (error) {
       console.error('Failed to refresh dashboard:', error);
     } finally {
@@ -235,37 +271,42 @@ export const Dashboard: React.FC = () => {
         // If filtered sales is empty, try to use currentDashboardMetrics data as fallback
         if (currentDashboardMetrics?.salesByMonth && currentDashboardMetrics.salesByMonth.length > 0) {
           return currentDashboardMetrics.salesByMonth.map((item: any) => ({
-            day: item.month, // Use month as day for fallback
+            day: formatChartDate(item.month), // Format date for better UX
             sales: item.sales
           }));
         }
         return [];
       }
-      
+
       // Group filtered sales by day
       const dailySales = filteredSales.reduce((acc, sale) => {
         const saleDate = new Date(sale.created_at);
         const dayKey = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
-        
+
         if (!acc[dayKey]) {
-          acc[dayKey] = { day: dayKey, sales: 0 };
+          acc[dayKey] = { day: formatChartDate(dayKey), sales: 0 }; // Format date for better UX
         }
         acc[dayKey].sales += sale.total_amount;
-        
+
         return acc;
       }, {} as Record<string, { day: string; sales: number }>);
-      
-      return Object.values(dailySales).sort((a: any, b: any) => a.day.localeCompare(b.day));
+
+      return Object.values(dailySales).sort((a: any, b: any) => {
+        // Sort by original date string, not formatted string
+        const aDate = Object.keys(dailySales).find(key => dailySales[key] === a);
+        const bDate = Object.keys(dailySales).find(key => dailySales[key] === b);
+        return (aDate || '').localeCompare(bDate || '');
+      });
     }
-    
+
     // Use API data when no filters are applied
     if (currentDashboardMetrics?.salesByMonth && currentDashboardMetrics.salesByMonth.length > 0) {
       return currentDashboardMetrics.salesByMonth.map((item: any) => ({
-        day: item.month, // Use month as day for fallback
+        day: formatChartDate(item.month), // Format date for better UX
         sales: item.sales
       }));
     }
-    
+
     return [];
   }, [currentDashboardMetrics?.salesByMonth, filteredSales, dateRange, customStartDate, customEndDate]);
 
@@ -277,8 +318,8 @@ export const Dashboard: React.FC = () => {
         // If filtered sales is empty, try to use currentDashboardMetrics data as fallback
         if (currentDashboardMetrics?.topProducts && currentDashboardMetrics.topProducts.length > 0) {
           return currentDashboardMetrics.topProducts.map((product: any) => ({
-            name: product.productName?.length > 12 
-              ? product.productName.substring(0, 12) + '...' 
+            name: product.productName?.length > 8
+              ? product.productName.substring(0, 8) + '...'
               : product.productName,
             fullName: product.productName,
             revenue: product.revenue,
@@ -287,7 +328,7 @@ export const Dashboard: React.FC = () => {
         }
         return [];
       }
-      
+
       // Aggregate product sales from filtered transactions
       const productSales = filteredSales.reduce((acc, sale) => {
         sale.items?.forEach((item: any) => {
@@ -305,33 +346,33 @@ export const Dashboard: React.FC = () => {
         });
         return acc;
       }, {} as Record<string, { productId: string; productName: string; revenue: number; quantitySold: number }>);
-      
+
       // Convert to array and sort by revenue
       return Object.values(productSales)
         .sort((a: any, b: any) => b.revenue - a.revenue)
         .slice(0, 10) // Top 10 products
         .map((product: any) => ({
-          name: product.productName?.length > 12 
-            ? product.productName.substring(0, 12) + '...' 
-      : product.productName || 'Unknown Product',
+          name: product.productName?.length > 8
+            ? product.productName.substring(0, 8) + '...'
+            : product.productName || 'Unknown Product',
           fullName: product.productName || 'Unknown Product',
           revenue: product.revenue,
           quantity: product.quantitySold,
         }));
     }
-    
+
     // Use API data when no filters are applied
     if (currentDashboardMetrics?.topProducts && currentDashboardMetrics.topProducts.length > 0) {
       return currentDashboardMetrics.topProducts.map((product: any) => ({
-        name: product.productName?.length > 12 
-          ? product.productName.substring(0, 12) + '...' 
-      : product.productName,
+        name: product.productName?.length > 8
+          ? product.productName.substring(0, 8) + '...'
+          : product.productName,
         fullName: product.productName,
-    revenue: product.revenue,
-    quantity: product.quantitySold,
+        revenue: product.revenue,
+        quantity: product.quantitySold,
       }));
     }
-    
+
     return [];
   }, [currentDashboardMetrics?.topProducts, filteredSales, dateRange, customStartDate, customEndDate]);
 
@@ -344,7 +385,7 @@ export const Dashboard: React.FC = () => {
     let previousPeriodEnd: Date;
     let comparisonLabel: string;
     let periodLabel: string;
-    
+
     // Determine current period based on filter
     switch (dateRange) {
       case 'today':
@@ -358,7 +399,7 @@ export const Dashboard: React.FC = () => {
         comparisonLabel = 'vs yesterday';
         periodLabel = 'Today';
         break;
-        
+
       case 'this_month':
         // This month vs Last month
         currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -369,7 +410,7 @@ export const Dashboard: React.FC = () => {
         comparisonLabel = 'vs last month';
         periodLabel = 'This Month';
         break;
-        
+
       case 'custom':
         // Custom range vs same length period before
         if (!customStartDate || !customEndDate) {
@@ -383,12 +424,12 @@ export const Dashboard: React.FC = () => {
         comparisonLabel = 'vs previous period';
         periodLabel = `${new Date(customStartDate).toLocaleDateString()} - ${new Date(customEndDate).toLocaleDateString()}`;
         break;
-        
+
       default:
         return null;
     }
-    
-      return {
+
+    return {
       currentPeriodStart,
       currentPeriodEnd,
       previousPeriodStart,
@@ -413,24 +454,24 @@ export const Dashboard: React.FC = () => {
     }
 
     const { previousPeriodStart, previousPeriodEnd, comparisonLabel, periodLabel } = filterData;
-    
+
     // Get current period data (from filtered sales)
     const currentPeriodSales = filteredSales.reduce((sum, sale) => sum + sale.total_amount, 0);
     const currentPeriodTransactions = filteredSales.length;
     const currentPeriodAvgTransaction = currentPeriodTransactions > 0 ? currentPeriodSales / currentPeriodTransactions : 0;
-    
+
     // Get previous period data (simplified - use current metrics for now)
     // TODO: Implement proper previous period calculation when needed
     const previousPeriodSales = 0; // Simplified for now
     const previousPeriodTransactions = 0; // Simplified for now
-    
+
     const previousPeriodAvgTransaction = previousPeriodTransactions > 0 ? previousPeriodSales / previousPeriodTransactions : 0;
-    
+
     // Calculate growth rates
     const salesGrowthRate = previousPeriodSales > 0 ? ((currentPeriodSales - previousPeriodSales) / previousPeriodSales) * 100 : (currentPeriodSales > 0 ? 100 : 0);
     const transactionGrowthRate = previousPeriodTransactions > 0 ? ((currentPeriodTransactions - previousPeriodTransactions) / previousPeriodTransactions) * 100 : (currentPeriodTransactions > 0 ? 100 : 0);
     const avgTransactionGrowthRate = previousPeriodAvgTransaction > 0 ? ((currentPeriodAvgTransaction - previousPeriodAvgTransaction) / previousPeriodAvgTransaction) * 100 : (currentPeriodAvgTransaction > 0 ? 100 : 0);
-    
+
     return {
       totalSales: currentPeriodSales,
       totalTransactions: currentPeriodTransactions,
@@ -456,7 +497,7 @@ export const Dashboard: React.FC = () => {
   // Get comparison label and period label based on current filter
   let comparisonLabel = 'vs last month';
   let periodLabel = 'This Month';
-  
+
   // Set labels based on current date range
   switch (dateRange) {
     case 'today':
@@ -475,15 +516,15 @@ export const Dashboard: React.FC = () => {
       comparisonLabel = 'vs last month';
       periodLabel = 'This Month';
   }
-  
+
   // Use expense data from dashboard metrics (single source of truth)
   const totalExpensesFromMetrics = currentDashboardMetrics?.totalExpenses || 0;
   const monthlyExpensesFromMetrics = currentDashboardMetrics?.monthlyExpenses || 0;
   const netProfitFromMetrics = currentDashboardMetrics?.netProfit || 0;
-  
+
   // Use net profit from metrics (calculated by backend)
   const netProfit = netProfitFromMetrics;
-  
+
   // Debug logging
   useEffect(() => {
     console.log('🔍 Dashboard Data Sources Debug:', {
@@ -554,8 +595,8 @@ export const Dashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 transition-colors duration-300">
             <div className="text-center">
-            <h1 className="text-xl font-semibold text-gray-800 dark:text-white mb-1">Dashboard</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Welcome to {app.name} Management System</p>
+              <h1 className="text-xl font-semibold text-gray-800 dark:text-white mb-1">Dashboard</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Welcome to {app.name} Management System</p>
             </div>
             <div className="flex items-center justify-center py-8">
               <LoadingSpinner size="lg" className="mr-3" />
@@ -620,7 +661,7 @@ export const Dashboard: React.FC = () => {
                 <Filter className="h-4 w-4" />
                 <span>{showFilters ? 'Hide' : 'Show'} Filters</span>
               </Button>
-              
+
             </div>
           </div>
 
@@ -634,31 +675,28 @@ export const Dashboard: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setDateRange('today')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      dateRange === 'today'
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === 'today'
                         ? 'bg-blue-500 text-white shadow-md'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
+                      }`}
                   >
                     Today
                   </button>
                   <button
                     onClick={() => setDateRange('this_month')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      dateRange === 'this_month'
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === 'this_month'
                         ? 'bg-blue-500 text-white shadow-md'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
+                      }`}
                   >
                     This Month
                   </button>
                   <button
                     onClick={() => setDateRange('custom')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      dateRange === 'custom'
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === 'custom'
                         ? 'bg-blue-500 text-white shadow-md'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
+                      }`}
                   >
                     Custom Range
                   </button>
@@ -703,12 +741,12 @@ export const Dashboard: React.FC = () => {
               <span className="text-sm text-gray-600 dark:text-gray-400">Active filter:</span>
               {dateRange !== 'this_month' && (
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                  {dateRange === 'today' ? 'Today' : 
-                   dateRange === 'custom' ? 
-                     (customStartDate && customEndDate ? 
-                       `${new Date(customStartDate).toLocaleDateString()} - ${new Date(customEndDate).toLocaleDateString()}` : 
-                       'Custom Range') : 
-                   'This Month'}
+                  {dateRange === 'today' ? 'Today' :
+                    dateRange === 'custom' ?
+                      (customStartDate && customEndDate ?
+                        `${new Date(customStartDate).toLocaleDateString()} - ${new Date(customEndDate).toLocaleDateString()}` :
+                        'Custom Range') :
+                      'This Month'}
                   <button
                     onClick={() => setDateRange('this_month')}
                     className="ml-1 hover:text-blue-600"
@@ -720,13 +758,13 @@ export const Dashboard: React.FC = () => {
                 </span>
               )}
             </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {currentDashboardMetrics ? (
-                  `Showing ${currentDashboardMetrics.totalTransactions || 0} ${dateRange === 'today' ? 'today\'s' : dateRange === 'this_month' ? 'this month\'s' : 'filtered'} transactions`
-                ) : (
-                  `Showing 0 total transactions`
-                )}
-              </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {currentDashboardMetrics ? (
+                `Showing ${currentDashboardMetrics.totalTransactions || 0} ${dateRange === 'today' ? 'today\'s' : dateRange === 'this_month' ? 'this month\'s' : 'filtered'} transactions`
+              ) : (
+                `Showing 0 total transactions`
+              )}
+            </div>
           </div>
         </div>
 
@@ -791,7 +829,7 @@ export const Dashboard: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="mb-3">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Progress</span>
@@ -800,17 +838,16 @@ export const Dashboard: React.FC = () => {
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          dailyProgress.is_achieved 
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+                      <div
+                        className={`h-2 rounded-full transition-all duration-500 ${dailyProgress.is_achieved
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-600'
                             : 'bg-gradient-to-r from-blue-500 to-purple-500'
-                        }`}
+                          }`}
                         style={{ width: `${Math.min(dailyProgress.progress_percentage, 100)}%` }}
                       ></div>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Target</p>
@@ -825,7 +862,7 @@ export const Dashboard: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   {dailyProgress.hours_remaining !== undefined && dailyProgress.hours_remaining > 0 && (
                     <div className="mt-2 text-center">
                       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -861,7 +898,7 @@ export const Dashboard: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="mb-3">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Progress</span>
@@ -870,17 +907,16 @@ export const Dashboard: React.FC = () => {
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          monthlyProgress.is_achieved 
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+                      <div
+                        className={`h-2 rounded-full transition-all duration-500 ${monthlyProgress.is_achieved
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-600'
                             : 'bg-gradient-to-r from-purple-500 to-pink-500'
-                        }`}
+                          }`}
                         style={{ width: `${Math.min(monthlyProgress.progress_percentage, 100)}%` }}
                       ></div>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Target</p>
@@ -895,7 +931,7 @@ export const Dashboard: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   {monthlyProgress.days_remaining !== undefined && monthlyProgress.days_remaining > 0 && (
                     <div className="mt-2 text-center">
                       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -923,41 +959,41 @@ export const Dashboard: React.FC = () => {
                 <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
-            </div>
+              </div>
               <div className="h-80">
-              {salesData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={salesData}>
+                {salesData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={salesData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
-                      <XAxis 
-                        dataKey="day" 
-                        stroke="#6b7280" 
+                      <XAxis
+                        dataKey="day"
+                        stroke="#6b7280"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
                       />
-                      <YAxis 
-                        stroke="#6b7280" 
+                      <YAxis
+                        stroke="#6b7280"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
                         tickFormatter={(value) => `₺${(value / 1000).toFixed(0)}k`}
                       />
-                    <Tooltip 
-                      formatter={(value: number) => [formatPrice(value), 'Sales']}
-                      labelFormatter={(label) => `Day: ${label}`}
-                        contentStyle={{ 
-                          backgroundColor: '#1f2937', 
-                          border: 'none', 
+                      <Tooltip
+                        formatter={(value: number) => [formatPrice(value), 'Sales']}
+                        labelFormatter={(label) => `Day: ${label}`}
+                        contentStyle={{
+                          backgroundColor: '#1f2937',
+                          border: 'none',
                           borderRadius: '12px',
                           color: '#f9fafb',
                           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
                         }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="sales" 
-                        stroke="url(#salesGradient)" 
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="sales"
+                        stroke="url(#salesGradient)"
                         strokeWidth={4}
                         dot={{ fill: '#10b981', strokeWidth: 2, r: 6 }}
                         activeDot={{ r: 8, stroke: '#10b981', strokeWidth: 3, fill: '#ffffff' }}
@@ -968,11 +1004,11 @@ export const Dashboard: React.FC = () => {
                           <stop offset="100%" stopColor="#14b8a6" />
                         </linearGradient>
                       </defs>
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
                       <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/50 dark:to-teal-900/50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <BarChart3 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                       </div>
@@ -996,7 +1032,7 @@ export const Dashboard: React.FC = () => {
                   View Details
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </button>
-                </div>
+              </div>
             </div>
           </div>
 
@@ -1012,51 +1048,51 @@ export const Dashboard: React.FC = () => {
                 <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-700 rounded-2xl flex items-center justify-center shadow-lg">
                   <Package className="h-6 w-6 text-white" />
                 </div>
-            </div>
+              </div>
               <div className="h-96">
-              {topProductsData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topProductsData}>
+                {topProductsData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topProductsData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
-                      <XAxis 
-                        dataKey="name" 
-                        stroke="#6b7280" 
+                      <XAxis
+                        dataKey="name"
+                        stroke="#6b7280"
                         fontSize={10}
                         tickLine={false}
                         axisLine={false}
-                        angle={-45}
-                        textAnchor="end"
-                        height={100}
+                        angle={0}
+                        textAnchor="middle"
+                        height={60}
                         interval={0}
                         tick={{ fontSize: 10 }}
                       />
-                      <YAxis 
-                        stroke="#6b7280" 
+                      <YAxis
+                        stroke="#6b7280"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
                         tickFormatter={(value) => `₺${(value / 1000).toFixed(0)}k`}
                       />
-                    <Tooltip 
+                      <Tooltip
                         formatter={(value: number, name: string, props: any) => [
-                          formatPrice(value), 
+                          formatPrice(value),
                           'Revenue'
                         ]}
                         labelFormatter={(label: string, payload: any) => {
                           const data = payload?.[0]?.payload;
                           return data?.fullName || label;
                         }}
-                        contentStyle={{ 
-                          backgroundColor: '#1f2937', 
-                          border: 'none', 
+                        contentStyle={{
+                          backgroundColor: '#1f2937',
+                          border: 'none',
                           borderRadius: '12px',
                           color: '#f9fafb',
                           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
                         }}
                       />
-                      <Bar 
-                        dataKey="revenue" 
-                        fill="url(#barGradient)" 
+                      <Bar
+                        dataKey="revenue"
+                        fill="url(#barGradient)"
                         radius={[8, 8, 0, 0]}
                       />
                       <defs>
@@ -1065,11 +1101,11 @@ export const Dashboard: React.FC = () => {
                           <stop offset="100%" stopColor="#1d4ed8" />
                         </linearGradient>
                       </defs>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
                       <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <Package className="h-8 w-8 text-green-600 dark:text-green-400" />
                       </div>
@@ -1093,7 +1129,7 @@ export const Dashboard: React.FC = () => {
                   View All
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </button>
-                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1120,15 +1156,15 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
             <div className="space-y-2">
-                {(filteredSales && filteredSales.length > 0) || (currentDashboardMetrics?.recentTransactions && currentDashboardMetrics.recentTransactions.length > 0) ? (
-                  (filteredSales && filteredSales.length > 0 ? filteredSales : (currentDashboardMetrics?.recentTransactions || []))?.slice(0, 4).map((sale: any) => {
+              {(filteredSales && filteredSales.length > 0) || (currentDashboardMetrics?.recentTransactions && currentDashboardMetrics.recentTransactions.length > 0) ? (
+                (filteredSales && filteredSales.length > 0 ? filteredSales : (currentDashboardMetrics?.recentTransactions || []))?.slice(0, 4).map((sale: any) => {
                   // Always prefer filteredSales data as it contains complete transaction details with product names
                   const isApiData = !filteredSales || filteredSales.length === 0;
-                  
+
                   // Extract product names from both API data and filtered sales
                   let productNames = 'No items';
                   let hasMoreItems = false;
-                  
+
                   if (isApiData) {
                     // For API data (when filteredSales is not available), we need to get product names from the transaction items
                     // The API should include items with product names
@@ -1153,7 +1189,7 @@ export const Dashboard: React.FC = () => {
                   const paymentMethod = isApiData ? sale.paymentMethod : sale.payment_method;
                   const totalAmount = isApiData ? sale.totalAmount : sale.total_amount;
                   const itemCount = isApiData ? 1 : (sale.items?.length || 0);
-                  
+
                   return (
                     <div key={isApiData ? sale.id : sale._id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200">
                       <div className="flex-1 min-w-0">
@@ -1175,7 +1211,7 @@ export const Dashboard: React.FC = () => {
                       <div className="text-right ml-3">
                         <p className="font-semibold text-gray-800 dark:text-white text-sm">{formatPrice(totalAmount || 0)}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{itemCount} items</p>
-                    </div>
+                      </div>
                     </div>
                   );
                 })
@@ -1221,16 +1257,15 @@ export const Dashboard: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-800 dark:text-white text-sm truncate">{alert.product_name}</p>
                       <p className="text-xs text-red-600 dark:text-red-400">
-                        {alert.alert_type === 'out_of_stock' ? 'Out of Stock' : 'Low Stock'} • 
+                        {alert.alert_type === 'out_of_stock' ? 'Out of Stock' : 'Low Stock'} •
                         {alert.current_quantity} remaining
                       </p>
                     </div>
                     <div className="text-right ml-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        alert.alert_type === 'out_of_stock' 
-                          ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' 
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${alert.alert_type === 'out_of_stock'
+                          ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                           : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
-                      }`}>
+                        }`}>
                         {alert.alert_type === 'out_of_stock' ? 'Critical' : 'Warning'}
                       </span>
                     </div>

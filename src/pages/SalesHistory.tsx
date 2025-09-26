@@ -15,7 +15,9 @@ import {
   EyeOff,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
@@ -25,7 +27,10 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { SmartNavButton } from '../components/ui/SmartNavButton';
 import { BackButton } from '../components/ui/BackButton';
 import { Breadcrumb } from '../components/ui/Breadcrumb';
+import { EditTransactionModal } from '../components/ui/EditTransactionModal';
+import { BackendSupportNotice } from '../components/ui/BackendSupportNotice';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { Transaction } from '../types';
 import { apiService } from '../services/api';
 
@@ -45,6 +50,7 @@ interface SoldProduct {
 
 export const SalesHistory: React.FC = () => {
   const { products, loading } = useApp();
+  const { user } = useAuth();
   const [sales, setSales] = useState<Transaction[]>([]);
   const [isLoadingSales, setIsLoadingSales] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +67,11 @@ export const SalesHistory: React.FC = () => {
   const [showTransactionIds, setShowTransactionIds] = useState(false);
   const [sortField, setSortField] = useState<keyof SoldProduct>('saleDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  
+  // Edit/Delete functionality
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
 
   // Load sales data from server with filtering
   const loadSales = useCallback(async () => {
@@ -101,6 +112,62 @@ export const SalesHistory: React.FC = () => {
   useEffect(() => {
     loadSales();
   }, [loadSales]);
+
+  // Check if user is admin
+  const isAdmin = user?.role === 'admin';
+
+  // Handle edit transaction
+  const handleEditTransaction = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setIsEditModalOpen(true);
+  };
+
+  // Handle save transaction changes
+  const handleSaveTransaction = async (transactionId: string, updates: any) => {
+    try {
+      await apiService.updateTransaction(transactionId, updates);
+      
+      // Reload sales data to reflect changes
+      await loadSales();
+      
+      toast.success('Transaction updated successfully');
+    } catch (error: any) {
+      console.error('Failed to update transaction:', error);
+      const errorMessage = error.message || 'Failed to update transaction';
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
+  // Handle delete transaction
+  const handleDeleteTransaction = async (transactionId: string) => {
+    if (!isAdmin) {
+      toast.error('Only admins can delete transactions');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this transaction? This action cannot be undone and will affect inventory levels.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingTransactionId(transactionId);
+      await apiService.deleteTransaction(transactionId);
+      
+      // Reload sales data to reflect changes
+      await loadSales();
+      
+      toast.success('Transaction deleted successfully');
+    } catch (error: any) {
+      console.error('Failed to delete transaction:', error);
+      const errorMessage = error.message || 'Failed to delete transaction';
+      toast.error(errorMessage);
+    } finally {
+      setDeletingTransactionId(null);
+    }
+  };
 
   // Process sales data to extract sold products
   const soldProducts = useMemo(() => {
@@ -376,6 +443,12 @@ export const SalesHistory: React.FC = () => {
             <Breadcrumb />
           </div>
         </div>
+
+        {/* Backend Support Notice */}
+        <BackendSupportNotice 
+          feature="transaction edit/delete" 
+          isVisible={isAdmin} 
+        />
         
         {/* Enhanced Header */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
@@ -837,6 +910,11 @@ export const SalesHistory: React.FC = () => {
                           Transaction ID
                         </th>
                       )}
+                      {isAdmin && (
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800">
@@ -902,12 +980,38 @@ export const SalesHistory: React.FC = () => {
                             #{item.transactionId.slice(-8)}
                           </td>
                         )}
+                        {isAdmin && (
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center space-x-2">
+                              <button
+                                onClick={() => {
+                                  const transaction = sales.find(t => t._id === item.transactionId);
+                                  if (transaction) {
+                                    handleEditTransaction(transaction);
+                                  }
+                                }}
+                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/20 rounded-md transition-colors duration-200"
+                                title="Edit Transaction"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTransaction(item.transactionId)}
+                                disabled={deletingTransactionId === item.transactionId}
+                                className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Delete Transaction"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
                     <tr>
-                      <td colSpan={showTransactionIds ? 9 : 8} className="px-4 py-3">
+                      <td colSpan={showTransactionIds ? (isAdmin ? 10 : 9) : (isAdmin ? 9 : 8)} className="px-4 py-3">
                         <div className="flex justify-between items-center text-sm font-semibold text-gray-700 dark:text-gray-300">
                           <div className="flex items-center space-x-6">
                             <span>Total Records: <span className="text-blue-600 dark:text-blue-400">{filteredProducts.length}</span></span>
@@ -1028,6 +1132,17 @@ export const SalesHistory: React.FC = () => {
           </Card>
         )}
       </div>
+
+      {/* Edit Transaction Modal */}
+      <EditTransactionModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingTransaction(null);
+        }}
+        transaction={editingTransaction}
+        onSave={handleSaveTransaction}
+      />
     </div>
   );
 };

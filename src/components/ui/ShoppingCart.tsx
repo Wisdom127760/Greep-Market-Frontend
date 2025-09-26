@@ -125,8 +125,13 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
             key={item.product_id}
             className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
           >
-            <div className="flex-1">
-              <h4 className="font-medium text-gray-900 dark:text-white">{item.product_name}</h4>
+            <div className="flex-1 min-w-0">
+              <h4 
+                className="font-medium text-gray-900 dark:text-white truncate" 
+                title={item.product_name}
+              >
+                {item.product_name}
+              </h4>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {formatPrice(item.unit_price)} each
               </p>
