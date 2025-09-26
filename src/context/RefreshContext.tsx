@@ -40,7 +40,7 @@ export function RefreshProvider({ children }: { children: ReactNode }) {
     try {
       // Refresh both paginated and all products
       await Promise.all([
-        loadProducts(1, 20),
+        loadProducts(),
         loadAllProducts()
       ]);
     } catch (error) {
@@ -51,6 +51,8 @@ export function RefreshProvider({ children }: { children: ReactNode }) {
   const refreshTransactions = useCallback(async () => {
     if (!isAuthenticated || !user) return;
     
+    console.log('🔄 RefreshContext.refreshTransactions called');
+    
     try {
       await loadTransactions();
     } catch (error) {
@@ -60,6 +62,8 @@ export function RefreshProvider({ children }: { children: ReactNode }) {
 
   const refreshDashboardData = useCallback(async () => {
     if (!isAuthenticated || !user) return;
+    
+    console.log('🔄 RefreshContext.refreshDashboardData called');
     
     try {
       await refreshDashboard();
@@ -80,6 +84,8 @@ export function RefreshProvider({ children }: { children: ReactNode }) {
 
   const refreshAll = useCallback(async () => {
     if (!isAuthenticated || !user) return;
+    
+    console.log('🔄 RefreshContext.refreshAll called');
     
     try {
       await Promise.all([

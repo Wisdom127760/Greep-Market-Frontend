@@ -38,9 +38,10 @@ interface AuditLog {
 
 interface AuditLogsProps {
   storeId?: string;
+  currentUserRole?: string;
 }
 
-export const AuditLogs: React.FC<AuditLogsProps> = ({ storeId }) => {
+export const AuditLogs: React.FC<AuditLogsProps> = ({ storeId, currentUserRole }) => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +72,11 @@ export const AuditLogs: React.FC<AuditLogsProps> = ({ storeId }) => {
       Object.entries(filters).forEach(([key, value]) => {
         if (value) queryParams.append(key, value.toString());
       });
+
+      // Add role filter for managers
+      if (currentUserRole === 'manager') {
+        queryParams.append('user_role', 'manager,cashier');
+      }
 
       const response = await apiService.request<{
         logs: AuditLog[];

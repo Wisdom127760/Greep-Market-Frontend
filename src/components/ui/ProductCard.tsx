@@ -1,6 +1,7 @@
 import React from 'react';
-import { Package, AlertTriangle, CheckSquare, Square, DollarSign, History, Edit3, Trash2, Plus } from 'lucide-react';
+import { Package, AlertTriangle, CheckSquare, Square, DollarSign, History, Edit3, Trash2, Plus, Tag } from 'lucide-react';
 import { Product } from '../../types';
+import { formatTagsForDisplay } from '../../utils/tagUtils';
 
 interface ProductCardProps {
   product: Product;
@@ -15,6 +16,7 @@ interface ProductCardProps {
   onSelect?: (productId: string) => void;
   showSelection?: boolean;
   showPriceActions?: boolean;
+  searchTerm?: string;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -30,6 +32,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onSelect,
   showSelection = false,
   showPriceActions = false,
+  searchTerm = '',
 }) => {
   const isLowStock = product.stock_quantity <= product.min_stock_level;
   const isOutOfStock = product.stock_quantity === 0;
@@ -39,6 +42,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       style: 'currency',
       currency: 'TRY',
     }).format(price);
+  };
+
+  const highlightSearchTerm = (text: string, term: string) => {
+    if (!term || !text) return text;
+    
+    const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800/50 px-1 rounded">
+          {part}
+        </mark>
+      ) : part
+    );
   };
 
   return (
@@ -117,7 +135,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* Header */}
         <div className="space-y-2">
           <h3 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-2 leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-200">
-            {product.name}
+            {highlightSearchTerm(product.name, searchTerm)}
           </h3>
           <div className="flex items-center justify-between">
             <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full text-xs font-semibold shadow-sm">
@@ -154,6 +172,31 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md text-gray-700 dark:text-gray-300">
                 {product.barcode}
               </span>
+            </div>
+          </div>
+        )}
+        
+        {/* Tags */}
+        {product.tags && product.tags.length > 0 && (
+          <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
+            <div className="flex items-start justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Tags</span>
+              <div className="flex flex-wrap gap-1 max-w-[60%]">
+                {product.tags.slice(0, 3).map((tag, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-700"
+                  >
+                    <Tag className="h-3 w-3 mr-1" />
+                    {tag}
+                  </span>
+                ))}
+                {product.tags.length > 3 && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
+                    +{product.tags.length - 3}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}

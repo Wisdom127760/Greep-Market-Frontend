@@ -10,6 +10,7 @@ import { NotificationProvider } from './context/NotificationContext';
 import { RiderProvider } from './context/RiderContext';
 import { NavigationProvider } from './context/NavigationContext';
 import { RefreshProvider } from './context/RefreshContext';
+import { GoalProvider } from './context/GoalContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Header } from './components/navigation/Header';
 import { MobileNavigation } from './components/navigation/MobileNavigation';
@@ -26,6 +27,7 @@ import { RiderManagementPage } from './pages/RiderManagement';
 import { CashTrackingPage } from './pages/CashTracking';
 import { SalesHistory } from './pages/SalesHistory';
 import { ScrollToTopWrapper } from './components/ScrollToTopWrapper';
+import { GoalCelebrationManager } from './components/ui/GoalCelebrationManager';
 
 function App() {
   return (
@@ -36,11 +38,13 @@ function App() {
             <AuthProvider>
               <StoreProvider>
                 <AppProvider>
-                  <RefreshProvider>
+                  <GoalProvider>
+                    <RefreshProvider>
             <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <NavigationProvider>
               <ScrollToTopWrapper>
               <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+            <GoalCelebrationManager />
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/" element={
@@ -107,7 +111,7 @@ function App() {
                 </ProtectedRoute>
               } />
               <Route path="/settings" element={
-                <ProtectedRoute requiredRole={['admin', 'owner']}>
+                <ProtectedRoute requiredRole={['admin', 'owner', 'manager', 'cashier']}>
                   <Header />
                   <main className="pt-0 pb-24 bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
                     <Settings />
@@ -178,7 +182,8 @@ function App() {
               </ScrollToTopWrapper>
               </NavigationProvider>
             </Router>
-                  </RefreshProvider>
+                    </RefreshProvider>
+                  </GoalProvider>
                   </AppProvider>
                 </StoreProvider>
               </AuthProvider>

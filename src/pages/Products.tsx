@@ -3,7 +3,8 @@ import { Plus, Filter, Grid, List, Package, Upload, Trash2, CheckSquare, Square,
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { SearchBar } from '../components/ui/SearchBar';
+import { IntelligentSearchBar } from '../components/ui/IntelligentSearchBar';
+import { useIntelligentSearch } from '../hooks/useIntelligentSearch';
 import { ProductCard } from '../components/ui/ProductCard';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
@@ -20,6 +21,11 @@ import { Product, PriceHistory } from '../types';
 export const Products: React.FC = () => {
   const { products, addProduct, updateProduct, updateProductPrice, getProductPriceHistory, deleteProduct, exportProducts, importProducts, loading, loadProducts, productsPagination } = useApp();
   const navigate = useNavigate();
+  
+  // Intelligent search functionality
+  const { suggestions, recentSearches, addToRecentSearches, searchProducts } = useIntelligentSearch({
+    products: products || []
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -84,31 +90,54 @@ export const Products: React.FC = () => {
 
   // Load products on initial mount
   useEffect(() => {
-    loadProducts(1, 20, searchQuery, selectedCategory);
+    loadProducts(searchQuery, selectedCategory);
   }, [loadProducts, searchQuery, selectedCategory]); // Load initial page on mount
 
   // Load products when search query or category changes
   useEffect(() => {
-    loadProducts(1, 20, searchQuery, selectedCategory);
+    loadProducts(searchQuery, selectedCategory);
   }, [searchQuery, selectedCategory, loadProducts]);
 
-  // Use products directly since filtering is now done server-side
-  const filteredProducts = products || [];
+  // Use intelligent search for client-side filtering
+  const filteredProducts = useMemo(() => {
+    if (!products) return [];
+    
+    // If there's a search query, use intelligent search
+    if (searchQuery.trim()) {
+      return searchProducts(searchQuery, products);
+    }
+    
+    // Otherwise, filter by category only
+    if (selectedCategory === 'all') {
+      return products;
+    }
+    
+    return products.filter(product => product.category === selectedCategory);
+  }, [products, searchQuery, selectedCategory, searchProducts]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    // Reset to page 1 when searching
-    loadProducts(1, 20, query, selectedCategory);
+    
+    // Add to recent searches if it's a meaningful query
+    if (query.trim()) {
+      addToRecentSearches(query);
+    }
+    
+    // For server-side search, we can still call the API
+    // But now we also have client-side intelligent search as backup
+    loadProducts(query, selectedCategory);
   };
 
   const handlePageChange = (newPage: number) => {
-    loadProducts(newPage, 20, searchQuery, selectedCategory);
+    // Pagination removed - this function is no longer needed
+    // All products are loaded at once
+    console.log('Pagination removed - all products loaded at once');
   };
 
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
     // Reset to page 1 when changing category
-    loadProducts(1, 20, searchQuery, category);
+    loadProducts(searchQuery, category);
   };
 
 
@@ -547,12 +576,17 @@ export const Products: React.FC = () => {
           <div className="space-y-6">
             {/* Search Bar */}
             <div className="relative">
-              <SearchBar
+              <IntelligentSearchBar
                 placeholder="Search products by name, barcode, or SKU..."
                 onSearch={handleSearch}
                 enableRealTime={true}
                 debounceMs={300}
                 showBarcodeButton={false}
+                suggestions={suggestions}
+                recentSearches={recentSearches}
+                onSuggestionClick={(suggestion) => {
+                  handleSearch(suggestion.text);
+                }}
               />
             </div>
             
@@ -623,7 +657,8 @@ export const Products: React.FC = () => {
                   {searchQuery || selectedCategory !== 'all' ? 'Search Results' : 'All Products'}
                 </h2>
                 <span className="px-3 py-1 bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 rounded-full text-sm font-medium">
-                  {filteredProducts.length} of {productsPagination.totalProducts} {filteredProducts.length === 1 ? 'product' : 'products'}
+                  {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}
+                  {searchQuery && ` found for "${searchQuery}"`}
                 </span>
                 {filteredProducts.length > 0 && (
                   <button
@@ -646,7 +681,7 @@ export const Products: React.FC = () => {
                   onClick={() => {
                     setSearchQuery('');
                     setSelectedCategory('all');
-                    loadProducts(1, 20, '', 'all');
+                    loadProducts('', 'all');
                   }}
                   className="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center space-x-1"
                 >
@@ -676,6 +711,7 @@ export const Products: React.FC = () => {
                   showPriceActions={true}
                   showStockAlert={true}
                   isSelected={selectedProducts.includes(product._id)}
+                  searchTerm={searchQuery}
                   onSelect={handleSelectProduct}
                   showSelection={true}
                 />
@@ -755,7 +791,7 @@ export const Products: React.FC = () => {
                     onClick={() => {
                       setSearchQuery('');
                       setSelectedCategory('all');
-                      loadProducts(1, 20, '', 'all');
+                      loadProducts('', 'all');
                     }}
                   >
                     Clear Filters

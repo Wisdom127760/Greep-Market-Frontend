@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Plus, X, Tag } from 'lucide-react';
+import { cleanTagsInput } from '../../utils/tagUtils';
 
 interface TagsDropdownProps {
   value: string[];
@@ -49,14 +50,17 @@ const TagsDropdown: React.FC<TagsDropdownProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Clean and normalize the value prop to ensure it's always an array of strings
+  const cleanValue = cleanTagsInput(value);
+
   // Filter tags based on search term
   const filteredTags = existingTags.filter(tag =>
     tag.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    !value.includes(tag)
+    !cleanValue.includes(tag)
   );
 
   // Check if search term matches a new tag
-  const isNewTag = searchTerm && !existingTags.includes(searchTerm) && !value.includes(searchTerm);
+  const isNewTag = searchTerm && !existingTags.includes(searchTerm) && !cleanValue.includes(searchTerm);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -81,15 +85,15 @@ const TagsDropdown: React.FC<TagsDropdownProps> = ({
 
   const handleAddTag = (tag: string) => {
     const trimmedTag = tag.trim();
-    if (trimmedTag && !value.includes(trimmedTag) && value.length < maxTags) {
-      onChange([...value, trimmedTag]);
+    if (trimmedTag && !cleanValue.includes(trimmedTag) && cleanValue.length < maxTags) {
+      onChange([...cleanValue, trimmedTag]);
       setSearchTerm('');
       setInputValue('');
     }
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    onChange(value.filter(tag => tag !== tagToRemove));
+    onChange(cleanValue.filter(tag => tag !== tagToRemove));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -102,8 +106,8 @@ const TagsDropdown: React.FC<TagsDropdownProps> = ({
       setIsOpen(false);
       setSearchTerm('');
       setInputValue('');
-    } else if (e.key === 'Backspace' && !searchTerm && value.length > 0) {
-      handleRemoveTag(value[value.length - 1]);
+    } else if (e.key === 'Backspace' && !searchTerm && cleanValue.length > 0) {
+      handleRemoveTag(cleanValue[cleanValue.length - 1]);
     }
   };
 
@@ -144,7 +148,7 @@ const TagsDropdown: React.FC<TagsDropdownProps> = ({
         >
           {/* Selected Tags */}
           <div className="flex flex-wrap gap-1 mb-1">
-            {value.map((tag, index) => (
+            {cleanValue.map((tag, index) => (
               <span
                 key={tag}
                 className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getTagColor(tag, index)}`}
@@ -174,9 +178,9 @@ const TagsDropdown: React.FC<TagsDropdownProps> = ({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onFocus={handleInputFocus}
-            placeholder={value.length === 0 ? placeholder : "Add more tags..."}
+            placeholder={cleanValue.length === 0 ? placeholder : "Add more tags..."}
             className="w-full border-none outline-none text-sm bg-transparent placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white"
-            disabled={value.length >= maxTags}
+            disabled={cleanValue.length >= maxTags}
           />
 
           {/* Dropdown Arrow */}
@@ -237,7 +241,7 @@ const TagsDropdown: React.FC<TagsDropdownProps> = ({
                 <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Quick add popular tags:</div>
                 <div className="flex flex-wrap gap-1">
                   {['popular', 'featured', 'new', 'turkey', 'sale', 'bestseller', 'organic', 'premium', 'limited'].map((quickTag) => {
-                    if (value.includes(quickTag)) return null;
+                    if (cleanValue.includes(quickTag)) return null;
                     return (
                       <button
                         key={quickTag}
@@ -254,7 +258,7 @@ const TagsDropdown: React.FC<TagsDropdownProps> = ({
             )}
 
             {/* Max Tags Warning */}
-            {value.length >= maxTags && (
+            {cleanValue.length >= maxTags && (
               <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2">
                 <div className="text-xs text-orange-600 dark:text-orange-400">
                   Maximum {maxTags} tags allowed
@@ -267,12 +271,12 @@ const TagsDropdown: React.FC<TagsDropdownProps> = ({
 
       {/* Helper Text */}
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {value.length > 0 && (
+        {cleanValue.length > 0 && (
           <span>
-            {value.length} of {maxTags} tags selected
+            {cleanValue.length} of {maxTags} tags selected
           </span>
         )}
-        {value.length === 0 && (
+        {cleanValue.length === 0 && (
           <span>Press Enter to add tags, or click on existing tags to select them</span>
         )}
       </div>

@@ -33,15 +33,13 @@ export const Inventory: React.FC = () => {
     try {
       const response = await apiService.getProducts({
         store_id: user.store_id,
-        page: currentPage,
-        limit: 20,
         search: searchQuery,
         // Note: API doesn't support stock level filtering yet
         // This would need to be implemented on the backend
       });
       
       setProducts(response.products);
-      setTotalPages(response.pages || 1);
+      setTotalPages(1); // No pagination - all products on one page
     } catch (error) {
       console.error('Failed to load products:', error);
       toast.error('Failed to load products');

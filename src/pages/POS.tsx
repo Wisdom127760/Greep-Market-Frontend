@@ -11,6 +11,7 @@ import { SmartNavButton } from '../components/ui/SmartNavButton';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { useRiders } from '../context/RiderContext';
+import { useGoals } from '../context/GoalContext';
 import { TransactionItem } from '../types';
 import { usePageRefresh } from '../hooks/usePageRefresh';
 
@@ -18,6 +19,7 @@ export const POS: React.FC = () => {
   const { products, addTransaction, updateInventory, loadAllProducts } = useApp();
   const { user, isAuthenticated, isLoading } = useAuth();
   const { riders, loadRiders } = useRiders();
+  const { updateGoalProgress } = useGoals();
   
   
   // Enable automatic refresh for POS (conservative settings)
@@ -129,9 +131,9 @@ export const POS: React.FC = () => {
   const updateCartItemQuantity = (productId: string, quantity: number) => {
     console.log('Updating cart item quantity:', productId, quantity);
     
+    // Prevent quantity from going to 0 - set minimum to 0.01
     if (quantity <= 0) {
-      removeFromCart(productId);
-      return;
+      quantity = 0.01;
     }
 
     if (!products || !Array.isArray(products)) {
@@ -227,6 +229,9 @@ export const POS: React.FC = () => {
 
       console.log('Creating enhanced transaction:', transaction);
       await addTransaction(transaction);
+
+      // Update goal progress after successful transaction
+      await updateGoalProgress();
 
       // Update inventory - reduce stock for sold items
       if (products && Array.isArray(products)) {

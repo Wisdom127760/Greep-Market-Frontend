@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Minus, Plus, Trash2, ShoppingCart } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
@@ -12,6 +12,70 @@ interface ShoppingCartProps {
   onCheckout: () => void;
   className?: string;
 }
+
+// QuantityInput component to handle local state for typing
+const QuantityInput: React.FC<{
+  value: number;
+  onChange: (quantity: number) => void;
+  productId: string;
+}> = ({ value, onChange, productId }) => {
+  const [inputValue, setInputValue] = useState(value.toString());
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Update local state when prop value changes (from external updates)
+  useEffect(() => {
+    if (!isEditing) {
+      setInputValue(value.toString());
+    }
+  }, [value, isEditing]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setInputValue(newValue);
+    
+    // Allow typing intermediate values like "0." or "0.6"
+    if (newValue === '' || newValue === '.' || newValue.endsWith('.')) {
+      return; // Don't update quantity yet
+    }
+    
+    const numValue = parseFloat(newValue);
+    if (!isNaN(numValue) && numValue >= 0) {
+      onChange(numValue);
+    }
+  };
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    const numValue = parseFloat(inputValue);
+    
+    if (inputValue === '' || isNaN(numValue) || numValue <= 0) {
+      setInputValue('0.01');
+      onChange(0.01);
+    } else {
+      setInputValue(numValue.toString());
+      onChange(numValue);
+    }
+  };
+
+  const handleFocus = () => {
+    setIsEditing(true);
+  };
+
+  return (
+    <input
+      type="number"
+      value={inputValue}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onFocus={handleFocus}
+      className="w-16 px-2 py-1 text-center font-medium border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+      min="0"
+      step="0.01"
+      placeholder="0.00"
+      title="Click to edit quantity manually (useful for scale-weighed items)"
+    />
+  );
+};
 
 export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
   items,
@@ -73,32 +137,16 @@ export const ShoppingCartComponent: React.FC<ShoppingCartProps> = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => onUpdateQuantity(item.product_id, item.quantity - 1)}
-                  disabled={item.quantity <= 1}
+                  onClick={() => onUpdateQuantity(item.product_id, Math.max(0.01, item.quantity - 1))}
+                  disabled={item.quantity <= 0.01}
                   className="!p-1"
                 >
                   <Minus className="h-3 w-3" />
                 </Button>
-                <input
-                  type="number"
+                <QuantityInput
                   value={item.quantity}
-                  onChange={(e) => {
-                    const newQuantity = parseFloat(e.target.value) || 0;
-                    if (newQuantity >= 0) {
-                      onUpdateQuantity(item.product_id, newQuantity);
-                    }
-                  }}
-                  onBlur={(e) => {
-                    const newQuantity = parseFloat(e.target.value) || 0;
-                    if (newQuantity <= 0) {
-                      onUpdateQuantity(item.product_id, 1);
-                    }
-                  }}
-                  className="w-16 px-2 py-1 text-center font-medium border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  title="Click to edit quantity manually (useful for scale-weighed items)"
+                  onChange={(quantity) => onUpdateQuantity(item.product_id, quantity)}
+                  productId={item.product_id}
                 />
                 <Button
                   variant="outline"

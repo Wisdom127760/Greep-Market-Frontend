@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Package, 
   AlertTriangle, 
@@ -11,26 +11,35 @@ import {
   TrendingDown,
   Activity,
   Filter,
-  RefreshCw,
-  X
+  X,
+  Trophy,
+  TrendingUp,
+  Target
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { Button } from '../components/ui/Button';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { useGoals } from '../context/GoalContext';
+import { NotificationPermissionBanner } from '../components/ui/NotificationPermissionBanner';
+import { NotificationStatus } from '../components/ui/NotificationStatus';
+import { GoalSettingModal } from '../components/ui/GoalSettingModal';
 import { apiService } from '../services/api';
 import { app } from '../config/environment';
-import { usePageRefresh } from '../hooks/usePageRefresh';
+// import { usePageRefresh } from '../hooks/usePageRefresh'; // Temporarily disabled
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 export const Dashboard: React.FC = () => {
-  const { inventoryAlerts, loading, dashboardMetrics, refreshDashboard, sales } = useApp();
+  const { inventoryAlerts, loading, dashboardMetrics } = useApp();
   const { user } = useAuth();
-  const [totalExpenses, setTotalExpenses] = useState(0);
+  const { dailyProgress, monthlyProgress, updateGoalProgress } = useGoals();
+  // totalExpenses now comes from dashboard metrics - no separate state needed
   const [filteredSales, setFilteredSales] = useState<any[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [localDashboardMetrics, setLocalDashboardMetrics] = useState<any>(null);
+  const [isGoalSettingModalOpen, setIsGoalSettingModalOpen] = useState(false);
+  const isRefreshingRef = useRef(false);
   
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
@@ -39,104 +48,22 @@ export const Dashboard: React.FC = () => {
   const [customEndDate, setCustomEndDate] = useState('');
   
   // For initial load with 'today' filter, completely ignore dashboardMetrics to prevent flashing
-  const shouldIgnoreDashboardMetrics = isInitialLoad && dateRange === 'today';
+  // Temporarily disable this to fix the empty KPI issue
+  // const shouldIgnoreDashboardMetrics = false; // isInitialLoad && dateRange === 'today';
   
-  // Enable automatic refresh for dashboard with smart intervals based on filter
-  const refreshInterval = useMemo(() => {
-    // More frequent refresh for "Today" filter since sales happen in real-time
-    if (dateRange === 'today') {
-      return 15000; // 15 seconds for today's data
-    }
-    // Less frequent for monthly/custom data
-    return 60000; // 60 seconds for other filters
-  }, [dateRange]);
+  // Enable automatic refresh for dashboard with smart intervals based on filter (currently disabled)
+  // const refreshInterval = useMemo(() => {
+  //   // More frequent refresh for "Today" filter since sales happen in real-time
+  //   if (dateRange === 'today') {
+  //     return 120000; // 2 minutes for today's data (increased to prevent excessive calls)
+  //   }
+  //   // Less frequent for monthly/custom data
+  //   return 300000; // 5 minutes for other filters (increased to prevent excessive calls)
+  // }, [dateRange]);
 
 
 
-  // Load expenses data
-  const loadExpenses = useCallback(async () => {
-      if (user?.store_id) {
-        try {
-          
-          // Calculate date range for expenses based on current filter
-          const now = new Date();
-          let startDate: string;
-          let endDate: string;
-          
-          switch (dateRange) {
-            case 'today':
-              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-              startDate = today.toISOString().split('T')[0];
-              endDate = todayEnd.toISOString().split('T')[0];
-              break;
-            case 'this_month':
-              const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-              const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-              startDate = monthStart.toISOString().split('T')[0];
-              endDate = monthEnd.toISOString().split('T')[0];
-              break;
-            case 'custom':
-              if (customStartDate && customEndDate) {
-                startDate = customStartDate;
-                endDate = customEndDate;
-              } else {
-                // Load all expenses if no custom dates
-                startDate = '';
-                endDate = '';
-              }
-              break;
-            default:
-              // Load all expenses
-              startDate = '';
-              endDate = '';
-          }
-          
-          
-          // Try to get filtered expenses first
-          let expensesResponse;
-          if (startDate && endDate) {
-            expensesResponse = await apiService.getExpenses({
-              store_id: user.store_id,
-              start_date: startDate,
-              end_date: endDate,
-              limit: 1000
-            });
-          } else {
-            expensesResponse = await apiService.getExpenses({
-              store_id: user.store_id,
-              limit: 1000
-            });
-          }
-          
-          
-          // Calculate total from filtered expenses
-          const totalAmount = expensesResponse.expenses?.reduce((sum: number, expense: any) => sum + (expense.amount || 0), 0) || 0;
-          
-          setTotalExpenses(totalAmount);
-        } catch (error) {
-          console.error('Failed to load expense stats:', error);
-        // Try to get expenses from the expenses API directly
-        try {
-          const expenses = await apiService.getExpenses({
-            store_id: user.store_id,
-            limit: 1000 // Get all expenses
-          });
-          
-          if (expenses && expenses.expenses && Array.isArray(expenses.expenses)) {
-            const total = expenses.expenses.reduce((sum: number, expense: any) => sum + (expense.amount || 0), 0);
-            setTotalExpenses(total);
-          }
-        } catch (directError) {
-          console.error('Failed to load expenses directly:', directError);
-        }
-      }
-    }
-  }, [user?.store_id, dateRange, customStartDate, customEndDate]);
-
-  useEffect(() => {
-    loadExpenses();
-  }, [loadExpenses]);
+  // Initial load will be handled after unifiedRefresh is defined
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('tr-TR', {
@@ -145,160 +72,48 @@ export const Dashboard: React.FC = () => {
     }).format(price);
   };
 
-  // Load filtered sales data from server
-  const loadFilteredSales = useCallback(async () => {
-    if (!user?.store_id) return;
-    
-    try {
-      const now = new Date();
-      let startDate: string;
-      let endDate: string;
-      
-      // Calculate date range based on selection
-      switch (dateRange) {
-        case 'today':
-          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-          startDate = today.toISOString().split('T')[0];
-          endDate = todayEnd.toISOString().split('T')[0];
-          break;
-        case 'this_month':
-          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-          const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-          startDate = monthStart.toISOString().split('T')[0];
-          endDate = monthEnd.toISOString().split('T')[0];
-          break;
-        case 'custom':
-          if (!customStartDate || !customEndDate) {
-            // Load all transactions if no custom dates
-            const response = await apiService.getTransactions({
-              store_id: user.store_id,
-              limit: 1000 // Load more transactions for dashboard
-            });
-            setFilteredSales(response.transactions);
-            return;
-          }
-          startDate = customStartDate;
-          endDate = customEndDate;
-          break;
-        default:
-          // Load all transactions
-          const response = await apiService.getTransactions({
-            store_id: user.store_id,
-            limit: 1000
-          });
-          setFilteredSales(response.transactions);
-          return;
-      }
-      
-      // Load filtered transactions from server
-      const response = await apiService.getTransactions({
-        store_id: user.store_id,
-        start_date: startDate,
-        end_date: endDate,
-        limit: 1000 // Load more transactions for dashboard
-      });
-      
-      setFilteredSales(response.transactions);
-    } catch (error) {
-      console.error('Failed to load filtered sales:', error);
-      setFilteredSales([]);
+  // Filter sales data locally from AppContext instead of making separate API calls
+  // Sales data now comes from unified dashboard analytics API - no separate filtering needed
+
+  // Unified refresh function that loads all dashboard data at once
+  const unifiedRefresh = useCallback(async () => {
+    if (isRefreshingRef.current) {
+      console.log('🔄 Unified refresh skipped - already refreshing');
+      return;
     }
-  }, [user?.store_id, dateRange, customStartDate, customEndDate]);
-
-  // Create a refresh function that uses current filter state
-  const refreshWithCurrentFilters = useCallback(async () => {
-    setIsRefreshing(true);
     
-    try {
-      const now = new Date();
-      let filterParams: any = {};
-      
-      switch (dateRange) {
-        case 'today':
-          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-          filterParams = {
-            dateRange: 'today',
-            startDate: today.toISOString().split('T')[0],
-            endDate: todayEnd.toISOString().split('T')[0]
-          };
-          break;
-        case 'this_month':
-          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-          const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-          filterParams = {
-            dateRange: '30d',
-            startDate: monthStart.toISOString().split('T')[0],
-            endDate: monthEnd.toISOString().split('T')[0]
-          };
-          break;
-        case 'custom':
-          if (customStartDate && customEndDate) {
-            filterParams = {
-              dateRange: 'custom',
-              startDate: customStartDate,
-              endDate: customEndDate
-            };
-          }
-          break;
-        default:
-          filterParams = { dateRange: '30d' };
-      }
-
-      await Promise.all([
-        loadExpenses(),
-        refreshDashboard(filterParams),
-        loadFilteredSales()
-      ]);
-      
-      // Mark initial load as complete
-      if (isInitialLoad) {
-        setIsInitialLoad(false);
-      }
-    } catch (error) {
-      console.error('Failed to refresh dashboard:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [dateRange, customStartDate, customEndDate, loadExpenses, loadFilteredSales, isInitialLoad]); // Removed refreshDashboard from dependencies
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-
-  // Enable automatic refresh for dashboard with smart intervals based on filter
-  usePageRefresh({
-    refreshOnMount: true,
-    refreshOnFocus: true, // Enable refresh on focus for real-time updates
-    refreshInterval: refreshInterval,
-    refreshOnVisibilityChange: true, // Enable refresh when tab becomes visible
-    refreshFunction: refreshWithCurrentFilters, // Use our custom refresh function
-    silent: true
-  });
-
-  // Manual refresh function with loading state
-  const handleManualRefresh = useCallback(async () => {
-    setIsRefreshing(true);
+    isRefreshingRef.current = true;
+    console.log('🔄 Unified refresh triggered');
+    
     try {
       // Calculate filter parameters based on current date range
       const now = new Date();
       let filterParams: any = {};
+          // Expense dates no longer needed - handled by dashboard metrics API
       
       switch (dateRange) {
         case 'today':
+          // Use local timezone to ensure correct "today" calculation
           const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+          const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+          
+          // Send date strings in YYYY-MM-DD format to avoid timezone issues
           filterParams = {
             dateRange: 'today',
-            startDate: today.toISOString().split('T')[0],
-            endDate: todayEnd.toISOString().split('T')[0]
+            startDate: today.toISOString().split('T')[0], // YYYY-MM-DD format
+            endDate: todayEnd.toISOString().split('T')[0] // YYYY-MM-DD format (same day, but backend should handle end of day)
           };
           break;
         case 'this_month':
+          // Use local timezone for month boundaries
           const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-          const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+          
+          // Send date strings in YYYY-MM-DD format to avoid timezone issues
           filterParams = {
-            dateRange: '30d',
-            startDate: monthStart.toISOString().split('T')[0],
-            endDate: monthEnd.toISOString().split('T')[0]
+            dateRange: 'this_month',
+            startDate: monthStart.toISOString().split('T')[0], // YYYY-MM-DD format
+            endDate: monthEnd.toISOString().split('T')[0] // YYYY-MM-DD format
           };
           break;
         case 'custom':
@@ -308,137 +123,160 @@ export const Dashboard: React.FC = () => {
               startDate: customStartDate,
               endDate: customEndDate
             };
+          } else {
+            return; // Don't refresh if custom dates are not set
           }
           break;
         default:
           filterParams = { dateRange: '30d' };
       }
 
-      await Promise.all([
-        loadExpenses(),
-        refreshDashboard(filterParams),
-        loadFilteredSales()
-      ]);
+      // Single API call to get all dashboard data
+      try {
+        console.log('🔍 Dashboard API Call Debug:', {
+          dateRange,
+          filterParams,
+          todayDate: new Date().toISOString().split('T')[0],
+          apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&dateRange=${filterParams.dateRange}&startDate=${filterParams.startDate}&endDate=${filterParams.endDate}`
+        });
+        
+        const metrics = await apiService.getDashboardAnalytics({
+          store_id: user?.store_id,
+          ...filterParams
+        });
+        
+        setLocalDashboardMetrics(metrics);
+        console.log('🔍 Dashboard Metrics Debug (Unified):', {
+          totalExpenses: metrics?.totalExpenses,
+          monthlyExpenses: metrics?.monthlyExpenses,
+          netProfit: metrics?.netProfit,
+          totalSales: metrics?.totalSales,
+          totalTransactions: metrics?.totalTransactions,
+          todaySales: metrics?.todaySales,
+          monthlySales: metrics?.monthlySales,
+          dateRange,
+          filterParams,
+          recentTransactions: metrics?.recentTransactions?.length || 0,
+          recentTransactionsData: metrics?.recentTransactions,
+          salesByMonth: metrics?.salesByMonth?.length || 0,
+          topProducts: metrics?.topProducts?.length || 0,
+          apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&startDate=${filterParams.startDate}&endDate=${filterParams.endDate}`
+        });
+        
+        // Update goal progress with the loaded metrics
+        if (metrics) {
+          updateGoalProgress(metrics, metrics);
+        }
+        
+        // Dashboard metrics are now managed locally - no need to update AppContext
+        
+      } catch (error) {
+        console.error('Failed to load dashboard metrics:', error);
+      }
       
       // Mark initial load as complete
       if (isInitialLoad) {
         setIsInitialLoad(false);
       }
+      
     } catch (error) {
       console.error('Failed to refresh dashboard:', error);
     } finally {
-      setIsRefreshing(false);
+      isRefreshingRef.current = false;
     }
-  }, [loadExpenses, loadFilteredSales, dateRange, customStartDate, customEndDate, isInitialLoad]);
+  }, [dateRange, customStartDate, customEndDate, user?.store_id, isInitialLoad, updateGoalProgress]);
+
+  // Initial load is handled by usePageRefresh with refreshOnMount: true
+
+  // Use unified refresh for all refresh operations
   // eslint-disable-next-line react-hooks/exhaustive-deps
 
-  // Load filtered sales when filters change
-  useEffect(() => {
-    loadFilteredSales();
-  }, [loadFilteredSales]);
+  // Temporarily disable auto-refresh to debug the issue
+  // TODO: Re-enable after confirming manual refresh works correctly
+  // usePageRefresh({
+  //   refreshOnMount: false, // Disabled since we have manual initial load
+  //   refreshOnFocus: false, // Disabled to prevent excessive calls on focus
+  //   refreshInterval: refreshInterval, // 2 minutes for today, 5 minutes for others
+  //   refreshOnVisibilityChange: false, // Disabled to prevent excessive calls on visibility change
+  //   refreshFunction: unifiedRefresh, // Use our unified refresh function
+  //   silent: true
+  // });
 
-  // Refresh dashboard metrics when filters change
-  useEffect(() => {
-    const refreshData = async () => {
-      setIsRefreshing(true);
-      
-      try {
-        const now = new Date();
-        let filterParams: any = {};
-        
-        switch (dateRange) {
-          case 'today':
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            filterParams = {
-              dateRange: 'today',
-              startDate: today.toISOString().split('T')[0],
-              endDate: today.toISOString().split('T')[0]
-            };
-            break;
-          case 'this_month':
-            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-            filterParams = {
-              dateRange: '30d',
-              startDate: monthStart.toISOString().split('T')[0],
-              endDate: monthEnd.toISOString().split('T')[0]
-            };
-            break;
-          case 'custom':
-            if (customStartDate && customEndDate) {
-              filterParams = {
-                dateRange: 'custom',
-                startDate: customStartDate,
-                endDate: customEndDate
-              };
-            }
-            break;
-          default:
-            filterParams = { dateRange: '30d' };
-        }
-
-        await refreshDashboard(filterParams);
-      } catch (error) {
-        console.error('Failed to refresh dashboard:', error);
-      } finally {
-        setIsRefreshing(false);
-      }
-    };
-
-    refreshData();
-  }, [dateRange, customStartDate, customEndDate]); // Removed refreshDashboard from dependencies
   // eslint-disable-next-line react-hooks/exhaustive-deps
+
+  // Filter changes are now handled by unified refresh
+
+  // Initial load on mount
+  useEffect(() => {
+    unifiedRefresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
+
+  // Filter changes trigger unified refresh with debounce
+  // Remove unifiedRefresh from dependencies to prevent infinite loop
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      unifiedRefresh();
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, customStartDate, customEndDate]); // Removed unifiedRefresh from dependencies
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+  // Use local dashboard metrics when available, otherwise use smart metrics
+  const currentDashboardMetrics = localDashboardMetrics || dashboardMetrics;
 
   // Use filtered sales data for charts when filters are applied, otherwise use API data
   const salesData = useMemo(() => {
     // If filters are applied (not default 'this_month'), use filtered sales
     if (dateRange !== 'this_month' || customStartDate || customEndDate) {
       if (!filteredSales || filteredSales.length === 0) {
-        // If filtered sales is empty, try to use dashboardMetrics data as fallback
-        if (dashboardMetrics?.salesByMonth && dashboardMetrics.salesByMonth.length > 0) {
-          return dashboardMetrics.salesByMonth.map(item => ({
-            month: item.month,
+        // If filtered sales is empty, try to use currentDashboardMetrics data as fallback
+        if (currentDashboardMetrics?.salesByMonth && currentDashboardMetrics.salesByMonth.length > 0) {
+          return currentDashboardMetrics.salesByMonth.map((item: any) => ({
+            day: item.month, // Use month as day for fallback
             sales: item.sales
           }));
         }
         return [];
       }
       
-      // Group filtered sales by month
-      const monthlySales = filteredSales.reduce((acc, sale) => {
+      // Group filtered sales by day
+      const dailySales = filteredSales.reduce((acc, sale) => {
         const saleDate = new Date(sale.created_at);
-        const monthKey = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
+        const dayKey = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
         
-        if (!acc[monthKey]) {
-          acc[monthKey] = { month: monthKey, sales: 0 };
+        if (!acc[dayKey]) {
+          acc[dayKey] = { day: dayKey, sales: 0 };
         }
-        acc[monthKey].sales += sale.total_amount;
+        acc[dayKey].sales += sale.total_amount;
         
         return acc;
-      }, {} as Record<string, { month: string; sales: number }>);
+      }, {} as Record<string, { day: string; sales: number }>);
       
-      return Object.values(monthlySales).sort((a: any, b: any) => a.month.localeCompare(b.month));
+      return Object.values(dailySales).sort((a: any, b: any) => a.day.localeCompare(b.day));
     }
     
     // Use API data when no filters are applied
-    if (!shouldIgnoreDashboardMetrics && dashboardMetrics?.salesByMonth && dashboardMetrics.salesByMonth.length > 0) {
-      return dashboardMetrics.salesByMonth.map(item => ({
-    month: item.month,
-    sales: item.sales
+    if (currentDashboardMetrics?.salesByMonth && currentDashboardMetrics.salesByMonth.length > 0) {
+      return currentDashboardMetrics.salesByMonth.map((item: any) => ({
+        day: item.month, // Use month as day for fallback
+        sales: item.sales
       }));
     }
     
     return [];
-  }, [dashboardMetrics?.salesByMonth, filteredSales, dateRange, customStartDate, customEndDate, isInitialLoad, shouldIgnoreDashboardMetrics]);
+  }, [currentDashboardMetrics?.salesByMonth, filteredSales, dateRange, customStartDate, customEndDate]);
 
   // Use filtered sales data for top products when filters are applied, otherwise use API data
   const topProductsData = useMemo(() => {
     // If filters are applied (not default 'this_month'), use filtered sales
     if (dateRange !== 'this_month' || customStartDate || customEndDate) {
       if (!filteredSales || filteredSales.length === 0) {
-        // If filtered sales is empty, try to use dashboardMetrics data as fallback
-        if (dashboardMetrics?.topProducts && dashboardMetrics.topProducts.length > 0) {
-          return dashboardMetrics.topProducts.map(product => ({
+        // If filtered sales is empty, try to use currentDashboardMetrics data as fallback
+        if (currentDashboardMetrics?.topProducts && currentDashboardMetrics.topProducts.length > 0) {
+          return currentDashboardMetrics.topProducts.map((product: any) => ({
             name: product.productName?.length > 12 
               ? product.productName.substring(0, 12) + '...' 
               : product.productName,
@@ -482,9 +320,9 @@ export const Dashboard: React.FC = () => {
         }));
     }
     
-    // Use API data when no filters are applied (but not on initial load with today filter)
-    if (!shouldIgnoreDashboardMetrics && dashboardMetrics?.topProducts && dashboardMetrics.topProducts.length > 0) {
-      return dashboardMetrics.topProducts.map(product => ({
+    // Use API data when no filters are applied
+    if (currentDashboardMetrics?.topProducts && currentDashboardMetrics.topProducts.length > 0) {
+      return currentDashboardMetrics.topProducts.map((product: any) => ({
         name: product.productName?.length > 12 
           ? product.productName.substring(0, 12) + '...' 
       : product.productName,
@@ -495,7 +333,7 @@ export const Dashboard: React.FC = () => {
     }
     
     return [];
-  }, [dashboardMetrics?.topProducts, filteredSales, dateRange, customStartDate, customEndDate, isInitialLoad, shouldIgnoreDashboardMetrics]);
+  }, [currentDashboardMetrics?.topProducts, filteredSales, dateRange, customStartDate, customEndDate]);
 
   // Smart filtering system that affects all dashboard content
   const getSmartFilteringData = () => {
@@ -581,23 +419,17 @@ export const Dashboard: React.FC = () => {
     const currentPeriodTransactions = filteredSales.length;
     const currentPeriodAvgTransaction = currentPeriodTransactions > 0 ? currentPeriodSales / currentPeriodTransactions : 0;
     
-    // Get previous period data (from all sales)
-    const previousPeriodSales = sales?.filter(sale => {
-      const saleDate = new Date(sale.created_at);
-      return saleDate >= previousPeriodStart && saleDate <= previousPeriodEnd;
-    }).reduce((sum, sale) => sum + sale.total_amount, 0) || 0;
-    
-    const previousPeriodTransactions = sales?.filter(sale => {
-      const saleDate = new Date(sale.created_at);
-      return saleDate >= previousPeriodStart && saleDate <= previousPeriodEnd;
-    }).length || 0;
+    // Get previous period data (simplified - use current metrics for now)
+    // TODO: Implement proper previous period calculation when needed
+    const previousPeriodSales = 0; // Simplified for now
+    const previousPeriodTransactions = 0; // Simplified for now
     
     const previousPeriodAvgTransaction = previousPeriodTransactions > 0 ? previousPeriodSales / previousPeriodTransactions : 0;
     
     // Calculate growth rates
-    const salesGrowthRate = previousPeriodSales > 0 ? ((currentPeriodSales - previousPeriodSales) / previousPeriodSales) * 100 : 0;
-    const transactionGrowthRate = previousPeriodTransactions > 0 ? ((currentPeriodTransactions - previousPeriodTransactions) / previousPeriodTransactions) * 100 : 0;
-    const avgTransactionGrowthRate = previousPeriodAvgTransaction > 0 ? ((currentPeriodAvgTransaction - previousPeriodAvgTransaction) / previousPeriodAvgTransaction) * 100 : 0;
+    const salesGrowthRate = previousPeriodSales > 0 ? ((currentPeriodSales - previousPeriodSales) / previousPeriodSales) * 100 : (currentPeriodSales > 0 ? 100 : 0);
+    const transactionGrowthRate = previousPeriodTransactions > 0 ? ((currentPeriodTransactions - previousPeriodTransactions) / previousPeriodTransactions) * 100 : (currentPeriodTransactions > 0 ? 100 : 0);
+    const avgTransactionGrowthRate = previousPeriodAvgTransaction > 0 ? ((currentPeriodAvgTransaction - previousPeriodAvgTransaction) / previousPeriodAvgTransaction) * 100 : (currentPeriodAvgTransaction > 0 ? 100 : 0);
     
     return {
       totalSales: currentPeriodSales,
@@ -614,61 +446,64 @@ export const Dashboard: React.FC = () => {
     };
   };
 
-  const smartMetrics = calculateSmartMetrics();
-  
-  // Always prioritize dashboardMetrics when available (it contains the correct filtered data from backend)
-  // Only use smartMetrics as fallback when dashboardMetrics is not available
-  // Don't use dashboardMetrics on initial load with 'today' filter to prevent showing stale data
-  const useFilteredMetrics = (dateRange !== 'this_month' || customStartDate || customEndDate) && (!dashboardMetrics || (isInitialLoad && dateRange === 'today'));
-  
-  const totalSales = (useFilteredMetrics || shouldIgnoreDashboardMetrics) ? (smartMetrics.totalSales || 0) : (dashboardMetrics?.totalSales ?? 0);
-  const totalTransactions = (useFilteredMetrics || shouldIgnoreDashboardMetrics) ? (smartMetrics.totalTransactions || 0) : (dashboardMetrics?.totalTransactions ?? 0);
-  const averageTransactionValue = (useFilteredMetrics || shouldIgnoreDashboardMetrics) ? (smartMetrics.averageTransactionValue || 0) : (dashboardMetrics?.averageTransactionValue ?? 0);
-  const growthRate = (useFilteredMetrics || shouldIgnoreDashboardMetrics) ? (smartMetrics.growthRate || 0) : (dashboardMetrics?.growthRate ?? 0);
-  const transactionGrowthRate = useFilteredMetrics ? (smartMetrics.transactionGrowthRate || 0) : 0;
-  const avgTransactionGrowthRate = useFilteredMetrics ? (smartMetrics.avgTransactionGrowthRate || 0) : 0;
+  // Use unified API data directly - no need for smart metrics calculation
+  const totalSales = currentDashboardMetrics?.totalSales ?? 0;
+  const totalTransactions = currentDashboardMetrics?.totalTransactions ?? 0;
+  const averageTransactionValue = currentDashboardMetrics?.averageTransactionValue ?? 0;
+  const growthRate = currentDashboardMetrics?.growthRate ?? 0;
+  const transactionGrowthRate = 0; // Simplified for now
+  const avgTransactionGrowthRate = 0; // Simplified for now
   // Get comparison label and period label based on current filter
   let comparisonLabel = 'vs last month';
   let periodLabel = 'This Month';
   
-  if (useFilteredMetrics && smartMetrics) {
-    comparisonLabel = smartMetrics.comparisonLabel || 'vs last month';
-    periodLabel = smartMetrics.periodLabel || 'This Month';
-  } else if (shouldIgnoreDashboardMetrics) {
-    // Use correct labels for initial load with today filter
-    comparisonLabel = 'vs yesterday';
-    periodLabel = 'Today';
-  } else if (dashboardMetrics) {
-    // Use correct labels based on current filter when using dashboardMetrics
-    switch (dateRange) {
-      case 'today':
-        comparisonLabel = 'vs yesterday';
-        periodLabel = 'Today';
-        break;
-      case 'custom':
-        comparisonLabel = 'vs previous period';
-        periodLabel = customStartDate && customEndDate 
-          ? `${new Date(customStartDate).toLocaleDateString()} - ${new Date(customEndDate).toLocaleDateString()}`
-          : 'Custom Range';
-        break;
-      default:
-        comparisonLabel = 'vs last month';
-        periodLabel = 'This Month';
-    }
+  // Set labels based on current date range
+  switch (dateRange) {
+    case 'today':
+      comparisonLabel = 'vs yesterday';
+      periodLabel = 'Today';
+      break;
+    case 'this_month':
+      comparisonLabel = 'vs last month';
+      periodLabel = 'This Month';
+      break;
+    case 'custom':
+      comparisonLabel = 'vs previous period';
+      periodLabel = 'Custom Period';
+      break;
+    default:
+      comparisonLabel = 'vs last month';
+      periodLabel = 'This Month';
   }
   
-  // Use expense data from dashboard metrics if available, otherwise use local state
-  // Don't use dashboardMetrics on initial load with 'today' filter to prevent showing stale data
-  const totalExpensesFromMetrics = shouldIgnoreDashboardMetrics ? 0 : (dashboardMetrics?.totalExpenses || 0);
-  const monthlyExpensesFromMetrics = shouldIgnoreDashboardMetrics ? 0 : (dashboardMetrics?.monthlyExpenses || 0);
-  const netProfitFromMetrics = shouldIgnoreDashboardMetrics ? 0 : (dashboardMetrics?.netProfit || 0);
+  // Use expense data from dashboard metrics (single source of truth)
+  const totalExpensesFromMetrics = currentDashboardMetrics?.totalExpenses || 0;
+  const monthlyExpensesFromMetrics = currentDashboardMetrics?.monthlyExpenses || 0;
+  const netProfitFromMetrics = currentDashboardMetrics?.netProfit || 0;
   
-  // Calculate net profit (use metrics if available, otherwise calculate locally)
-  const netProfit = netProfitFromMetrics || (totalSales - totalExpenses);
+  // Use net profit from metrics (calculated by backend)
+  const netProfit = netProfitFromMetrics;
   
   // Debug logging
   useEffect(() => {
-  }, [dashboardMetrics, totalSales, totalTransactions, averageTransactionValue, growthRate, transactionGrowthRate, avgTransactionGrowthRate, totalExpenses, netProfit, totalExpensesFromMetrics, monthlyExpensesFromMetrics, netProfitFromMetrics, smartMetrics, useFilteredMetrics, comparisonLabel, periodLabel, dateRange, customStartDate, customEndDate]);
+    console.log('🔍 Dashboard Data Sources Debug:', {
+      dateRange,
+      currentDashboardMetrics: {
+        totalSales: currentDashboardMetrics?.totalSales,
+        totalTransactions: currentDashboardMetrics?.totalTransactions,
+        averageTransactionValue: currentDashboardMetrics?.averageTransactionValue,
+        totalExpenses: currentDashboardMetrics?.totalExpenses,
+        netProfit: currentDashboardMetrics?.netProfit
+      },
+      finalValues: {
+        totalSales,
+        totalTransactions,
+        averageTransactionValue,
+        totalExpenses: totalExpensesFromMetrics,
+        netProfit: netProfitFromMetrics
+      }
+    });
+  }, [dashboardMetrics, totalSales, totalTransactions, averageTransactionValue, growthRate, transactionGrowthRate, avgTransactionGrowthRate, netProfit, totalExpensesFromMetrics, monthlyExpensesFromMetrics, netProfitFromMetrics, comparisonLabel, periodLabel, dateRange, customStartDate, customEndDate, currentDashboardMetrics]);
 
   const metricCards = [
     {
@@ -683,7 +518,7 @@ export const Dashboard: React.FC = () => {
     },
     {
       title: 'Total Expenses',
-      value: formatPrice(totalExpensesFromMetrics || totalExpenses),
+      value: formatPrice(totalExpensesFromMetrics),
       icon: TrendingDown,
       gradient: 'from-red-500 to-pink-600',
       iconBg: 'bg-gradient-to-br from-red-100 to-pink-100',
@@ -748,6 +583,18 @@ export const Dashboard: React.FC = () => {
             <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
               Welcome to {app.name} Management System
             </p>
+            <div className="mt-4 flex justify-center items-center space-x-4">
+              <NotificationStatus />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsGoalSettingModalOpen(true)}
+                className="flex items-center space-x-2"
+              >
+                <Target className="h-4 w-4" />
+                <span>Set Goals</span>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -772,27 +619,6 @@ export const Dashboard: React.FC = () => {
               >
                 <Filter className="h-4 w-4" />
                 <span>{showFilters ? 'Hide' : 'Show'} Filters</span>
-              </Button>
-              <Button
-                variant={dateRange === 'today' ? 'primary' : 'outline'}
-                size="sm"
-                onClick={handleManualRefresh}
-                disabled={isRefreshing}
-                className={`flex items-center space-x-2 ${
-                  dateRange === 'today' 
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg' 
-                    : ''
-                } ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span>
-                  {isRefreshing 
-                    ? 'Refreshing...' 
-                    : dateRange === 'today' 
-                      ? 'Refresh Now' 
-                      : 'Refresh Data'
-                  }
-                </span>
               </Button>
               
             </div>
@@ -895,16 +721,17 @@ export const Dashboard: React.FC = () => {
               )}
             </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
-                {(useFilteredMetrics || shouldIgnoreDashboardMetrics) ? (
-                  `Showing ${filteredSales.length} ${dateRange === 'today' ? 'today\'s' : 'filtered'} transactions`
-                ) : dashboardMetrics ? (
-                  `Showing ${dashboardMetrics.totalTransactions || 0} ${dateRange === 'today' ? 'today\'s' : dateRange === 'this_month' ? 'this month\'s' : 'filtered'} transactions`
+                {currentDashboardMetrics ? (
+                  `Showing ${currentDashboardMetrics.totalTransactions || 0} ${dateRange === 'today' ? 'today\'s' : dateRange === 'this_month' ? 'this month\'s' : 'filtered'} transactions`
                 ) : (
                   `Showing 0 total transactions`
                 )}
               </div>
           </div>
         </div>
+
+        {/* Notification Permission Banner */}
+        <NotificationPermissionBanner />
 
         {/* Metrics Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
@@ -937,6 +764,150 @@ export const Dashboard: React.FC = () => {
           })}
         </div>
 
+        {/* Goal Progress Cards */}
+        {(dailyProgress || monthlyProgress) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Daily Goal Progress */}
+            {dailyProgress && (
+              <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/50 p-6 transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-white dark:hover:bg-gray-800">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5"></div>
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md" style={{ backgroundColor: '#009DE3' }}>
+                        <Calendar className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-gray-900 dark:text-white">Daily Goal</h3>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          {dailyProgress.goal.goal_name || 'Daily Sales Target'}
+                        </p>
+                      </div>
+                    </div>
+                    {dailyProgress.is_achieved && (
+                      <div className="flex items-center space-x-1 px-2 py-1 rounded-full" style={{ backgroundColor: '#17A068', color: 'white' }}>
+                        <Trophy className="h-3 w-3" />
+                        <span className="text-xs font-semibold">ACHIEVED!</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mb-3">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Progress</span>
+                      <span className="text-sm font-bold text-gray-900 dark:text-white">
+                        {Math.round(dailyProgress.progress_percentage)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-500 ${
+                          dailyProgress.is_achieved 
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+                            : 'bg-gradient-to-r from-blue-500 to-purple-500'
+                        }`}
+                        style={{ width: `${Math.min(dailyProgress.progress_percentage, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Target</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        ₺{dailyProgress.goal.target_amount.toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        ₺{dailyProgress.current_amount.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {dailyProgress.hours_remaining !== undefined && dailyProgress.hours_remaining > 0 && (
+                    <div className="mt-2 text-center">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {dailyProgress.hours_remaining} hours remaining today
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Monthly Goal Progress */}
+            {monthlyProgress && (
+              <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/50 p-6 transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-white dark:hover:bg-gray-800">
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-pink-500/5"></div>
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md" style={{ backgroundColor: '#8E3BE0' }}>
+                        <TrendingUp className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-gray-900 dark:text-white">Monthly Goal</h3>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          {monthlyProgress.goal.goal_name || 'Monthly Sales Target'}
+                        </p>
+                      </div>
+                    </div>
+                    {monthlyProgress.is_achieved && (
+                      <div className="flex items-center space-x-1 px-2 py-1 rounded-full" style={{ backgroundColor: '#17A068', color: 'white' }}>
+                        <Trophy className="h-3 w-3" />
+                        <span className="text-xs font-semibold">ACHIEVED!</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mb-3">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Progress</span>
+                      <span className="text-sm font-bold text-gray-900 dark:text-white">
+                        {Math.round(monthlyProgress.progress_percentage)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-500 ${
+                          monthlyProgress.is_achieved 
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+                            : 'bg-gradient-to-r from-purple-500 to-pink-500'
+                        }`}
+                        style={{ width: `${Math.min(monthlyProgress.progress_percentage, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Target</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        ₺{monthlyProgress.goal.target_amount.toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        ₺{monthlyProgress.current_amount.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {monthlyProgress.days_remaining !== undefined && monthlyProgress.days_remaining > 0 && (
+                    <div className="mt-2 text-center">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {monthlyProgress.days_remaining} days remaining this month
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -947,7 +918,7 @@ export const Dashboard: React.FC = () => {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Sales Overview</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Monthly sales performance</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Daily sales performance</p>
                 </div>
                 <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg">
                   <BarChart3 className="h-6 w-6 text-white" />
@@ -959,7 +930,7 @@ export const Dashboard: React.FC = () => {
                   <LineChart data={salesData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
                       <XAxis 
-                        dataKey="month" 
+                        dataKey="day" 
                         stroke="#6b7280" 
                         fontSize={12}
                         tickLine={false}
@@ -974,7 +945,7 @@ export const Dashboard: React.FC = () => {
                       />
                     <Tooltip 
                       formatter={(value: number) => [formatPrice(value), 'Sales']}
-                      labelFormatter={(label) => `Month: ${label}`}
+                      labelFormatter={(label) => `Day: ${label}`}
                         contentStyle={{ 
                           backgroundColor: '#1f2937', 
                           border: 'none', 
@@ -1135,7 +1106,7 @@ export const Dashboard: React.FC = () => {
               <h3 className="text-lg font-medium text-gray-800 dark:text-white">Recent Sales</h3>
               <div className="flex items-center space-x-2">
                 <ShoppingCart className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                {sales && sales.length > 5 && (
+                {currentDashboardMetrics?.recentTransactions && currentDashboardMetrics.recentTransactions.length > 5 && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1149,8 +1120,8 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
             <div className="space-y-2">
-                {(filteredSales && filteredSales.length > 0) || (!shouldIgnoreDashboardMetrics && dashboardMetrics?.recentTransactions && dashboardMetrics.recentTransactions.length > 0) ? (
-                  (filteredSales && filteredSales.length > 0 ? filteredSales : (!shouldIgnoreDashboardMetrics ? dashboardMetrics?.recentTransactions : []) || [])?.slice(0, 4).map((sale: any) => {
+                {(filteredSales && filteredSales.length > 0) || (currentDashboardMetrics?.recentTransactions && currentDashboardMetrics.recentTransactions.length > 0) ? (
+                  (filteredSales && filteredSales.length > 0 ? filteredSales : (currentDashboardMetrics?.recentTransactions || []))?.slice(0, 4).map((sale: any) => {
                   // Always prefer filteredSales data as it contains complete transaction details with product names
                   const isApiData = !filteredSales || filteredSales.length === 0;
                   
@@ -1313,6 +1284,12 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Goal Setting Modal */}
+      <GoalSettingModal
+        isOpen={isGoalSettingModalOpen}
+        onClose={() => setIsGoalSettingModalOpen(false)}
+      />
     </div>
   );
 };

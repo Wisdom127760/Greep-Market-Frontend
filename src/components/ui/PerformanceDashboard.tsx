@@ -1,24 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Target, 
-  Trophy, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Target,
+  Trophy,
   Calendar,
-  DollarSign,
-  Award
+  DollarSign
 } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { GoalSettingModal } from './GoalSettingModal';
 import { apiService } from '../../services/api';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import { useGoals } from '../../context/GoalContext';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer
 } from 'recharts';
 
@@ -56,36 +56,65 @@ interface PerformanceData {
 
 interface PerformanceDashboardProps {
   storeId: string;
+  analyticsData?: any; // Optional analytics data from parent component
+  isLoading?: boolean; // Optional loading state from parent
 }
 
-export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ storeId }) => {
+export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
+  storeId,
+  analyticsData: providedAnalyticsData,
+  isLoading: parentIsLoading = false
+}) => {
   const [performanceData, setPerformanceData] = useState<PerformanceData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
 
+  // Use goal progress data from GoalContext instead of calculating our own
+  const { dailyProgress, monthlyProgress } = useGoals();
+
   const loadPerformanceData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Load real data from existing API methods and goals
-      const [dashboardMetrics, salesAnalytics, goals] = await Promise.all([
-        apiService.getDashboardAnalytics({ store_id: storeId }).catch(err => {
-          console.warn('Failed to load dashboard analytics:', err);
-          return null;
-        }),
-        apiService.getSalesAnalytics({ store_id: storeId }).catch(err => {
-          console.warn('Failed to load sales analytics:', err);
-          return null;
-        }),
-        apiService.isAuthenticated() ? apiService.getGoals({ store_id: storeId, is_active: true }).catch(err => {
-          console.warn('Failed to load goals:', err);
-          return [];
-        }) : Promise.resolve([])
-      ]);
+      let dashboardMetrics, salesAnalytics, goals;
+
+      // Use provided analytics data if available, otherwise load from API
+      if (providedAnalyticsData) {
+        console.log('Performance Dashboard: Using provided analytics data');
+        dashboardMetrics = providedAnalyticsData.dashboardAnalytics;
+        salesAnalytics = providedAnalyticsData.salesAnalytics || null;
+        goals = await apiService.isAuthenticated() ?
+          apiService.getGoals({ store_id: storeId, is_active: true }).catch(err => {
+            console.warn('Failed to load goals:', err);
+            return [];
+          }) : Promise.resolve([]);
+      } else {
+        console.log('Performance Dashboard: Loading data from API (fallback)');
+        // Load real data from existing API methods and goals
+        const [dashboardData, salesData, goalsData] = await Promise.all([
+          apiService.getDashboardAnalytics({ store_id: storeId }).catch(err => {
+            console.warn('Failed to load dashboard analytics:', err);
+            return null;
+          }),
+          apiService.getSalesAnalytics({ store_id: storeId }).catch(err => {
+            console.warn('Failed to load sales analytics:', err);
+            return null;
+          }),
+          apiService.isAuthenticated() ? apiService.getGoals({ store_id: storeId, is_active: true }).catch(err => {
+            console.warn('Failed to load goals:', err);
+            return [];
+          }) : Promise.resolve([])
+        ]);
+
+        dashboardMetrics = dashboardData;
+        salesAnalytics = salesData;
+        goals = goalsData;
+      }
 
       // Process goals data
-      const dailyGoal = goals.find((g: any) => g.goal_type === 'daily');
-      const monthlyGoal = goals.find((g: any) => g.goal_type === 'monthly');
-      
+      const goalsArray = Array.isArray(goals) ? goals : [];
+      const dailyGoal = goalsArray.find((g: any) => g.goal_type === 'daily');
+      const monthlyGoal = goalsArray.find((g: any) => g.goal_type === 'monthly');
+
       // Debug logging with detailed information
       console.log('Performance Dashboard Data:', {
         dashboardMetrics,
@@ -107,19 +136,31 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
         });
       }
 
-      // Calculate goal progress and achievements
-      const dailyProgress = dailyGoal ? (dashboardMetrics?.todaySales || 0) / dailyGoal.target_amount : 0;
-      const monthlyProgress = monthlyGoal ? (dashboardMetrics?.monthlySales || 0) / monthlyGoal.target_amount : 0;
+      // Use goal progress from GoalContext instead of calculating our own
+      // The GoalContext has the correct daily/monthly data with proper date ranges
+      const goalContextDailyProgress = dailyProgress?.progress_percentage || 0;
+      const goalContextMonthlyProgress = monthlyProgress?.progress_percentage || 0;
+
+      console.log('PerformanceDashboard goal calculation (using GoalContext data):', {
+        goalContextDailyProgress,
+        goalContextMonthlyProgress,
+        goalContextDailyAmount: dailyProgress?.current_amount,
+        goalContextMonthlyAmount: monthlyProgress?.current_amount,
+        dashboardTodaySales: dashboardMetrics?.todaySales,
+        dashboardMonthlySales: dashboardMetrics?.monthlySales,
+        dailyTarget: dailyGoal?.target_amount,
+        monthlyTarget: monthlyGoal?.target_amount
+      });
 
       // Check if we have any meaningful data
-      const hasData = (dashboardMetrics?.todaySales && dashboardMetrics.todaySales > 0) || 
-                     (dashboardMetrics?.monthlySales && dashboardMetrics.monthlySales > 0) || 
-                     (dashboardMetrics?.totalSales && dashboardMetrics.totalSales > 0) ||
-                     (dailyGoal?.target_amount > 0) ||
-                     (monthlyGoal?.target_amount > 0) ||
-                     (localStorage.getItem('local_daily_goal')) ||
-                     (localStorage.getItem('local_monthly_goal')) ||
-                     (salesAnalytics && Object.keys(salesAnalytics).length > 0);
+      const hasData = (dashboardMetrics?.todaySales && dashboardMetrics.todaySales > 0) ||
+        (dashboardMetrics?.monthlySales && dashboardMetrics.monthlySales > 0) ||
+        (dashboardMetrics?.totalSales && dashboardMetrics.totalSales > 0) ||
+        (dailyGoal?.target_amount > 0) ||
+        (monthlyGoal?.target_amount > 0) ||
+        (localStorage.getItem('local_daily_goal')) ||
+        (localStorage.getItem('local_monthly_goal')) ||
+        (salesAnalytics && Object.keys(salesAnalytics).length > 0);
 
       console.log('Data validation check:', {
         hasData,
@@ -134,64 +175,34 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
       });
 
       if (!hasData) {
-        console.log('No meaningful data found, providing sample data for demonstration');
-        // Provide sample data for demonstration when no real data exists
-        const sampleData: PerformanceData = {
-        daily: {
-          today: 1250,
-          yesterday: 980,
-          thisWeek: 8750,
-          lastWeek: 7200
-        },
-        monthly: {
-          thisMonth: 35200,
-          lastMonth: 28900,
-          thisYear: 185400,
-          lastYear: 142300
-        },
-        trends: {
-            dailyData: [
-              { date: 'Mon', sales: 1200, transactions: 8 },
-              { date: 'Tue', sales: 1500, transactions: 10 },
-              { date: 'Wed', sales: 1100, transactions: 7 },
-              { date: 'Thu', sales: 1800, transactions: 12 },
-              { date: 'Fri', sales: 2000, transactions: 15 },
-              { date: 'Sat', sales: 2200, transactions: 18 },
-              { date: 'Sun', sales: 1250, transactions: 9 }
-            ],
-            monthlyData: [
-              { month: 'Jan', sales: 28000, transactions: 180 },
-              { month: 'Feb', sales: 32000, transactions: 200 },
-              { month: 'Mar', sales: 35000, transactions: 220 },
-              { month: 'Apr', sales: 31000, transactions: 190 },
-              { month: 'May', sales: 38000, transactions: 240 },
-              { month: 'Jun', sales: 35200, transactions: 210 }
-            ]
-        },
-        goals: {
-            daily: 1500,
-            monthly: 35000,
-          achieved: true,
-          streak: 5
-        },
-        achievements: [
-          {
-              id: 'daily-achieved',
-              title: 'Daily Goal Achieved',
-              description: 'Congratulations! You reached your daily sales goal.',
-            achieved: true,
-            icon: '🎯'
+        console.log('No meaningful data found, setting empty performance data');
+        // Set empty performance data when no real data exists
+        const emptyData: PerformanceData = {
+          daily: {
+            today: 0,
+            yesterday: 0,
+            thisWeek: 0,
+            lastWeek: 0
           },
-          {
-              id: 'monthly-achieved',
-              title: 'Monthly Goal Achieved',
-              description: 'Outstanding! You exceeded your monthly target.',
-              achieved: true,
-              icon: '🏆'
-            }
-          ]
+          monthly: {
+            thisMonth: 0,
+            lastMonth: 0,
+            thisYear: 0,
+            lastYear: 0
+          },
+          trends: {
+            dailyData: [],
+            monthlyData: []
+          },
+          goals: {
+            daily: dailyGoal?.target_amount || parseInt(localStorage.getItem('local_daily_goal') || '0'),
+            monthly: monthlyGoal?.target_amount || parseInt(localStorage.getItem('local_monthly_goal') || '0'),
+            achieved: false,
+            streak: 0
+          },
+          achievements: []
         };
-        setPerformanceData(sampleData);
+        setPerformanceData(emptyData);
         return;
       }
 
@@ -220,18 +231,18 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
         goals: {
           daily: dailyGoal?.target_amount || parseInt(localStorage.getItem('local_daily_goal') || '0'),
           monthly: monthlyGoal?.target_amount || parseInt(localStorage.getItem('local_monthly_goal') || '0'),
-          achieved: dailyProgress >= 1 || monthlyProgress >= 1,
+          achieved: goalContextDailyProgress >= 100 || goalContextMonthlyProgress >= 100,
           streak: 0 // TODO: Calculate from goal history
         },
         achievements: [
-          ...(dailyProgress >= 1 ? [{
+          ...(goalContextDailyProgress >= 100 ? [{
             id: 'daily-achieved',
             title: 'Daily Goal Achieved',
             description: 'Congratulations! You reached your daily sales goal.',
             achieved: true,
             icon: '🎯'
           }] : []),
-          ...(monthlyProgress >= 1 ? [{
+          ...(goalContextMonthlyProgress >= 100 ? [{
             id: 'monthly-achieved',
             title: 'Monthly Goal Achieved',
             description: 'Outstanding! You exceeded your monthly target.',
@@ -258,11 +269,17 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
     } finally {
       setIsLoading(false);
     }
-  }, [storeId]);
+  }, [storeId, dailyProgress?.current_amount, dailyProgress?.progress_percentage, monthlyProgress?.current_amount, monthlyProgress?.progress_percentage, providedAnalyticsData]);
 
   useEffect(() => {
-    loadPerformanceData();
-  }, [loadPerformanceData]);
+    if (providedAnalyticsData) {
+      // Use provided data immediately
+      loadPerformanceData();
+    } else {
+      // Load data from API
+      loadPerformanceData();
+    }
+  }, [loadPerformanceData, providedAnalyticsData]);
 
   // Add a method to manually refresh data
   const refreshData = useCallback(() => {
@@ -313,13 +330,13 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
             Start making sales or set up goals to see your performance metrics and track your progress.
           </p>
           <div className="flex justify-center space-x-4">
-            <Button 
+            <Button
               onClick={refreshData}
               variant="outline"
             >
               Refresh Data
             </Button>
-            <Button 
+            <Button
               onClick={() => setIsGoalModalOpen(true)}
               variant="primary"
             >
@@ -339,76 +356,85 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
     <div className="space-y-6">
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                  <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
-                </div>
-                <div className={`flex items-center space-x-1 ${getGrowthColor(dailyGrowth)}`}>
-                  {getGrowthIcon(dailyGrowth)}
-                  <span className="text-sm font-medium">{dailyGrowth > 0 ? '+' : ''}{dailyGrowth.toFixed(1)}%</span>
-                </div>
-              </div>
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Today's Sales</h3>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">₺{daily.today.toLocaleString()}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">vs ₺{daily.yesterday.toLocaleString()} yesterday</p>
-            </Card>
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
+              <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
+            </div>
+            <div className={`flex items-center space-x-1 ${getGrowthColor(dailyGrowth)}`}>
+              {getGrowthIcon(dailyGrowth)}
+              <span className="text-sm font-medium">{dailyGrowth > 0 ? '+' : ''}{dailyGrowth.toFixed(1)}%</span>
+            </div>
+          </div>
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Today's Sales</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">₺{daily.today.toLocaleString()}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">vs ₺{daily.yesterday.toLocaleString()} yesterday</p>
+        </Card>
 
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
               <Calendar className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                </div>
+            </div>
             <div className={`flex items-center space-x-1 ${getGrowthColor(monthlyGrowth)}`}>
               {getGrowthIcon(monthlyGrowth)}
               <span className="text-sm font-medium">{monthlyGrowth > 0 ? '+' : ''}{monthlyGrowth.toFixed(1)}%</span>
-                </div>
-              </div>
+            </div>
+          </div>
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">This Month</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">₺{monthly.thisMonth.toLocaleString()}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">vs ₺{monthly.lastMonth.toLocaleString()} last month</p>
-            </Card>
+        </Card>
 
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                  <Target className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="flex items-center space-x-1">
-                  <span className={`text-sm font-medium ${daily.today >= goals.daily ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
-                    {Math.round((daily.today / goals.daily) * 100)}%
-                  </span>
-                </div>
-              </div>
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Daily Goal</h3>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">₺{goals.daily.toLocaleString()}</p>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-                <div 
-              className={`h-2 rounded-full transition-all duration-300 ${
-                daily.today >= goals.daily ? 'bg-green-500' : 'bg-orange-500'
-              }`}
-                  style={{ width: `${Math.min((daily.today / goals.daily) * 100, 100)}%` }}
-                ></div>
-              </div>
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+              <Target className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div className="flex items-center space-x-1">
+              <span className={`text-sm font-medium ${daily.today >= goals.daily ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                {Math.round((daily.today / goals.daily) * 100)}%
+              </span>
+            </div>
+          </div>
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Daily Goal</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">₺{goals.daily.toLocaleString()}</p>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-300 ${daily.today >= goals.daily ? 'bg-green-500 dark:bg-green-400' : 'bg-orange-500 dark:bg-orange-400'
+                }`}
+              style={{ width: `${Math.min((daily.today / goals.daily) * 100, 100)}%` }}
+            ></div>
+          </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {Math.round((daily.today / goals.daily) * 100)}% complete
           </p>
-            </Card>
+        </Card>
 
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
-                  <Award className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-                </div>
-                <div className="flex items-center space-x-1 text-green-600 dark:text-green-400">
-                  <Trophy className="h-4 w-4" />
-                  <span className="text-sm font-medium">{achievements.filter(a => a.achieved).length}</span>
-                </div>
-              </div>
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Achievements</h3>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{achievements.filter(a => a.achieved).length}/{achievements.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">goals unlocked</p>
-            </Card>
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
+              <Calendar className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div className="flex items-center space-x-1">
+              <span className={`text-sm font-medium ${monthly.thisMonth >= goals.monthly ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                {Math.round((monthly.thisMonth / goals.monthly) * 100)}%
+              </span>
+            </div>
+          </div>
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Monthly Goal</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">₺{goals.monthly.toLocaleString()}</p>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-300 ${monthly.thisMonth >= goals.monthly ? 'bg-green-500 dark:bg-green-400' : 'bg-orange-500 dark:bg-orange-400'
+                }`}
+              style={{ width: `${Math.min((monthly.thisMonth / goals.monthly) * 100, 100)}%` }}
+            ></div>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {Math.round((monthly.thisMonth / goals.monthly) * 100)}% complete
+          </p>
+        </Card>
       </div>
 
       {/* Charts */}
@@ -418,30 +444,30 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
             Sales Performance Trend
           </h3>
           {trends.monthlyData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={300}>
               <LineChart data={trends.monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="month" stroke="#9CA3AF" />
-              <YAxis stroke="#9CA3AF" />
-              <Tooltip 
-                formatter={(value: number) => [`₺${value.toLocaleString()}`, 'Sales']}
-                contentStyle={{ 
-                  backgroundColor: '#1F2937', 
-                  border: '1px solid #374151', 
-                  borderRadius: '8px',
-                  color: '#F9FAFB'
-                }}
-                labelStyle={{ color: '#F9FAFB' }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="sales" 
-                stroke="#10B981" 
-                strokeWidth={3}
-                dot={{ fill: '#10B981', strokeWidth: 2, r: 6 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+                <YAxis stroke="#9CA3AF" />
+                <Tooltip
+                  formatter={(value: number) => [`₺${value.toLocaleString()}`, 'Sales']}
+                  contentStyle={{
+                    backgroundColor: '#1F2937',
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                    color: '#F9FAFB'
+                  }}
+                  labelStyle={{ color: '#F9FAFB' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="sales"
+                  stroke="#10B981"
+                  strokeWidth={3}
+                  dot={{ fill: '#10B981', strokeWidth: 2, r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
               <div className="text-center">
@@ -455,35 +481,34 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
         <Card className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Achievements</h3>
           {achievements.length > 0 ? (
-          <div className="space-y-4">
-            {achievements.map((achievement) => (
-              <div 
-                key={achievement.id}
-                className={`flex items-center space-x-3 p-3 rounded-lg ${
-                  achievement.achieved 
-                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
-                    : 'bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
-                }`}
-              >
-                <div className={`text-2xl ${achievement.achieved ? '' : 'grayscale opacity-50'}`}>
-                  {achievement.icon}
-                </div>
-                <div className="flex-1">
-                  <h4 className={`font-medium ${achievement.achieved ? 'text-green-900 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                    {achievement.title}
-                  </h4>
-                  <p className={`text-sm ${achievement.achieved ? 'text-green-700 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                    {achievement.description}
-                  </p>
-                </div>
-                {achievement.achieved && (
-                  <div className="text-green-600 dark:text-green-400">
-                    <Trophy className="h-5 w-5" />
+            <div className="space-y-4">
+              {achievements.map((achievement) => (
+                <div
+                  key={achievement.id}
+                  className={`flex items-center space-x-3 p-3 rounded-lg ${achievement.achieved
+                      ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                      : 'bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
+                    }`}
+                >
+                  <div className={`text-2xl ${achievement.achieved ? '' : 'grayscale opacity-50'}`}>
+                    {achievement.icon}
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
+                  <div className="flex-1">
+                    <h4 className={`font-medium ${achievement.achieved ? 'text-green-900 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                      {achievement.title}
+                    </h4>
+                    <p className={`text-sm ${achievement.achieved ? 'text-green-700 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                      {achievement.description}
+                    </p>
+                  </div>
+                  {achievement.achieved && (
+                    <div className="text-green-600 dark:text-green-400">
+                      <Trophy className="h-5 w-5" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
               <div className="text-center">
@@ -504,22 +529,22 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
             {dailyGrowth > 0 ? "You're on fire! 🔥" : daily.today > 0 ? "Keep pushing forward! 💪" : "Ready to start your journey! 🌟"}
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            {dailyGrowth > 0 
+            {dailyGrowth > 0
               ? `Great job! You're ${dailyGrowth.toFixed(1)}% ahead of yesterday. Keep up the momentum!`
-              : daily.today > 0 
+              : daily.today > 0
                 ? `Every day is a new opportunity to grow. Your consistency will pay off!`
                 : `Start making sales to track your performance and unlock achievements!`
             }
           </p>
           <div className="flex justify-center space-x-4">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={() => setIsGoalModalOpen(true)}
             >
               Set Goals
             </Button>
-            <Button 
+            <Button
               size="sm"
               onClick={refreshData}
             >
@@ -533,17 +558,8 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ stor
       <GoalSettingModal
         isOpen={isGoalModalOpen}
         onClose={() => setIsGoalModalOpen(false)}
-        currentGoals={{
-          daily: performanceData?.goals.daily || 1000,
-          monthly: performanceData?.goals.monthly || 30000
-        }}
-        onSaveGoals={(goals) => {
-          // Goals are already saved to backend in the modal
-          // Just reload the performance data to reflect the new goals
-          console.log('Goals saved, refreshing performance data...');
-          refreshData();
-        }}
       />
     </div>
   );
 };
+

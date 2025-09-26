@@ -258,26 +258,22 @@ class ApiService {
     store_id?: string;
     search?: string;
     category?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<{ products: Product[]; total: number; page: number; pages: number; limit: number }> {
+  }): Promise<{ products: Product[]; total: number }> {
     const queryParams = new URLSearchParams();
     if (params?.store_id) queryParams.append('store_id', params.store_id);
     if (params?.search) queryParams.append('search', params.search);
     if (params?.category) queryParams.append('category', params.category);
-    if (params?.page) queryParams.append('page', params.page.toString());
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-    const response = await this.privateRequest<{ success: boolean; data: { products: Product[]; total: number; page: number; pages: number } }>(`/products?${queryParams}`) as any;
+    const response = await this.privateRequest<{ success: boolean; data: { products: Product[]; total: number } }>(`/products?${queryParams}`) as any;
     
     
     // Handle response structure
     let data;
     if (response.data?.products) {
-      // Structure: { success: true, data: { products: [...], total: 897, ... } }
+      // Structure: { success: true, data: { products: [...], total: 897 } }
       data = response.data;
     } else if (response.products) {
-      // Structure: { products: [...], total: 897, ... } directly
+      // Structure: { products: [...], total: 897 } directly
       data = response;
     } else {
       throw new Error('Invalid API response structure - no products data found');
@@ -285,10 +281,7 @@ class ApiService {
     
     return {
       products: data.products || [],
-      total: data.total || 0,
-      page: data.page || 1, // Back to 1-based indexing
-      pages: data.pages || 1,
-      limit: params?.limit || 20,
+      total: data.total || 0
     };
   }
 
@@ -568,7 +561,7 @@ class ApiService {
       discount_amount?: number;
     }>;
     discount_amount?: number;
-    payment_method: 'cash' | 'card' | 'transfer' | 'pos';
+    payment_method: 'cash' | 'card' | 'transfer' | 'crypto';
     notes?: string;
     cashier_id: string;
   }): Promise<Transaction> {

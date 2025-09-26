@@ -67,7 +67,18 @@ export const Settings: React.FC = () => {
     try {
       setLoading(true);
       const response = await apiService.getUsers();
-      setUsers(response?.users || []);
+      let allUsers = response?.users || [];
+      
+      // Filter users based on current user's role
+      if (currentUser?.role === 'manager') {
+        // Managers can only see other managers and cashiers
+        allUsers = allUsers.filter(user => 
+          user.role === 'manager' || user.role === 'cashier'
+        );
+      }
+      // Admins and owners can see all users (no filtering)
+      
+      setUsers(allUsers);
     } catch (error) {
       console.error('Failed to load users:', error);
       toast.error('Failed to load users');
@@ -75,7 +86,7 @@ export const Settings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser?.role]);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,13 +202,22 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const tabs = [
-    { id: 'profile', label: 'My Profile', icon: Users },
-    { id: 'users', label: 'User Management', icon: Users },
-    { id: 'store', label: 'Store Settings', icon: Database },
-    { id: 'theme', label: 'Theme & Appearance', icon: Sun },
-    { id: 'audit', label: 'Audit Logs', icon: Shield }
-  ];
+  // Define tabs based on user role
+  const getAvailableTabs = () => {
+    const allTabs = [
+      { id: 'profile', label: 'My Profile', icon: Users, roles: ['admin', 'owner', 'manager', 'cashier'] },
+      { id: 'users', label: 'User Management', icon: Users, roles: ['admin', 'owner', 'manager'] },
+      { id: 'store', label: 'Store Settings', icon: Database, roles: ['admin', 'owner'] },
+      { id: 'theme', label: 'Theme & Appearance', icon: Sun, roles: ['admin', 'owner', 'manager', 'cashier'] },
+      { id: 'audit', label: 'Audit Logs', icon: Shield, roles: ['admin', 'owner', 'manager'] }
+    ];
+
+    if (!currentUser) return [];
+    
+    return allTabs.filter(tab => tab.roles.includes(currentUser.role));
+  };
+
+  const tabs = getAvailableTabs();
 
   const handleProfileUpdated = (updatedUser: User) => {
     // Update the current user in the auth context
@@ -296,15 +316,22 @@ export const Settings: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">User Management</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Manage admins, managers, and cashiers</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {currentUser?.role === 'manager' 
+              ? 'Manage managers and cashiers' 
+              : 'Manage admins, managers, and cashiers'
+            }
+          </p>
         </div>
-        <button
-          onClick={() => setShowAddUser(true)}
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center space-x-2"
-        >
-          <UserPlus className="h-4 w-4" />
-          <span>Add User</span>
-        </button>
+        {currentUser?.role !== 'cashier' && (
+          <button
+            onClick={() => setShowAddUser(true)}
+            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center space-x-2"
+          >
+            <UserPlus className="h-4 w-4" />
+            <span>Add User</span>
+          </button>
+        )}
       </div>
 
       {/* Users Table */}
@@ -387,7 +414,10 @@ export const Settings: React.FC = () => {
                       >
                         <Edit className="h-4 w-4" />
                       </button>
-                      {user.id !== currentUser?.id && (
+                      {user.id !== currentUser?.id && 
+                       // Managers can only delete cashiers, admins/owners can delete anyone
+                       (currentUser?.role === 'admin' || currentUser?.role === 'owner' || 
+                        (currentUser?.role === 'manager' && user.role === 'cashier')) && (
                         <button
                           onClick={() => setShowDeleteConfirm(user.id)}
                           className="text-red-600 hover:text-red-900"
@@ -411,9 +441,14 @@ export const Settings: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Audit Logs</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">Track all user activities and system changes</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          {currentUser?.role === 'manager' 
+            ? 'Track activities of managers and cashiers' 
+            : 'Track all user activities and system changes'
+          }
+        </p>
       </div>
-      <AuditLogs />
+      <AuditLogs currentUserRole={currentUser?.role} />
     </div>
   );
 
@@ -654,46 +689,48 @@ export const Settings: React.FC = () => {
   };
 
   return (
-    <div className="p-4 space-y-6 bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 min-h-screen transition-colors duration-300">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Settings</h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Manage your application settings and preferences</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-lg shadow-lg border border-white/20 dark:border-gray-700/50 transition-all duration-300">
-        <div className="border-b border-white/20 dark:border-gray-700/50">
-          <nav className="-mb-px flex space-x-8 px-6">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-all duration-200 ${
-                    activeTab === tab.id
-                      ? 'border-primary-500/60 text-primary-600 dark:text-primary-400'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300/50 dark:hover:border-gray-600/50'
-                  }`}
-                >
-                  <div className={`p-1 rounded-lg transition-all duration-200 ${
-                    activeTab === tab.id
-                      ? 'bg-primary-500/20 backdrop-blur-sm border border-primary-400/30'
-                      : 'bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20'
-                  }`}>
-                  <Icon className="h-4 w-4" />
-                  </div>
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+    <>
+      <div className="p-4 space-y-6 bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 min-h-screen transition-colors duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Settings</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Manage your application settings and preferences</p>
+          </div>
         </div>
 
-        <div className="p-6 bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm rounded-b-lg">
-          {renderTabContent()}
+        {/* Tabs */}
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-lg shadow-lg border border-white/20 dark:border-gray-700/50 transition-all duration-300">
+          <div className="border-b border-white/20 dark:border-gray-700/50">
+            <nav className="-mb-px flex space-x-8 px-6">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-all duration-200 ${
+                      activeTab === tab.id
+                        ? 'border-primary-500/60 text-primary-600 dark:text-primary-400'
+                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300/50 dark:hover:border-gray-600/50'
+                    }`}
+                  >
+                    <div className={`p-1 rounded-lg transition-all duration-200 ${
+                      activeTab === tab.id
+                        ? 'bg-primary-500/20 backdrop-blur-sm border border-primary-400/30'
+                        : 'bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20'
+                    }`}>
+                    <Icon className="h-4 w-4" />
+                    </div>
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div className="p-6 bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm rounded-b-lg">
+            {renderTabContent()}
+          </div>
         </div>
       </div>
 
@@ -770,9 +807,17 @@ export const Settings: React.FC = () => {
                   className="mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                   title="Select user role"
                 >
-                  <option value="cashier">Cashier</option>
-                  <option value="manager">Manager</option>
-                  <option value="admin">Admin</option>
+                  {currentUser?.role === 'manager' ? (
+                    // Managers can only create cashiers
+                    <option value="cashier">Cashier</option>
+                  ) : (
+                    // Admins and owners can create all roles
+                    <>
+                      <option value="cashier">Cashier</option>
+                      <option value="manager">Manager</option>
+                      <option value="admin">Admin</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div className="flex justify-end space-x-3">
@@ -838,6 +883,6 @@ export const Settings: React.FC = () => {
           onUserUpdated={handleUserUpdated}
         />
       )}
-    </div>
+    </>
   );
 };

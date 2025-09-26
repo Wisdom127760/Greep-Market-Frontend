@@ -12,7 +12,10 @@ import {
   Search,
   RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
@@ -49,13 +52,15 @@ export const SalesHistory: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalSales, setTotalSales] = useState(0);
   const [exportLoading, setExportLoading] = useState(false);
   const [showTransactionIds, setShowTransactionIds] = useState(false);
+  const [sortField, setSortField] = useState<keyof SoldProduct>('saleDate');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Load sales data from server with filtering
   const loadSales = useCallback(async () => {
@@ -118,31 +123,19 @@ export const SalesHistory: React.FC = () => {
             let productTags: string[] = [];
             const rawTags = product.tags;
             
-            console.log('=== TAGS DEBUG ===');
-            console.log('Product:', product.name);
-            console.log('Raw tags:', rawTags);
-            console.log('Raw tags type:', typeof rawTags);
-            console.log('Raw tags is array:', Array.isArray(rawTags));
-            
             if (Array.isArray(rawTags)) {
               productTags = rawTags;
-              console.log('Using array tags:', productTags);
             } else if (typeof rawTags === 'string') {
               // If tags is a string, try to parse it as JSON or split by comma
               try {
                 const parsed = JSON.parse(rawTags);
                 productTags = Array.isArray(parsed) ? parsed : [];
-                console.log('Parsed JSON tags:', productTags);
               } catch {
                 // If JSON.parse fails, treat it as a comma-separated string
                 const tagsString = rawTags as string;
                 productTags = tagsString.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0);
-                console.log('Split comma tags:', productTags);
               }
             }
-            
-            console.log('Final productTags:', productTags);
-            console.log('==================');
             
             soldItems.push({
               productId: product._id,
@@ -205,9 +198,9 @@ export const SalesHistory: React.FC = () => {
       .map(month => ({ value: month.toString(), label: monthNames[month] }));
   }, [soldProducts, selectedYear]);
 
-  // Filter sold products based on search and filters
+  // Filter and sort sold products based on search and filters
   const filteredProducts = useMemo(() => {
-    return soldProducts.filter(item => {
+    const filtered = soldProducts.filter(item => {
       // Search filter
       const matchesSearch = !searchQuery || 
         item.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -230,7 +223,31 @@ export const SalesHistory: React.FC = () => {
 
       return matchesSearch && matchesCategory && matchesTags && matchesMonth && matchesYear;
     });
-  }, [soldProducts, searchQuery, selectedCategory, selectedTags, selectedMonth, selectedYear]);
+
+    // Sort the filtered results
+    return filtered.sort((a, b) => {
+      let aValue: any = a[sortField];
+      let bValue: any = b[sortField];
+
+      // Handle date sorting
+      if (sortField === 'saleDate') {
+        aValue = aValue.getTime();
+        bValue = bValue.getTime();
+      }
+
+      // Handle string sorting
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+
+      if (sortDirection === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
+  }, [soldProducts, searchQuery, selectedCategory, selectedTags, selectedMonth, selectedYear, sortField, sortDirection]);
 
   // Calculate summary statistics
   const summaryStats = useMemo(() => {
@@ -274,6 +291,15 @@ export const SalesHistory: React.FC = () => {
         ? prev.filter(t => t !== tag)
         : [...prev, tag]
     );
+  };
+
+  const handleSort = (field: keyof SoldProduct) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
   };
 
   const clearAllFilters = () => {
@@ -707,78 +733,193 @@ export const SalesHistory: React.FC = () => {
         {filteredProducts.length > 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
             {viewMode === 'list' ? (
-              /* Table View for List Mode */
+              /* Enhanced Excel-like Table View */
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                <table className="w-full border-collapse">
+                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b-2 border-gray-300 dark:border-gray-600">
                     <tr>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Product</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tags</th>
-                      <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quantity</th>
-                      <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Unit Price</th>
-                      <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Payment</th>
+                      <th 
+                        className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
+                        onClick={() => handleSort('productName')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Product Name</span>
+                          {sortField === 'productName' ? (
+                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-50" />
+                          )}
+                        </div>
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
+                        onClick={() => handleSort('category')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Category</span>
+                          {sortField === 'category' ? (
+                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-50" />
+                          )}
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-200 dark:border-gray-600">
+                        Tags
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
+                        onClick={() => handleSort('quantitySold')}
+                      >
+                        <div className="flex items-center justify-end space-x-1">
+                          <span>Quantity</span>
+                          {sortField === 'quantitySold' ? (
+                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-50" />
+                          )}
+                        </div>
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
+                        onClick={() => handleSort('unitPrice')}
+                      >
+                        <div className="flex items-center justify-end space-x-1">
+                          <span>Unit Price</span>
+                          {sortField === 'unitPrice' ? (
+                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-50" />
+                          )}
+                        </div>
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
+                        onClick={() => handleSort('totalRevenue')}
+                      >
+                        <div className="flex items-center justify-end space-x-1">
+                          <span>Total Revenue</span>
+                          {sortField === 'totalRevenue' ? (
+                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-50" />
+                          )}
+                        </div>
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
+                        onClick={() => handleSort('saleDate')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Sale Date</span>
+                          {sortField === 'saleDate' ? (
+                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-50" />
+                          )}
+                        </div>
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
+                        onClick={() => handleSort('paymentMethod')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Payment Method</span>
+                          {sortField === 'paymentMethod' ? (
+                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-50" />
+                          )}
+                        </div>
+                      </th>
                       {showTransactionIds && (
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Transaction ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          Transaction ID
+                        </th>
                       )}
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="bg-white dark:bg-gray-800">
                     {filteredProducts.map((item, index) => (
-                      <tr key={`${item.transactionId}-${item.productId}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{item.productName}</div>
+                      <tr 
+                        key={`${item.transactionId}-${item.productId}-${index}`} 
+                        className={`hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150 border-b border-gray-200 dark:border-gray-700 ${
+                          index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-800/50'
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
+                          <div className="max-w-xs truncate" title={item.productName}>
+                            {item.productName}
+                          </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs rounded-full">
+                        <td className="px-4 py-3 text-sm border-r border-gray-200 dark:border-gray-700">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
                             {item.category}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-1">
+                        <td className="px-4 py-3 text-sm border-r border-gray-200 dark:border-gray-700">
+                          <div className="flex flex-wrap gap-1 max-w-xs">
                             {item.tags.slice(0, 2).map(tag => (
-                              <span key={tag} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded">
+                              <span key={tag} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                                 {tag}
                               </span>
                             ))}
                             {item.tags.length > 2 && (
-                              <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded">
+                              <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                                 +{item.tags.length - 2}
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-white">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white text-right border-r border-gray-200 dark:border-gray-700">
                           {item.quantitySold}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right border-r border-gray-200 dark:border-gray-700">
                           ₺{item.unitPrice.toFixed(2)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-green-600 dark:text-green-400">
+                        <td className="px-4 py-3 text-sm font-bold text-green-600 dark:text-green-400 text-right border-r border-gray-200 dark:border-gray-700">
                           ₺{item.totalRevenue.toFixed(2)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {item.saleDate.toLocaleDateString()}
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
+                          {item.saleDate.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs rounded-full capitalize ${
+                        <td className="px-4 py-3 text-sm border-r border-gray-200 dark:border-gray-700">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
                             item.paymentMethod === 'cash' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
                             item.paymentMethod === 'pos' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
+                            item.paymentMethod === 'crypto' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
                             'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
                           }`}>
                             {item.paymentMethod}
                           </span>
                         </td>
                         {showTransactionIds && (
-                          <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 font-mono">
+                          <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-mono">
                             #{item.transactionId.slice(-8)}
                           </td>
                         )}
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
+                    <tr>
+                      <td colSpan={showTransactionIds ? 9 : 8} className="px-4 py-3">
+                        <div className="flex justify-between items-center text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          <div className="flex items-center space-x-6">
+                            <span>Total Records: <span className="text-blue-600 dark:text-blue-400">{filteredProducts.length}</span></span>
+                            <span>Total Quantity: <span className="text-green-600 dark:text-green-400">{summaryStats.totalQuantity}</span></span>
+                          </div>
+                          <div className="flex items-center space-x-6">
+                            <span>Total Revenue: <span className="text-green-600 dark:text-green-400 font-bold">₺{summaryStats.totalRevenue.toLocaleString()}</span></span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             ) : (

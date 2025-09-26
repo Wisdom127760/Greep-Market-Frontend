@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Banknote, Smartphone, Plus, X, Package, ShoppingBag } from 'lucide-react';
+import { CreditCard, Banknote, Smartphone, Plus, X, Package, ShoppingBag, Coins } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Modal } from './Modal';
@@ -53,8 +53,9 @@ export const EnhancedPaymentModal: React.FC<EnhancedPaymentModalProps> = ({
 
   const paymentTypes = [
     { id: 'cash', label: 'Cash', icon: Banknote, color: 'green' },
-    { id: 'card', label: 'Card/POS', icon: CreditCard, color: 'blue' },
-    { id: 'transfer', label: 'Transfer', icon: Smartphone, color: 'purple' },
+    { id: 'card', label: 'POS/Isbank Transfer', icon: CreditCard, color: 'blue' },
+    { id: 'transfer', label: 'Naira Transfer', icon: Smartphone, color: 'purple' },
+    { id: 'crypto', label: 'Crypto Payment', icon: Coins, color: 'orange' },
   ];
 
   // Calculate remaining amount based on current payments
