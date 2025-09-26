@@ -1157,7 +1157,7 @@ export const Dashboard: React.FC = () => {
             </div>
             <div className="space-y-2">
               {(filteredSales && filteredSales.length > 0) || (currentDashboardMetrics?.recentTransactions && currentDashboardMetrics.recentTransactions.length > 0) ? (
-                (filteredSales && filteredSales.length > 0 ? filteredSales : (currentDashboardMetrics?.recentTransactions || []))?.slice(0, 4).map((sale: any) => {
+                (filteredSales && filteredSales.length > 0 ? filteredSales : (currentDashboardMetrics?.recentTransactions || []))?.slice(0, 4).map((sale: any, index: number) => {
                   // Always prefer filteredSales data as it contains complete transaction details with product names
                   const isApiData = !filteredSales || filteredSales.length === 0;
 
@@ -1191,7 +1191,7 @@ export const Dashboard: React.FC = () => {
                   const itemCount = isApiData ? 1 : (sale.items?.length || 0);
 
                   return (
-                    <div key={isApiData ? sale.id : sale._id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200">
+                    <div key={`sale-${index}-${isApiData ? sale.id : sale._id}`} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200">
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-800 dark:text-white text-sm truncate">
                           {productNames}

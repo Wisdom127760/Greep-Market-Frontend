@@ -64,6 +64,13 @@ export const Settings: React.FC = () => {
   const [storeSettingsLoading, setStoreSettingsLoading] = useState(false);
 
   const loadUsers = useCallback(async () => {
+    // Only load users if user has permission (admin, owner, manager)
+    if (!currentUser || !['admin', 'owner', 'manager'].includes(currentUser.role)) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await apiService.getUsers();

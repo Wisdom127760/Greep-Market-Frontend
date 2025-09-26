@@ -75,7 +75,7 @@ function App() {
                 </ProtectedRoute>
               } />
               <Route path="/products" element={
-                <ProtectedRoute requiredRole={['admin', 'owner', 'manager']}>
+                <ProtectedRoute requiredRole={['admin', 'owner', 'manager', 'cashier']}>
                   <Header />
                   <main className="pt-0 bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
                     <Products />
@@ -102,7 +102,7 @@ function App() {
                 </ProtectedRoute>
               } />
               <Route path="/reports" element={
-                <ProtectedRoute requiredRole={['admin', 'owner', 'manager']}>
+                <ProtectedRoute requiredRole={['admin', 'owner', 'manager', 'cashier']}>
                   <Header />
                   <main className="pt-0 pb-24 bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
                     <Reports />
@@ -120,7 +120,7 @@ function App() {
                 </ProtectedRoute>
               } />
               <Route path="/expenses" element={
-                <ProtectedRoute requiredRole={['admin', 'owner', 'manager']}>
+                <ProtectedRoute requiredRole={['admin', 'owner', 'manager', 'cashier']}>
                   <Header />
                   <main className="pt-0 pb-24 bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
                     <Expenses />
