@@ -15,6 +15,7 @@ import { PriceHistoryModal } from '../components/ui/PriceHistoryModal';
 import CategorySelect from '../components/ui/CategorySelect';
 import { TagsDropdown } from '../components/ui/TagsDropdown';
 import { EnhancedProductForm } from '../components/ui/EnhancedProductForm';
+import { CategoryFilterSidebar } from '../components/ui/CategoryFilterSidebar';
 import { useApp } from '../context/AppContext';
 import { Product, PriceHistory } from '../types';
 
@@ -27,7 +28,7 @@ export const Products: React.FC = () => {
     products: products || []
   });
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(['all']);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -90,30 +91,34 @@ export const Products: React.FC = () => {
 
   // Load products on initial mount
   useEffect(() => {
-    loadProducts(searchQuery, selectedCategory);
-  }, [loadProducts, searchQuery, selectedCategory]); // Load initial page on mount
+    const categoryParam = selectedCategories.includes('all') ? 'all' : selectedCategories.join(',');
+    loadProducts(searchQuery, categoryParam);
+  }, [loadProducts, searchQuery, selectedCategories]); // Load initial page on mount
 
   // Load products when search query or category changes
   useEffect(() => {
-    loadProducts(searchQuery, selectedCategory);
-  }, [searchQuery, selectedCategory, loadProducts]);
+    const categoryParam = selectedCategories.includes('all') ? 'all' : selectedCategories.join(',');
+    loadProducts(searchQuery, categoryParam);
+  }, [searchQuery, selectedCategories, loadProducts]);
 
   // Use intelligent search for client-side filtering
   const filteredProducts = useMemo(() => {
     if (!products) return [];
     
-    // If there's a search query, use intelligent search
+    let filtered = products;
+    
+    // Filter by categories
+    if (!selectedCategories.includes('all')) {
+      filtered = filtered.filter(product => selectedCategories.includes(product.category));
+    }
+    
+    // If there's a search query, use intelligent search on filtered results
     if (searchQuery.trim()) {
-      return searchProducts(searchQuery, products);
+      return searchProducts(searchQuery, filtered);
     }
     
-    // Otherwise, filter by category only
-    if (selectedCategory === 'all') {
-      return products;
-    }
-    
-    return products.filter(product => product.category === selectedCategory);
-  }, [products, searchQuery, selectedCategory, searchProducts]);
+    return filtered;
+  }, [products, searchQuery, selectedCategories, searchProducts]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -125,7 +130,8 @@ export const Products: React.FC = () => {
     
     // For server-side search, we can still call the API
     // But now we also have client-side intelligent search as backup
-    loadProducts(query, selectedCategory);
+    const categoryParam = selectedCategories.includes('all') ? 'all' : selectedCategories.join(',');
+    loadProducts(query, categoryParam);
   };
 
   const handlePageChange = (newPage: number) => {
@@ -134,10 +140,31 @@ export const Products: React.FC = () => {
     console.log('Pagination removed - all products loaded at once');
   };
 
-  const handleCategoryChange = (category: string) => {
-    setSelectedCategory(category);
-    // Reset to page 1 when changing category
-    loadProducts(searchQuery, category);
+  const handleCategoryToggle = (category: string) => {
+    setSelectedCategories(prev => {
+      if (category === 'all') {
+        // If "all" is selected, clear all other selections
+        return ['all'];
+      }
+      
+      // Remove "all" if it's selected and we're selecting a specific category
+      let newSelection = prev.filter(cat => cat !== 'all');
+      
+      if (newSelection.includes(category)) {
+        // Remove the category if it's already selected
+        newSelection = newSelection.filter(cat => cat !== category);
+      } else {
+        // Add the category
+        newSelection = [...newSelection, category];
+      }
+      
+      // If no categories are selected, default to "all"
+      return newSelection.length === 0 ? ['all'] : newSelection;
+    });
+  };
+
+  const handleClearAllCategories = () => {
+    setSelectedCategories(['all']);
   };
 
 
@@ -571,53 +598,46 @@ export const Products: React.FC = () => {
           </div>
         </div>
 
-        {/* Enhanced Search and Filters */}
+        {/* Search Bar */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
-          <div className="space-y-6">
-            {/* Search Bar */}
-            <div className="relative">
-              <IntelligentSearchBar
-                placeholder="Search products by name, barcode, or SKU..."
-                onSearch={handleSearch}
-                enableRealTime={true}
-                debounceMs={300}
-                showBarcodeButton={false}
-                suggestions={suggestions}
-                recentSearches={recentSearches}
-                onSuggestionClick={(suggestion) => {
-                  handleSearch(suggestion.text);
-                }}
+          <div className="relative">
+            <IntelligentSearchBar
+              placeholder="Search products by name, barcode, or SKU..."
+              onSearch={handleSearch}
+              enableRealTime={true}
+              debounceMs={300}
+              showBarcodeButton={false}
+              suggestions={suggestions}
+              recentSearches={recentSearches}
+              onSuggestionClick={(suggestion) => {
+                handleSearch(suggestion.text);
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Main Content with Sidebar */}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Category Filter Sidebar - Fixed */}
+          <div className="lg:w-64 flex-shrink-0">
+            <div className="lg:sticky lg:top-6">
+              <CategoryFilterSidebar
+                categories={categories}
+                selectedCategories={selectedCategories}
+                onCategoryToggle={handleCategoryToggle}
+                onClearAll={handleClearAllCategories}
               />
             </div>
-            
-            {/* Filters Row */}
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Filter by Category
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => handleCategoryChange(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm appearance-none cursor-pointer"
-                    title="Select category"
-                  >
-                    {categories.map(category => (
-                      <option key={category} value={category}>
-                        {category === 'all' ? 'All Categories' : category}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <svg className="w-5 h-5 text-gray-400 dark:text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex items-end">
+          </div>
+
+          {/* Products Content */}
+          <div className="flex-1 min-w-0">
+            {/* View Mode Toggle */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4 mb-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  View Options
+                </h3>
                 <div className="flex bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
                   <button
                     onClick={() => setViewMode('grid')}
@@ -644,8 +664,6 @@ export const Products: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
         {/* Products Grid/List */}
         {filteredProducts.length > 0 ? (
@@ -654,7 +672,7 @@ export const Products: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {searchQuery || selectedCategory !== 'all' ? 'Search Results' : 'All Products'}
+                  {searchQuery || !selectedCategories.includes('all') || selectedCategories.length > 1 ? 'Search Results' : 'All Products'}
                 </h2>
                 <span className="px-3 py-1 bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 rounded-full text-sm font-medium">
                   {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}
@@ -676,11 +694,11 @@ export const Products: React.FC = () => {
                   </button>
                 )}
               </div>
-              {(searchQuery || selectedCategory !== 'all') && (
+              {(searchQuery || !selectedCategories.includes('all') || selectedCategories.length > 1) && (
                 <button
                   onClick={() => {
                     setSearchQuery('');
-                    setSelectedCategory('all');
+                    setSelectedCategories(['all']);
                     loadProducts('', 'all');
                   }}
                   className="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center space-x-1"
@@ -776,21 +794,21 @@ export const Products: React.FC = () => {
                 <Filter className="h-12 w-12 text-gray-400 dark:text-gray-500 dark:text-gray-400" />
               </div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
-                {searchQuery || selectedCategory !== 'all' ? 'No products found' : 'No products yet'}
+                {searchQuery || !selectedCategories.includes('all') || selectedCategories.length > 1 ? 'No products found' : 'No products yet'}
               </h3>
               <p className="text-gray-500 dark:text-gray-400 dark:text-gray-400 mb-8 leading-relaxed">
-                {searchQuery || selectedCategory !== 'all' 
+                {searchQuery || !selectedCategories.includes('all') || selectedCategories.length > 1
                   ? 'Try adjusting your search terms or filter criteria to find what you\'re looking for.'
                   : 'Start building your product catalog by adding your first product to get started.'
                 }
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                {(searchQuery || selectedCategory !== 'all') && (
+                {(searchQuery || !selectedCategories.includes('all') || selectedCategories.length > 1) && (
                   <Button
                     variant="outline"
                     onClick={() => {
                       setSearchQuery('');
-                      setSelectedCategory('all');
+                      setSelectedCategories(['all']);
                       loadProducts('', 'all');
                     }}
                   >
@@ -808,6 +826,8 @@ export const Products: React.FC = () => {
             </div>
           </div>
         )}
+          </div>
+        </div>
 
         {/* Add Product Modal */}
       <Modal
