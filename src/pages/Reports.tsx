@@ -795,7 +795,7 @@ export const Reports: React.FC = () => {
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">{product.name}</p>
                         <p className="text-sm text-red-600 dark:text-red-400">
-                          {product.stock_quantity} remaining (min: {product.min_stock_level})
+                          {product.stock_quantity.toFixed(2)} remaining (min: {product.min_stock_level})
                         </p>
                       </div>
                       <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 text-xs font-medium rounded-full">

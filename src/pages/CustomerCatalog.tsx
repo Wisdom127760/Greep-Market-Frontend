@@ -418,7 +418,7 @@ export const CustomerCatalog: React.FC = () => {
                       ₺{product.price.toFixed(2)}
                     </span>
                     <span className="text-sm text-gray-500">
-                      Stock: {product.stock_quantity}
+                      Stock: {product.stock_quantity.toFixed(2)}
                     </span>
                   </div>
                   

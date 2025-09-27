@@ -316,7 +316,7 @@ export const Inventory: React.FC = () => {
                       <div className="text-right">
                         <p className="text-sm text-gray-500 dark:text-gray-400">Current Stock</p>
                         <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {product.stock_quantity} {product.unit}
+                          {product.stock_quantity.toFixed(2)} {product.unit}
                         </p>
                         <p className="text-xs text-gray-400 dark:text-gray-500">
                           Min: {product.min_stock_level} {product.unit}
@@ -392,7 +392,7 @@ export const Inventory: React.FC = () => {
                   <strong>Name:</strong> {selectedProduct.name}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                  <strong>Current Stock:</strong> {selectedProduct.stock_quantity} {selectedProduct.unit}
+                  <strong>Current Stock:</strong> {selectedProduct.stock_quantity.toFixed(2)} {selectedProduct.unit}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   <strong>Minimum Stock:</strong> {selectedProduct.min_stock_level} {selectedProduct.unit}

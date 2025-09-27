@@ -159,7 +159,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' 
                   : 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
             }`}>
-              {product.stock_quantity}
+              {product.stock_quantity.toFixed(2)}
             </span>
           </div>
         </div>
