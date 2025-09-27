@@ -561,7 +561,7 @@ class ApiService {
       discount_amount?: number;
     }>;
     discount_amount?: number;
-    payment_method: 'cash' | 'card' | 'transfer' | 'crypto';
+    payment_method: 'cash' | 'pos_isbank_transfer' | 'naira_transfer' | 'crypto_payment';
     notes?: string;
     cashier_id: string;
   }): Promise<Transaction> {
@@ -586,14 +586,26 @@ class ApiService {
       unit_price: number;
     }>;
     payment_method?: string;
+    payment_methods?: Array<{
+      type: 'cash' | 'pos_isbank_transfer' | 'naira_transfer' | 'crypto_payment';
+      amount: number;
+    }>;
     customer_id?: string;
     notes?: string;
   }): Promise<Transaction> {
     try {
+      // Convert payment_methods array to single payment_method for backend compatibility
+      const backendUpdates = { ...updates };
+      if (updates.payment_methods && updates.payment_methods.length > 0) {
+        backendUpdates.payment_method = updates.payment_methods[0].type;
+        delete backendUpdates.payment_methods;
+      }
+      
       const response = await this.privateRequest<Transaction>(`/transactions/${transactionId}`, {
         method: 'PUT',
-        body: JSON.stringify(updates),
+        body: JSON.stringify(backendUpdates),
       });
+      
       return response.data;
     } catch (error: any) {
       console.error('Update transaction error:', error);

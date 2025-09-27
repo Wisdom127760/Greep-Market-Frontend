@@ -209,9 +209,10 @@ export const Reports: React.FC = () => {
   const getPaymentMethodColor = (method: string) => {
     const colors: { [key: string]: string } = {
       'cash': '#22c55e',      // Green
-      'card': '#3b82f6',      // Blue  
-      'transfer': '#8b5cf6',  // Purple
-      'pos': '#f59e0b',       // Orange
+      'pos_isbank_transfer': '#3b82f6',      // Blue  
+      'naira_transfer': '#8b5cf6',  // Purple
+      'crypto_payment': '#f59e0b',       // Orange
+      'pos': '#3b82f6',       // Blue (for backward compatibility)
       'unknown': '#6b7280'    // Gray
     };
     return colors[method] || '#6b7280';
