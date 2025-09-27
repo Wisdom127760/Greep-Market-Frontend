@@ -186,7 +186,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       };
 
       await onSave(transaction._id, updates);
-      toast.success('Transaction updated successfully');
+      // Don't show toast here - let the parent component handle it
       onClose();
     } catch (error) {
       console.error('Failed to update transaction:', error);
