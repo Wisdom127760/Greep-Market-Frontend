@@ -166,6 +166,11 @@ export interface DashboardMetrics {
   totalExpenses: number;
   monthlyExpenses: number;
   netProfit: number;
+  // New individual vs yesterday metrics
+  salesVsYesterday?: number;
+  expensesVsYesterday?: number;
+  profitVsYesterday?: number;
+  transactionsVsYesterday?: number;
   topProducts: Array<{
     productId: string;
     productName: string;

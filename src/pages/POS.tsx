@@ -13,6 +13,7 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { useRiders } from '../context/RiderContext';
 import { useGoals } from '../context/GoalContext';
+import { useNotifications } from '../context/NotificationContext';
 import { TransactionItem } from '../types';
 import { usePageRefresh } from '../hooks/usePageRefresh';
 
@@ -21,6 +22,7 @@ export const POS: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const { riders, loadRiders } = useRiders();
   const { updateGoalProgress } = useGoals();
+  const { refreshNotifications } = useNotifications();
   
   
   // Enable automatic refresh for POS (conservative settings)
@@ -248,6 +250,11 @@ export const POS: React.FC = () => {
           }
         })
       ]);
+
+      // Trigger notification refresh to get new milestone notifications
+      setTimeout(() => {
+        refreshNotifications();
+      }, 2000); // Wait 2 seconds for backend to process
 
       // Clear cart and close modal
       clearCart();
@@ -492,6 +499,8 @@ export const POS: React.FC = () => {
       <CheckoutLoader 
         isVisible={isProcessingPayment}
         message="Processing your order..."
+        onCancel={() => setIsProcessingPayment(false)}
+        canCancel={true}
       />
     </div>
   );
