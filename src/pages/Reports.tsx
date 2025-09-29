@@ -371,28 +371,71 @@ export const Reports: React.FC = () => {
 
   const salesData = generateSalesData();
 
-  // Generate payment method data from actual transactions
+  // Generate payment method data from actual transactions (using AMOUNTS, not counts)
   const generatePaymentMethodData = () => {
     if (!sales || sales.length === 0) {
       // Generate sample payment method data
       return [
         { name: 'Cash', value: 45, percentage: '45.0', color: '#22c55e' },
-        { name: 'Card', value: 35, percentage: '35.0', color: '#3b82f6' },
-        { name: 'Transfer', value: 20, percentage: '20.0', color: '#8b5cf6' }
+        { name: 'POS', value: 35, percentage: '35.0', color: '#3b82f6' },
+        { name: 'Transfer', value: 15, percentage: '15.0', color: '#8b5cf6' },
+        { name: 'Crypto', value: 5, percentage: '5.0', color: '#f59e0b' }
       ];
     }
     
     const paymentMethods: { [key: string]: number } = {};
+    let totalAmount = 0;
+    
     sales.forEach(sale => {
-      // Use the correct field name: payment_method (singular) instead of payment_methods (plural)
-      const method = sale.payment_method || 'unknown';
-      paymentMethods[method] = (paymentMethods[method] || 0) + 1;
+      // Handle both new (payment_methods array) and legacy (single payment_method) formats
+      if (sale.payment_methods && sale.payment_methods.length > 0) {
+        // New format: payment_methods array
+        sale.payment_methods.forEach(method => {
+          let methodKey: string;
+          switch (method.type) {
+            case 'pos_isbank_transfer':
+            case 'card': // Legacy support for card payments
+              methodKey = 'pos';
+              break;
+            case 'naira_transfer':
+              methodKey = 'transfer';
+              break;
+            case 'crypto_payment':
+              methodKey = 'crypto';
+              break;
+            default:
+              methodKey = method.type;
+          }
+          paymentMethods[methodKey] = (paymentMethods[methodKey] || 0) + method.amount;
+          totalAmount += method.amount;
+        });
+      } else if (sale.payment_method) {
+        // Legacy format: single payment_method field
+        const method = sale.payment_method.toLowerCase();
+        let methodKey: string;
+        switch (method) {
+          case 'pos_isbank_transfer':
+          case 'card': // Legacy support for card payments
+            methodKey = 'pos';
+            break;
+          case 'naira_transfer':
+            methodKey = 'transfer';
+            break;
+          case 'crypto_payment':
+            methodKey = 'crypto';
+            break;
+          default:
+            methodKey = method;
+        }
+        paymentMethods[methodKey] = (paymentMethods[methodKey] || 0) + sale.total_amount;
+        totalAmount += sale.total_amount;
+      }
     });
     
-    return Object.entries(paymentMethods).map(([method, count]) => ({
+    return Object.entries(paymentMethods).map(([method, amount]) => ({
       name: method.charAt(0).toUpperCase() + method.slice(1),
-      value: count,
-      percentage: ((count / sales.length) * 100).toFixed(1),
+      value: amount,
+      percentage: totalAmount > 0 ? ((amount / totalAmount) * 100).toFixed(1) : '0.0',
       color: getPaymentMethodColor(method)
     }));
   };
@@ -400,10 +443,14 @@ export const Reports: React.FC = () => {
   const getPaymentMethodColor = (method: string) => {
     const colors: { [key: string]: string } = {
       'cash': '#22c55e',      // Green
+      'pos': '#3b82f6',       // Blue (for pos_isbank_transfer and card)
+      'transfer': '#8b5cf6',  // Purple (for naira_transfer)
+      'crypto': '#f59e0b',    // Orange (for crypto_payment)
+      // Legacy support
       'pos_isbank_transfer': '#3b82f6',      // Blue  
       'naira_transfer': '#8b5cf6',  // Purple
       'crypto_payment': '#f59e0b',       // Orange
-      'pos': '#3b82f6',       // Blue (for backward compatibility)
+      'card': '#3b82f6',      // Blue (legacy)
       'unknown': '#6b7280'    // Gray
     };
     return colors[method] || '#6b7280';
