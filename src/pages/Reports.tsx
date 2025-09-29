@@ -20,6 +20,7 @@ import { PerformanceDashboard } from '../components/ui/PerformanceDashboard';
 import { ReportPeriodFilter } from '../components/ui/ReportPeriodFilter';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { apiService } from '../services/api';
 import { 
   LineChart, 
@@ -40,6 +41,33 @@ import {
 export const Reports: React.FC = () => {
   const { products, dashboardMetrics, sales, loading } = useApp();
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  
+  // Tooltip styles based on theme
+  const getTooltipStyles = () => ({
+    contentStyle: {
+      backgroundColor: isDark ? '#1F2937' : '#ffffff',
+      border: isDark ? '1px solid #4B5563' : '1px solid #e5e7eb',
+      borderRadius: '8px',
+      color: isDark ? '#F9FAFB' : '#374151',
+      fontSize: '14px',
+      fontWeight: '500',
+      padding: '8px 12px',
+      boxShadow: isDark 
+        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)'
+        : '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+    },
+    labelStyle: {
+      color: isDark ? '#F9FAFB' : '#374151',
+      fontSize: '14px',
+      fontWeight: '600',
+      marginBottom: '4px'
+    },
+    itemStyle: {
+      color: isDark ? '#F9FAFB' : '#374151'
+    }
+  });
+
   const navigate = useNavigate();
   const [selectedPeriod, setSelectedPeriod] = useState<string>('this_month');
   const [periodStartDate, setPeriodStartDate] = useState<Date | undefined>();
@@ -742,23 +770,7 @@ export const Reports: React.FC = () => {
                       <YAxis tickFormatter={(value) => `₺${(value / 1000).toFixed(0)}k`} stroke="#9CA3AF" />
                       <Tooltip 
                         formatter={(value: number) => [formatPrice(value), 'Sales']}
-                        contentStyle={{ 
-                          backgroundColor: '#1F2937', 
-                          border: '1px solid #4B5563', 
-                          borderRadius: '8px',
-                          color: '#FFFFFF',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          padding: '8px 12px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                        }}
-                        labelStyle={{ 
-                          color: '#FFFFFF',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          marginBottom: '4px'
-                        }}
-                        itemStyle={{ color: '#FFFFFF' }}
+                        {...getTooltipStyles()}
                       />
                       <Line 
                         type="monotone" 
@@ -802,23 +814,7 @@ export const Reports: React.FC = () => {
                           const paymentMethod = props.payload?.name || 'Unknown';
                           return [`${percentage}%`, paymentMethod];
                         }}
-                        contentStyle={{ 
-                          backgroundColor: '#1F2937', 
-                          border: '1px solid #4B5563', 
-                          borderRadius: '8px',
-                          color: '#FFFFFF',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          padding: '8px 12px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                        }}
-                        labelStyle={{ 
-                          color: '#FFFFFF',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          marginBottom: '4px'
-                        }}
-                        itemStyle={{ color: '#FFFFFF' }}
+                        {...getTooltipStyles()}
                       />
                       <Legend />
                     </PieChart>
@@ -861,23 +857,7 @@ export const Reports: React.FC = () => {
                           const status = props.payload?.name || 'Unknown';
                           return [`${value} products`, status];
                         }}
-                        contentStyle={{ 
-                          backgroundColor: '#1F2937', 
-                          border: '1px solid #4B5563', 
-                          borderRadius: '8px',
-                          color: '#FFFFFF',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          padding: '8px 12px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                        }}
-                        labelStyle={{ 
-                          color: '#FFFFFF',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          marginBottom: '4px'
-                        }}
-                        itemStyle={{ color: '#FFFFFF' }}
+                        {...getTooltipStyles()}
                       />
                       <Legend />
                     </PieChart>
@@ -957,23 +937,7 @@ export const Reports: React.FC = () => {
                       <YAxis tickFormatter={(value) => `₺${(value / 1000).toFixed(0)}k`} stroke="#9CA3AF" />
                       <Tooltip 
                         formatter={(value: number) => [formatPrice(value), 'Revenue']}
-                        contentStyle={{ 
-                          backgroundColor: '#1F2937', 
-                          border: '1px solid #4B5563', 
-                          borderRadius: '8px',
-                          color: '#FFFFFF',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          padding: '8px 12px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                        }}
-                        labelStyle={{ 
-                          color: '#FFFFFF',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          marginBottom: '4px'
-                        }}
-                        itemStyle={{ color: '#FFFFFF' }}
+                        {...getTooltipStyles()}
                       />
                       <Bar dataKey="revenue" fill="#8b5cf6" />
                     </BarChart>

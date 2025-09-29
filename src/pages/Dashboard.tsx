@@ -22,6 +22,7 @@ import { Button } from '../components/ui/Button';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { useGoals } from '../context/GoalContext';
+import { useTheme } from '../context/ThemeContext';
 import { NotificationPermissionBanner } from '../components/ui/NotificationPermissionBanner';
 import { NotificationStatus } from '../components/ui/NotificationStatus';
 import { GoalSettingModal } from '../components/ui/GoalSettingModal';
@@ -34,6 +35,33 @@ export const Dashboard: React.FC = () => {
   const { inventoryAlerts, loading, dashboardMetrics } = useApp();
   const { user } = useAuth();
   const { dailyProgress, monthlyProgress, updateGoalProgress } = useGoals();
+  const { isDark } = useTheme();
+  
+  // Tooltip styles based on theme
+  const getTooltipStyles = () => ({
+    contentStyle: {
+      backgroundColor: isDark ? '#1f2937' : '#ffffff',
+      border: isDark ? 'none' : '1px solid #e5e7eb',
+      borderRadius: '12px',
+      color: isDark ? '#f9fafb' : '#374151',
+      fontSize: '14px',
+      fontWeight: '500',
+      padding: '12px 16px',
+      boxShadow: isDark 
+        ? '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2)'
+        : '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+    },
+    labelStyle: {
+      color: isDark ? '#f9fafb' : '#374151',
+      fontSize: '14px',
+      fontWeight: '600',
+      marginBottom: '4px'
+    },
+    itemStyle: {
+      color: isDark ? '#f9fafb' : '#374151'
+    }
+  });
+
   // totalExpenses now comes from dashboard metrics - no separate state needed
   const [filteredSales, setFilteredSales] = useState<any[]>([]);
   const [fullTransactions, setFullTransactions] = useState<any[]>([]); // Full transaction data for payment methods
@@ -1210,13 +1238,7 @@ export const Dashboard: React.FC = () => {
                       <Tooltip 
                         formatter={(value: number) => [formatPrice(value), 'Sales']}
                         labelFormatter={(label) => `Day: ${label}`}
-                        contentStyle={{ 
-                          backgroundColor: '#1f2937', 
-                          border: 'none', 
-                          borderRadius: '12px',
-                          color: '#f9fafb',
-                          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-                        }}
+                        {...getTooltipStyles()}
                       />
                       <Line 
                         type="monotone" 
@@ -1312,13 +1334,7 @@ export const Dashboard: React.FC = () => {
                           const data = payload?.[0]?.payload;
                           return data?.fullName || label;
                         }}
-                        contentStyle={{ 
-                          backgroundColor: '#1f2937', 
-                          border: 'none', 
-                          borderRadius: '12px',
-                          color: '#f9fafb',
-                          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-                        }}
+                        {...getTooltipStyles()}
                       />
                       <Bar 
                         dataKey="revenue" 
@@ -1406,15 +1422,7 @@ export const Dashboard: React.FC = () => {
                                formatPrice(value), 
                                `${props.payload.name} (${props.payload.percentage}%)`
                              ]}
-                             contentStyle={{ 
-                               backgroundColor: '#ffffff', 
-                               border: '1px solid #e5e7eb',
-                               borderRadius: '12px',
-                               color: '#1f2937',
-                               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                               fontSize: '14px',
-                               fontWeight: '500'
-                             }}
+                             {...getTooltipStyles()}
                            />
                          </PieChart>
                        </ResponsiveContainer>
