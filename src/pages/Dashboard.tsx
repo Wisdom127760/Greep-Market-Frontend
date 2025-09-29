@@ -705,8 +705,23 @@ export const Dashboard: React.FC = () => {
   // New individual vs yesterday metrics
   const salesVsYesterday = currentDashboardMetrics?.salesVsYesterday ?? 0;
   const expensesVsYesterday = currentDashboardMetrics?.expensesVsYesterday ?? 0;
-  const profitVsYesterday = currentDashboardMetrics?.profitVsYesterday ?? 0;
+  const rawProfitVsYesterday = currentDashboardMetrics?.profitVsYesterday ?? 0;
   const transactionsVsYesterday = currentDashboardMetrics?.transactionsVsYesterday ?? 0;
+  
+  // Fix profit percentage calculation for negative base values
+  const profitVsYesterday = useMemo(() => {
+    const currentProfit = currentDashboardMetrics?.netProfit ?? 0;
+    
+    // If current profit is positive and raw percentage is very negative (< -100),
+    // this means we went from negative to positive profit - which is always good!
+    if (currentProfit > 0 && rawProfitVsYesterday < -100) {
+      // Show this as a positive improvement instead of negative
+      // Use a more intuitive calculation: show the absolute improvement
+      return Math.abs(rawProfitVsYesterday);
+    }
+    
+    return rawProfitVsYesterday;
+  }, [rawProfitVsYesterday, currentDashboardMetrics?.netProfit]);
   // Get comparison label and period label based on current filter
   let comparisonLabel = 'vs last month';
   let periodLabel = 'This Month';
