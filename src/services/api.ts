@@ -69,6 +69,7 @@ class ApiService {
       return isValid;
     } catch (error) {
       console.log('Token validation failed:', error);
+      // Clear tokens if they're malformed or invalid
       this.clearTokens();
       return false;
     }
@@ -210,6 +211,10 @@ class ApiService {
           console.error('Token validation failed before request');
           // Token expiration callback will be triggered by clearTokens()
           throw error;
+        } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+          console.error('Unauthorized access - clearing tokens and redirecting');
+          this.clearTokens();
+          throw new Error('Authentication failed. Please sign in again.');
         }
       }
       

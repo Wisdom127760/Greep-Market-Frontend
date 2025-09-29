@@ -31,24 +31,27 @@ import { OrderTracking } from './pages/OrderTracking';
 import { AdminCustomerOrders } from './pages/AdminCustomerOrders';
 import { ScrollToTopWrapper } from './components/ScrollToTopWrapper';
 import { GoalCelebrationManager } from './components/ui/GoalCelebrationManager';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   return (
-    <ThemeProvider>
-      <SettingsProvider>
-        <RiderProvider>
-          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <AuthProvider>
-              <NotificationProvider>
-                <StoreProvider>
-                  <AppProvider>
-                    <GoalProvider>
-                      <RefreshProvider>
-                        <NavigationProvider>
-              <ScrollToTopWrapper>
-              <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
-            <GoalCelebrationManager />
-            <Routes>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <SettingsProvider>
+          <RiderProvider>
+            <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <ErrorBoundary>
+                <AuthProvider>
+                  <NotificationProvider>
+                    <StoreProvider>
+                      <AppProvider>
+                        <GoalProvider>
+                          <RefreshProvider>
+                            <NavigationProvider>
+                  <ScrollToTopWrapper>
+                  <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
+                <GoalCelebrationManager />
+                <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/" element={
                 <ProtectedRoute requiredRole={['admin', 'owner', 'manager', 'cashier']}>
@@ -193,19 +196,21 @@ function App() {
                 },
               }}
             />
-              </div>
-              </ScrollToTopWrapper>
-                        </NavigationProvider>
-                      </RefreshProvider>
-                    </GoalProvider>
-                  </AppProvider>
-                </StoreProvider>
-              </NotificationProvider>
-            </AuthProvider>
-          </Router>
-        </RiderProvider>
-      </SettingsProvider>
-    </ThemeProvider>
+                  </div>
+                  </ScrollToTopWrapper>
+                            </NavigationProvider>
+                          </RefreshProvider>
+                        </GoalProvider>
+                      </AppProvider>
+                    </StoreProvider>
+                  </NotificationProvider>
+                </AuthProvider>
+              </ErrorBoundary>
+            </Router>
+          </RiderProvider>
+        </SettingsProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
