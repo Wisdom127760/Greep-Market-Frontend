@@ -232,10 +232,15 @@ export const Dashboard: React.FC = () => {
           break;
         case 'custom':
           if (customStartDate && customEndDate) {
+            // Ensure proper date formatting for custom range
+            const startDate = new Date(customStartDate);
+            const endDate = new Date(customEndDate);
+            endDate.setHours(23, 59, 59, 999); // End of day
+            
             filterParams = {
               dateRange: 'custom',
-              startDate: customStartDate,
-              endDate: customEndDate
+              startDate: startDate.toISOString().split('T')[0], // YYYY-MM-DD format
+              endDate: endDate.toISOString().split('T')[0] // YYYY-MM-DD format
             };
           } else {
             return; // Don't refresh if custom dates are not set
@@ -250,6 +255,8 @@ export const Dashboard: React.FC = () => {
         console.log('🔍 Dashboard API Call Debug:', {
           dateRange,
           filterParams,
+          customStartDate,
+          customEndDate,
           todayDate: new Date().toISOString().split('T')[0],
           apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&dateRange=${filterParams.dateRange}&startDate=${filterParams.startDate}&endDate=${filterParams.endDate}`
         });
@@ -260,15 +267,44 @@ export const Dashboard: React.FC = () => {
           ...filterParams
         });
 
-        setLocalDashboardMetrics(metrics);
+        // Check if expenses are missing and fetch them separately if needed
+        let finalMetrics = { ...metrics };
+        if (metrics && (metrics.totalExpenses === undefined || metrics.totalExpenses === null || metrics.totalExpenses === 0)) {
+          console.log('🔍 Expenses missing from dashboard metrics, fetching separately...');
+          try {
+            const expensesResponse = await apiService.getExpenses({
+              store_id: user?.store_id,
+              start_date: filterParams.startDate,
+              end_date: filterParams.endDate,
+              limit: 1000 // Get all expenses for the period
+            });
+            
+            const totalExpenses = expensesResponse.expenses.reduce((sum: number, expense: any) => sum + (expense.amount || 0), 0);
+            finalMetrics = {
+              ...metrics,
+              totalExpenses: totalExpenses,
+              monthlyExpenses: totalExpenses
+            };
+            
+            console.log('🔍 Expenses fetched separately:', {
+              expenseCount: expensesResponse.expenses.length,
+              totalExpenses,
+              sampleExpenses: expensesResponse.expenses.slice(0, 3)
+            });
+          } catch (expenseError) {
+            console.error('❌ Failed to fetch expenses separately:', expenseError);
+          }
+        }
+
+        setLocalDashboardMetrics(finalMetrics);
         console.log('🔍 Dashboard Metrics Debug (Unified):', {
-          totalExpenses: metrics?.totalExpenses,
-          monthlyExpenses: metrics?.monthlyExpenses,
-          netProfit: metrics?.netProfit,
-          totalSales: metrics?.totalSales,
-          totalTransactions: metrics?.totalTransactions,
-          todaySales: metrics?.todaySales,
-          monthlySales: metrics?.monthlySales,
+          totalExpenses: finalMetrics?.totalExpenses,
+          monthlyExpenses: finalMetrics?.monthlyExpenses,
+          netProfit: finalMetrics?.netProfit,
+          totalSales: finalMetrics?.totalSales,
+          totalTransactions: finalMetrics?.totalTransactions,
+          todaySales: finalMetrics?.todaySales,
+          monthlySales: finalMetrics?.monthlySales,
           dateRange,
           filterParams,
           recentTransactions: metrics?.recentTransactions?.length || 0,
@@ -282,12 +318,22 @@ export const Dashboard: React.FC = () => {
             recentTransactionsType: typeof metrics?.recentTransactions,
             recentTransactionsIsArray: Array.isArray(metrics?.recentTransactions),
             firstTransactionStructure: metrics?.recentTransactions?.[0] ? Object.keys(metrics.recentTransactions[0]) : 'No transactions'
+          },
+          // Specific debugging for expenses
+          expenseDebug: {
+            totalExpenses: metrics?.totalExpenses,
+            monthlyExpenses: metrics?.monthlyExpenses,
+            expensesVsYesterday: metrics?.expensesVsYesterday,
+            hasExpenseData: metrics?.totalExpenses !== undefined && metrics?.totalExpenses !== null,
+            expenseType: typeof metrics?.totalExpenses,
+            customStartDate,
+            customEndDate
           }
         });
 
         // Update goal progress with the loaded metrics
-        if (metrics) {
-          updateGoalProgress(metrics, metrics);
+        if (finalMetrics) {
+          updateGoalProgress(finalMetrics, finalMetrics);
         }
 
         // Fetch full transaction data for payment methods chart
@@ -296,8 +342,16 @@ export const Dashboard: React.FC = () => {
 
         // Dashboard metrics are now managed locally - no need to update AppContext
 
-    } catch (error) {
-        console.error('Failed to load dashboard metrics:', error);
+      } catch (error) {
+        console.error('❌ Failed to load dashboard metrics:', error);
+        console.error('Error details:', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          dateRange,
+          filterParams,
+          customStartDate,
+          customEndDate
+        });
       }
 
       // Mark initial load as complete

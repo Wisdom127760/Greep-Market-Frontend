@@ -701,7 +701,22 @@ class ApiService {
     // Add cache-busting parameter to ensure fresh data when filters change
     queryParams.append('_t', Date.now().toString());
     
-    const response = await this.privateRequest<{ success: boolean; data: DashboardMetrics }>(`/analytics/dashboard?${queryParams}`);
+    const url = `/analytics/dashboard?${queryParams}`;
+    console.log('🔍 API getDashboardAnalytics call:', {
+      params,
+      queryParams: queryParams.toString(),
+      url
+    });
+    
+    const response = await this.privateRequest<{ success: boolean; data: DashboardMetrics }>(url);
+    
+    console.log('🔍 API getDashboardAnalytics response:', {
+      success: response.success,
+      dataKeys: (response as any).data ? Object.keys((response as any).data) : 'No data',
+      totalExpenses: (response as any).data?.totalExpenses,
+      monthlyExpenses: (response as any).data?.monthlyExpenses
+    });
+    
     return (response as any).data;
   }
 
