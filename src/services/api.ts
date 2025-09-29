@@ -52,6 +52,15 @@ class ApiService {
     }
   }
 
+  // Clear all tokens without triggering the callback (to prevent infinite loops)
+  public clearTokensSilently(): void {
+    this.accessToken = null;
+    this.refreshToken = null;
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    // Note: We don't call the callback here to prevent infinite loops
+  }
+
   // Check if tokens are valid
   private isTokenValid(token: string | null): boolean {
     if (!token) return false;
@@ -63,14 +72,14 @@ class ApiService {
       
       if (!isValid) {
         console.log('Token is expired, clearing tokens');
-        this.clearTokens();
+        this.clearTokensSilently();
       }
       
       return isValid;
     } catch (error) {
       console.log('Token validation failed:', error);
       // Clear tokens if they're malformed or invalid
-      this.clearTokens();
+      this.clearTokensSilently();
       return false;
     }
   }
@@ -117,7 +126,7 @@ class ApiService {
     // Validate access token before making request
     if (this.accessToken && !this.isTokenValid(this.accessToken)) {
       console.log('Access token is invalid, clearing tokens');
-      this.clearTokens();
+      this.clearTokensSilently();
       throw new Error('Authentication token is invalid or expired');
     }
     
@@ -213,7 +222,7 @@ class ApiService {
           throw error;
         } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
           console.error('Unauthorized access - clearing tokens and redirecting');
-          this.clearTokens();
+          this.clearTokensSilently();
           throw new Error('Authentication failed. Please sign in again.');
         }
       }

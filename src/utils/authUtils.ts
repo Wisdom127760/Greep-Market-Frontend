@@ -29,16 +29,16 @@ export const performAuthCheck = async (): Promise<AuthCheckResult> => {
     }
 
     // Check if token is valid locally first
-    if (!apiService.isAuthenticated()) {
-      console.log('Token is invalid or expired locally');
-      // Clear any invalid tokens
-      apiService.clearTokens();
-      return {
-        isValid: false,
-        shouldRedirect: true,
-        error: 'Authentication token is invalid or expired'
-      };
-    }
+      if (!apiService.isAuthenticated()) {
+        console.log('Token is invalid or expired locally');
+        // Clear any invalid tokens
+        apiService.clearTokensSilently();
+        return {
+          isValid: false,
+          shouldRedirect: true,
+          error: 'Authentication token is invalid or expired'
+        };
+      }
 
     // Try to validate token with server
     try {
@@ -59,7 +59,7 @@ export const performAuthCheck = async (): Promise<AuthCheckResult> => {
       
       if (isAuthError) {
         console.log('Authentication error detected, clearing tokens');
-        apiService.clearTokens();
+        apiService.clearTokensSilently();
         return {
           isValid: false,
           shouldRedirect: true,
@@ -79,7 +79,7 @@ export const performAuthCheck = async (): Promise<AuthCheckResult> => {
       }
       
       // For other errors, clear tokens to be safe
-      apiService.clearTokens();
+      apiService.clearTokensSilently();
       return {
         isValid: false,
         shouldRedirect: true,
@@ -89,7 +89,7 @@ export const performAuthCheck = async (): Promise<AuthCheckResult> => {
   } catch (error: any) {
     console.error('Unexpected error during auth check:', error);
     // Clear tokens on any unexpected error
-    apiService.clearTokens();
+    apiService.clearTokensSilently();
     return {
       isValid: false,
       shouldRedirect: true,
@@ -104,8 +104,8 @@ export const performAuthCheck = async (): Promise<AuthCheckResult> => {
 export const clearAuthAndRedirect = (): void => {
   console.log('Clearing authentication and redirecting to login');
   
-  // Clear all tokens
-  apiService.clearTokens();
+  // Clear all tokens WITHOUT triggering the callback to prevent infinite loop
+  apiService.clearTokensSilently();
   
   // Clear any other auth-related data
   localStorage.removeItem('user');

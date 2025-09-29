@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           if (authResult.shouldRedirect) {
             // Clear tokens and redirect to login
-            apiService.clearTokens();
+            apiService.clearTokensSilently();
             dispatch({ type: 'AUTH_LOGOUT' });
             navigate('/login', { replace: true });
           } else {
@@ -151,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error: any) {
         console.error('Unexpected error during auth check:', error);
         // Clear tokens on any unexpected error
-        apiService.clearTokens();
+        apiService.clearTokensSilently();
         dispatch({ type: 'AUTH_LOGOUT' });
         navigate('/login', { replace: true });
       }
