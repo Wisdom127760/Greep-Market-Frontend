@@ -610,7 +610,7 @@ export const Products: React.FC = () => {
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Category Filter Sidebar - Fixed */}
           <div className="lg:w-64 flex-shrink-0">
-            <div className="lg:sticky lg:top-6">
+            <div className="lg:sticky" style={{ top: '5.5rem', bottom: '20px', height: 'calc(100vh - 5.5rem - 20px)' }}>
               <CategoryFilterSidebar
                 categories={categories}
                 selectedCategories={selectedCategories}
