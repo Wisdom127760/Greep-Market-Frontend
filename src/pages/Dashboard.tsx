@@ -118,13 +118,17 @@ export const Dashboard: React.FC = () => {
         filterParams
       });
       
+      // Convert ISO timestamps to date strings for backend compatibility
+      const startDate = filterParams.startDate ? new Date(filterParams.startDate).toISOString().split('T')[0] : undefined;
+      const endDate = filterParams.endDate ? new Date(filterParams.endDate).toISOString().split('T')[0] : undefined;
+      
       const response = await apiService.getTransactions({
         store_id: user?.store_id,
         page: 1,
         limit: 1000, // Get all transactions
         status: 'all',
-        start_date: filterParams.startDate,
-        end_date: filterParams.endDate,
+        start_date: startDate,
+        end_date: endDate,
       });
       
       console.log('🔍 Full Transactions API Response:', {
@@ -267,6 +271,10 @@ export const Dashboard: React.FC = () => {
           filterParams = { dateRange: '30d' };
       }
 
+      // Convert ISO timestamps to date strings for backend compatibility
+      const startDate = filterParams.startDate ? new Date(filterParams.startDate).toISOString().split('T')[0] : undefined;
+      const endDate = filterParams.endDate ? new Date(filterParams.endDate).toISOString().split('T')[0] : undefined;
+
       // Single API call to get all dashboard data
       try {
         console.log('🔍 Dashboard API Call Debug:', {
@@ -275,13 +283,15 @@ export const Dashboard: React.FC = () => {
           customStartDate,
           customEndDate,
           todayDate: new Date().toISOString().split('T')[0],
-          apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&dateRange=${filterParams.dateRange}&startDate=${filterParams.startDate}&endDate=${filterParams.endDate}`
+          apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&dateRange=${filterParams.dateRange}&startDate=${startDate}&endDate=${endDate}`
         });
 
         const metrics = await apiService.getDashboardAnalytics({
           store_id: user?.store_id,
           status: 'all', // Explicitly request all transaction statuses
-          ...filterParams
+          dateRange: filterParams.dateRange,
+          startDate: startDate,
+          endDate: endDate,
         });
 
         // Check if expenses are missing and fetch them separately if needed
@@ -291,8 +301,8 @@ export const Dashboard: React.FC = () => {
           try {
             const expensesResponse = await apiService.getExpenses({
               store_id: user?.store_id,
-              start_date: filterParams.startDate,
-              end_date: filterParams.endDate,
+              start_date: startDate,
+              end_date: endDate,
               limit: 1000 // Get all expenses for the period
             });
             
@@ -328,7 +338,7 @@ export const Dashboard: React.FC = () => {
           recentTransactionsData: metrics?.recentTransactions?.slice(0, 2), // Log first 2 transactions
           salesByMonth: metrics?.salesByMonth?.length || 0,
           topProducts: metrics?.topProducts?.length || 0,
-          apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&startDate=${filterParams.startDate}&endDate=${filterParams.endDate}`,
+          apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&startDate=${startDate}&endDate=${endDate}`,
           // Additional debugging for payment method data
           fullMetricsStructure: {
             hasRecentTransactions: !!metrics?.recentTransactions,
@@ -549,6 +559,22 @@ export const Dashboard: React.FC = () => {
     return [];
   }, [currentDashboardMetrics?.topProducts, filteredSales, dateRange, customStartDate, customEndDate]);
 
+  const getPaymentMethodColor = (method: string) => {
+    const colors: { [key: string]: string } = {
+      'cash': '#22c55e',      // Green
+      'pos': '#3b82f6',       // Blue (for pos_isbank_transfer and card)
+      'transfer': '#8b5cf6',  // Purple (for naira_transfer)
+      'crypto': '#f59e0b',    // Orange (for crypto_payment)
+      // Legacy support
+      'pos_isbank_transfer': '#3b82f6',      // Blue  
+      'naira_transfer': '#8b5cf6',  // Purple
+      'crypto_payment': '#f59e0b',       // Orange
+      'card': '#3b82f6',      // Blue (legacy)
+      'unknown': '#6b7280'    // Gray
+    };
+    return colors[method] || '#6b7280';
+  };
+
   // Generate payment method data from dashboard metrics or actual transactions (using AMOUNTS, not counts)
   const paymentMethodData = useMemo(() => {
     // Use dashboard metrics payment data if available (filtered by current period)
@@ -705,22 +731,6 @@ export const Dashboard: React.FC = () => {
     
     return result;
   }, [currentDashboardMetrics?.paymentMethods, fullTransactions, filteredSales, currentDashboardMetrics?.recentTransactions]);
-
-  const getPaymentMethodColor = (method: string) => {
-    const colors: { [key: string]: string } = {
-      'cash': '#22c55e',      // Green
-      'pos': '#3b82f6',       // Blue (for pos_isbank_transfer and card)
-      'transfer': '#8b5cf6',  // Purple (for naira_transfer)
-      'crypto': '#f59e0b',    // Orange (for crypto_payment)
-      // Legacy support
-      'pos_isbank_transfer': '#3b82f6',      // Blue  
-      'naira_transfer': '#8b5cf6',  // Purple
-      'crypto_payment': '#f59e0b',       // Orange
-      'card': '#3b82f6',      // Blue (legacy)
-      'unknown': '#6b7280'    // Gray
-    };
-    return colors[method] || '#6b7280';
-  };
 
   // Smart filtering system that affects all dashboard content
   const getSmartFilteringData = () => {
