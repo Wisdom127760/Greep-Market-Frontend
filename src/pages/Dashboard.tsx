@@ -209,9 +209,9 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-    // Throttle API calls to prevent spam (minimum 5 seconds between calls)
+    // Throttle API calls to prevent spam (minimum 2 seconds between calls)
     const now = Date.now();
-    if (now - lastRefreshRef.current < 5000) {
+    if (now - lastRefreshRef.current < 2000) {
       console.log('🔄 Unified refresh throttled - too frequent');
       return;
     }
@@ -427,7 +427,7 @@ export const Dashboard: React.FC = () => {
     
     const timeoutId = setTimeout(() => {
       unifiedRefresh();
-    }, 1000); // Increased to 1 second debounce to prevent API spam
+    }, 500); // 500ms debounce to prevent API spam
 
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
