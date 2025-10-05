@@ -120,8 +120,9 @@ export const Dashboard: React.FC = () => {
       });
       
       // Convert ISO timestamps to date strings for backend compatibility
-      const startDate = filterParams.startDate ? new Date(filterParams.startDate).toISOString().split('T')[0] : undefined;
-      const endDate = filterParams.endDate ? new Date(filterParams.endDate).toISOString().split('T')[0] : undefined;
+      // Use the original filterParams dates directly to avoid timezone conversion issues
+      const startDate = filterParams.startDate ? filterParams.startDate.split('T')[0] : undefined;
+      const endDate = filterParams.endDate ? filterParams.endDate.split('T')[0] : undefined;
       
       const response = await apiService.getTransactions({
         store_id: user?.store_id,
@@ -267,8 +268,9 @@ export const Dashboard: React.FC = () => {
       }
 
       // Convert ISO timestamps to date strings for backend compatibility
-      const startDate = filterParams.startDate ? new Date(filterParams.startDate).toISOString().split('T')[0] : undefined;
-      const endDate = filterParams.endDate ? new Date(filterParams.endDate).toISOString().split('T')[0] : undefined;
+      // Use the original filterParams dates directly to avoid timezone conversion issues
+      const startDate = filterParams.startDate ? filterParams.startDate.split('T')[0] : undefined;
+      const endDate = filterParams.endDate ? filterParams.endDate.split('T')[0] : undefined;
 
       // Single API call to get all dashboard data
       try {
@@ -292,7 +294,13 @@ export const Dashboard: React.FC = () => {
         // Check if expenses are missing and fetch them separately if needed
         let finalMetrics = { ...metrics };
         if (metrics && (metrics.totalExpenses === undefined || metrics.totalExpenses === null || metrics.totalExpenses === 0)) {
-          console.log('🔍 Expenses missing from dashboard metrics, fetching separately...');
+          console.log('🔍 Expenses missing from dashboard metrics, fetching separately...', {
+            dateRange,
+            startDate,
+            endDate,
+            filterParams,
+            todayDate: new Date().toISOString().split('T')[0]
+          });
           try {
             const expensesResponse = await apiService.getExpenses({
               store_id: user?.store_id,
@@ -311,7 +319,12 @@ export const Dashboard: React.FC = () => {
             console.log('🔍 Expenses fetched separately:', {
               expenseCount: expensesResponse.expenses.length,
               totalExpenses,
-              sampleExpenses: expensesResponse.expenses.slice(0, 3)
+              sampleExpenses: expensesResponse.expenses.slice(0, 3),
+              expenseDates: expensesResponse.expenses.map((expense: any) => ({
+                date: expense.date,
+                amount: expense.amount,
+                description: expense.description || expense.product_name
+              }))
             });
           } catch (expenseError) {
             console.error('❌ Failed to fetch expenses separately:', expenseError);
