@@ -117,9 +117,9 @@ export const POS: React.FC = () => {
     }
   }, [isAuthenticated, user]);
 
-  // Save cart to localStorage whenever cartItems or discount changes
+  // Save cart to localStorage whenever cartItems or discount changes (but not during initial load)
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && cartLoadedRef.current) {
       saveCartToStorage(cartItems, discount);
     }
   }, [cartItems, discount, isAuthenticated, user]);
