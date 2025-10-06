@@ -101,11 +101,37 @@ export function GoalProvider({ children }: { children: ReactNode }) {
 
       // 1) Fetch existing active goals for this store
       let existingGoals: SalesGoal[] = [];
+      let apiSuccess = false;
+      
       try {
         existingGoals = await (apiService as any).getGoals({ store_id: user.store_id, is_active: true });
+        console.log('✅ Successfully loaded goals from API:', existingGoals.length);
+        apiSuccess = true;
       } catch (err) {
-        console.warn('Failed to fetch existing goals, will attempt to create defaults if needed:', err);
-        existingGoals = [];
+        console.warn('❌ Failed to fetch existing goals from API, trying localStorage backup:', err);
+        apiSuccess = false;
+      }
+
+      // If API failed or returned no goals, try localStorage backup
+      if (!apiSuccess || existingGoals.length === 0) {
+        try {
+          const backupDaily = localStorage.getItem(`goal_daily_${user.store_id}`);
+          const backupMonthly = localStorage.getItem(`goal_monthly_${user.store_id}`);
+          if (backupDaily || backupMonthly) {
+            console.log('📦 Loading goals from localStorage backup');
+            if (backupDaily) {
+              const dailyGoal = JSON.parse(backupDaily);
+              existingGoals.push(dailyGoal);
+            }
+            if (backupMonthly) {
+              const monthlyGoal = JSON.parse(backupMonthly);
+              existingGoals.push(monthlyGoal);
+            }
+            console.log('📦 Loaded', existingGoals.length, 'goals from localStorage backup');
+          }
+        } catch (localErr) {
+          console.warn('Failed to load from localStorage backup:', localErr);
+        }
       }
 
       // 2) Find daily and monthly goals if they already exist and are still valid
@@ -233,6 +259,16 @@ export function GoalProvider({ children }: { children: ReactNode }) {
           period_end: monthlyGoal.period_end
         } : null
       });
+
+      // Save to localStorage as backup
+      if (dailyGoal) {
+        localStorage.setItem(`goal_daily_${user.store_id}`, JSON.stringify(dailyGoal));
+        console.log('💾 Saved daily goal to localStorage backup');
+      }
+      if (monthlyGoal) {
+        localStorage.setItem(`goal_monthly_${user.store_id}`, JSON.stringify(monthlyGoal));
+        console.log('💾 Saved monthly goal to localStorage backup');
+      }
       
       dispatch({ type: 'SET_DAILY_GOAL', payload: dailyGoal as any });
       dispatch({ type: 'SET_MONTHLY_GOAL', payload: monthlyGoal as any });
