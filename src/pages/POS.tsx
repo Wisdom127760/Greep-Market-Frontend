@@ -66,6 +66,7 @@ export const POS: React.FC = () => {
   const [restockProduct, setRestockProduct] = useState<any | null>(null);
   const [restockQuantity, setRestockQuantity] = useState('');
   const [restockContext, setRestockContext] = useState<'addToCart' | 'updateQty' | 'checkout' | null>(null);
+  const cartLoadedRef = useRef(false);
 
   // Cart persistence functions
   const CART_STORAGE_KEY = 'pos_cart_items';
@@ -73,6 +74,7 @@ export const POS: React.FC = () => {
 
   const saveCartToStorage = (items: TransactionItem[], discountValue: string) => {
     try {
+      console.log('🛒 Saving cart to localStorage:', { items, discount: discountValue });
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
       localStorage.setItem(DISCOUNT_STORAGE_KEY, discountValue);
     } catch (error) {
@@ -104,12 +106,14 @@ export const POS: React.FC = () => {
     }
   };
 
-  // Load cart from localStorage on component mount
+  // Load cart from localStorage on component mount (only once)
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && !cartLoadedRef.current) {
       const { items, discount: savedDiscount } = loadCartFromStorage();
+      console.log('🛒 Loading cart from localStorage:', { items, discount: savedDiscount });
       setCartItems(items);
       setDiscount(savedDiscount);
+      cartLoadedRef.current = true;
     }
   }, [isAuthenticated, user]);
 
@@ -239,6 +243,7 @@ export const POS: React.FC = () => {
     setCartItems([]);
     setDiscount('');
     clearCartFromStorage();
+    cartLoadedRef.current = false; // Reset so cart can be loaded again if needed
   };
 
   const openRestockModal = (product: any, context: 'addToCart' | 'updateQty' | 'checkout') => {
