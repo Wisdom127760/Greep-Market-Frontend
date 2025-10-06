@@ -97,7 +97,6 @@ export const POS: React.FC = () => {
 
   const saveCartToStorage = (items: TransactionItem[], discountValue: string) => {
     try {
-      console.log('🛒 Saving cart to localStorage:', { items, discount: discountValue });
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
       localStorage.setItem(DISCOUNT_STORAGE_KEY, discountValue);
     } catch (error) {
@@ -133,7 +132,6 @@ export const POS: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated && user) {
       cartLoadedRef.current = true;
-      console.log('🛒 Cart initialized from localStorage on mount');
     }
   }, [isAuthenticated, user]);
 
