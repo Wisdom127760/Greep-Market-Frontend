@@ -205,37 +205,75 @@ export function GoalProvider({ children }: { children: ReactNode }) {
         console.log('Using existing daily goal:', dailyGoal);
       }
 
-      // If no monthly goal exists for current month, auto-carry over from last month (first day only)
+      // If no monthly goal exists for current month, auto-carry over from last month or create default
       if (!monthlyGoal) {
-        const isFirstDayOfMonth = now.getDate() === 1;
-        if (isFirstDayOfMonth) {
-          // Find last month's goal
-          const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          const lastMonthly = existingGoals.find(g => {
-            if (g.goal_type !== 'monthly' || !g.period_start || !g.period_end) return false;
-            const start = new Date(g.period_start);
-            return start.getFullYear() === lastMonth.getFullYear() && start.getMonth() === lastMonth.getMonth();
-          });
-          if (lastMonthly) {
+        // Find last month's goal to carry over
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthly = existingGoals.find(g => {
+          if (g.goal_type !== 'monthly' || !g.period_start || !g.period_end) return false;
+          const start = new Date(g.period_start);
+          return start.getFullYear() === lastMonth.getFullYear() && start.getMonth() === lastMonth.getMonth();
+        });
+        
+        if (lastMonthly) {
+          try {
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+            const created = await apiService.createGoal({
+              goal_type: 'monthly',
+              target_amount: lastMonthly.target_amount,
+              currency: undefined,
+              period_start: startOfMonth.toISOString(),
+              period_end: endOfMonth.toISOString(),
+              is_active: true,
+              store_id: user.store_id
+            } as any);
+            monthlyGoal = created as any;
+            console.log('✅ Auto-carried monthly goal from last month:', monthlyGoal);
+          } catch (e) {
+            console.warn('❌ Failed to auto-carry monthly goal from API, trying localStorage:', e);
+            // Try to create from localStorage backup
             try {
-              const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-              const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-              const created = await apiService.createGoal({
-                goal_type: 'monthly',
-                target_amount: lastMonthly.target_amount,
-                currency: undefined,
-                period_start: startOfMonth.toISOString(),
-                period_end: endOfMonth.toISOString(),
-                is_active: true,
-                store_id: user.store_id
-              } as any);
-              monthlyGoal = created as any;
-              console.log('Auto-carried monthly goal from last month:', monthlyGoal);
-            } catch (e) {
-              console.warn('Failed to auto-carry monthly goal:', e);
+              const backupMonthly = localStorage.getItem(`goal_monthly_${user.store_id}`);
+              if (backupMonthly) {
+                const backupGoal = JSON.parse(backupMonthly);
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+                monthlyGoal = {
+                  ...backupGoal,
+                  _id: `monthly-${Date.now()}`,
+                  period_start: startOfMonth.toISOString(),
+                  period_end: endOfMonth.toISOString(),
+                  updated_at: new Date().toISOString()
+                };
+                console.log('📦 Created monthly goal from localStorage backup:', monthlyGoal);
+              }
+            } catch (localErr) {
+              console.warn('Failed to create from localStorage backup:', localErr);
             }
           }
+        } else {
+          // No previous monthly goal found, try localStorage backup
+          try {
+            const backupMonthly = localStorage.getItem(`goal_monthly_${user.store_id}`);
+            if (backupMonthly) {
+              const backupGoal = JSON.parse(backupMonthly);
+              const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+              const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+              monthlyGoal = {
+                ...backupGoal,
+                _id: `monthly-${Date.now()}`,
+                period_start: startOfMonth.toISOString(),
+                period_end: endOfMonth.toISOString(),
+                updated_at: new Date().toISOString()
+              };
+              console.log('📦 Created monthly goal from localStorage backup (no previous goal):', monthlyGoal);
+            }
+          } catch (localErr) {
+            console.warn('Failed to create from localStorage backup:', localErr);
+          }
         }
+        
         if (!monthlyGoal) {
           console.log('No monthly goal found - admin can set one manually');
           monthlyGoal = null;
