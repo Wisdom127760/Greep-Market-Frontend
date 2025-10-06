@@ -217,7 +217,7 @@ export const POS: React.FC = () => {
         unit_price: product.price,
         total_price: product.price,
         product_image: product.images && product.images.length > 0 
-          ? (product.images.find(img => img.is_primary)?.url || product.images[0].url)
+          ? (product.images.find((img: any) => img.is_primary)?.url || product.images[0].url)
           : undefined,
       };
       console.log('Adding new item to cart:', newItem);
