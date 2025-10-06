@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { CreditCard, X, Users, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
+import { Modal } from '../components/ui/Modal';
+import { Input } from '../components/ui/Input';
 import { SearchBar } from '../components/ui/SearchBar';
 import { ProductCard } from '../components/ui/ProductCard';
 import { ShoppingCartComponent } from '../components/ui/ShoppingCart';
@@ -18,7 +20,7 @@ import { TransactionItem } from '../types';
 import { usePageRefresh } from '../hooks/usePageRefresh';
 
 export const POS: React.FC = () => {
-  const { products, addTransaction, updateInventory, loadAllProducts } = useApp();
+  const { products, addTransaction, updateInventory, loadAllProducts, updateProduct } = useApp();
   const { user, isAuthenticated, isLoading } = useAuth();
   const { riders, loadRiders } = useRiders();
   const { updateGoalProgress } = useGoals();
@@ -60,6 +62,63 @@ export const POS: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [discount, setDiscount] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+  const [restockProduct, setRestockProduct] = useState<any | null>(null);
+  const [restockQuantity, setRestockQuantity] = useState('');
+  const [restockContext, setRestockContext] = useState<'addToCart' | 'updateQty' | 'checkout' | null>(null);
+
+  // Cart persistence functions
+  const CART_STORAGE_KEY = 'pos_cart_items';
+  const DISCOUNT_STORAGE_KEY = 'pos_discount';
+
+  const saveCartToStorage = (items: TransactionItem[], discountValue: string) => {
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(DISCOUNT_STORAGE_KEY, discountValue);
+    } catch (error) {
+      console.error('Failed to save cart to localStorage:', error);
+    }
+  };
+
+  const loadCartFromStorage = (): { items: TransactionItem[]; discount: string } => {
+    try {
+      const savedItems = localStorage.getItem(CART_STORAGE_KEY);
+      const savedDiscount = localStorage.getItem(DISCOUNT_STORAGE_KEY);
+      
+      return {
+        items: savedItems ? JSON.parse(savedItems) : [],
+        discount: savedDiscount || ''
+      };
+    } catch (error) {
+      console.error('Failed to load cart from localStorage:', error);
+      return { items: [], discount: '' };
+    }
+  };
+
+  const clearCartFromStorage = () => {
+    try {
+      localStorage.removeItem(CART_STORAGE_KEY);
+      localStorage.removeItem(DISCOUNT_STORAGE_KEY);
+    } catch (error) {
+      console.error('Failed to clear cart from localStorage:', error);
+    }
+  };
+
+  // Load cart from localStorage on component mount
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const { items, discount: savedDiscount } = loadCartFromStorage();
+      setCartItems(items);
+      setDiscount(savedDiscount);
+    }
+  }, [isAuthenticated, user]);
+
+  // Save cart to localStorage whenever cartItems or discount changes
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      saveCartToStorage(cartItems, discount);
+    }
+  }, [cartItems, discount, isAuthenticated, user]);
 
   const filteredProducts = useMemo(() => {
     if (!products || !Array.isArray(products)) {
@@ -111,8 +170,9 @@ export const POS: React.FC = () => {
   const addToCart = (product: any) => {
     console.log('Adding product to cart:', product);
     
-    if (product.stock_quantity === 0) {
-      toast.error('Product is out of stock');
+    if (product.stock_quantity <= 0) {
+      toast.error(`${product.name} has insufficient stock (${product.stock_quantity}). Increase stock and try again.`);
+      openRestockModal(product, 'addToCart');
       return;
     }
 
@@ -120,7 +180,8 @@ export const POS: React.FC = () => {
     
     if (existingItem) {
       if (existingItem.quantity >= product.stock_quantity) {
-        toast.error('Not enough stock available');
+        toast.error(`Not enough stock for ${product.name}. Available: ${product.stock_quantity}, In cart: ${existingItem.quantity}.`);
+        openRestockModal(product, 'addToCart');
         return;
       }
       console.log('Updating existing item quantity');
@@ -154,8 +215,9 @@ export const POS: React.FC = () => {
     }
 
     const product = products.find(p => p._id === productId);
-    if (product && quantity > product.stock_quantity) {
-      toast.error('Not enough stock available');
+    if (product && (product.stock_quantity <= 0 || quantity > product.stock_quantity)) {
+      toast.error(`Not enough stock for ${product?.name}. Available: ${product?.stock_quantity ?? 0}.`);
+      if (product) openRestockModal(product, 'updateQty');
       return;
     }
 
@@ -176,6 +238,61 @@ export const POS: React.FC = () => {
   const clearCart = () => {
     setCartItems([]);
     setDiscount('');
+    clearCartFromStorage();
+  };
+
+  const openRestockModal = (product: any, context: 'addToCart' | 'updateQty' | 'checkout') => {
+    setRestockProduct(product);
+    setRestockContext(context);
+    // Suggest quantity to add so that stock reaches at least 1 or covers cart needs
+    let suggested = 1;
+    const cartItem = cartItems.find(i => i.product_id === product._id);
+    if (cartItem) {
+      suggested = Math.max(cartItem.quantity - product.stock_quantity, 1);
+    } else if (product.stock_quantity <= 0) {
+      suggested = 1 - product.stock_quantity; // e.g., -1 -> 2
+    }
+    setRestockQuantity(String(suggested));
+    setIsRestockModalOpen(true);
+  };
+
+  const processRestock = async () => {
+    if (!restockProduct) {
+      setIsRestockModalOpen(false);
+      return;
+    }
+    const qtyToAdd = parseFloat(restockQuantity);
+    if (isNaN(qtyToAdd) || qtyToAdd <= 0) {
+      toast.error('Enter a valid quantity to add.');
+      return;
+    }
+    try {
+      const newQuantity = (restockProduct.stock_quantity || 0) + qtyToAdd;
+      await updateProduct(restockProduct._id, { stock_quantity: newQuantity });
+      await loadAllProducts();
+      toast.success(`Restocked ${restockProduct.name} by ${qtyToAdd}. New stock: ${newQuantity}.`);
+    } catch (e) {
+      toast.error('Failed to restock product. Please try again.');
+    } finally {
+      setIsRestockModalOpen(false);
+      setRestockProduct(null);
+      setRestockQuantity('');
+      setRestockContext(null);
+    }
+  };
+
+  const validateCartStock = (): { ok: true } | { ok: false; product: any; available: number; needed: number } => {
+    if (!products || !Array.isArray(products)) return { ok: true };
+    for (const item of cartItems) {
+      const product = products.find(p => p._id === item.product_id);
+      if (!product) continue;
+      const available = product.stock_quantity || 0;
+      const needed = item.quantity;
+      if (available <= 0 || available < needed) {
+        return { ok: false, product, available, needed } as const;
+      }
+    }
+    return { ok: true };
   };
 
   const updateInventoryForSale = async (productId: string, quantitySold: number) => {
@@ -197,12 +314,27 @@ export const POS: React.FC = () => {
       toast.error('Cart is empty');
       return;
     }
+    const validation = validateCartStock();
+    if (validation.ok === false) {
+      const { product, available, needed } = validation;
+      toast.error(`Insufficient stock for ${product.name}. Needed: ${needed}, Available: ${available}. Increase stock and try again.`);
+      openRestockModal(product, 'checkout');
+      return;
+    }
     setIsPaymentModalOpen(true);
   };
 
   const processPayment = async (paymentData: PaymentData) => {
     if (cartItems.length === 0) {
       toast.error('Cart is empty');
+      return;
+    }
+
+    const validation = validateCartStock();
+    if (validation.ok === false) {
+      const { product, available, needed } = validation;
+      toast.error(`Cannot process payment. ${product.name} has insufficient stock. Needed: ${needed}, Available: ${available}.`);
+      openRestockModal(product, 'checkout');
       return;
     }
 
@@ -284,7 +416,13 @@ export const POS: React.FC = () => {
       
     } catch (error) {
       console.error('Payment processing failed:', error);
-      toast.error('Failed to process payment. Please try again.');
+      // Provide a more meaningful message if backend rejects due to stock
+      const message = error instanceof Error ? error.message : 'Failed to process payment. Please try again.';
+      if (String(message).toLowerCase().includes('stock') || String(message).toLowerCase().includes('inventory')) {
+        toast.error('Payment failed due to insufficient stock. Please increase stock for affected products and try again.');
+      } else {
+        toast.error(message);
+      }
     } finally {
       // Hide loading state
       setIsProcessingPayment(false);
@@ -517,6 +655,33 @@ export const POS: React.FC = () => {
         onCancel={() => setIsProcessingPayment(false)}
         canCancel={true}
       />
+
+      {/* Restock Modal */}
+      <Modal
+        isOpen={isRestockModalOpen}
+        onClose={() => setIsRestockModalOpen(false)}
+        title={restockProduct ? `Increase Stock: ${restockProduct.name}` : 'Increase Stock'}
+        size="md"
+      >
+        {restockProduct && (
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              Current stock: <span className="font-semibold">{restockProduct.stock_quantity}</span>
+            </div>
+            <Input
+              label="Quantity to Add"
+              type="number"
+              value={restockQuantity}
+              onChange={(e) => setRestockQuantity(e.target.value)}
+              placeholder="Enter quantity"
+            />
+            <div className="flex justify-end space-x-3 pt-2">
+              <Button variant="outline" onClick={() => setIsRestockModalOpen(false)}>Cancel</Button>
+              <Button onClick={processRestock}>Update Stock</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
