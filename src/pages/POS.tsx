@@ -56,11 +56,34 @@ export const POS: React.FC = () => {
   }, [isAuthenticated, user]);
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [cartItems, setCartItems] = useState<TransactionItem[]>([]);
+  
+  // Initialize cart from localStorage immediately to prevent empty state from being saved
+  const getInitialCartState = (): TransactionItem[] => {
+    try {
+      const savedItems = localStorage.getItem('pos_cart_items');
+      return savedItems ? JSON.parse(savedItems) : [];
+    } catch (error) {
+      console.error('Failed to load initial cart state:', error);
+      return [];
+    }
+  };
+  
+  const [cartItems, setCartItems] = useState<TransactionItem[]>(getInitialCartState);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [discount, setDiscount] = useState('');
+  
+  // Initialize discount from localStorage immediately
+  const getInitialDiscountState = (): string => {
+    try {
+      return localStorage.getItem('pos_discount') || '';
+    } catch (error) {
+      console.error('Failed to load initial discount state:', error);
+      return '';
+    }
+  };
+  
+  const [discount, setDiscount] = useState(getInitialDiscountState);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
   const [restockProduct, setRestockProduct] = useState<any | null>(null);
@@ -106,14 +129,11 @@ export const POS: React.FC = () => {
     }
   };
 
-  // Load cart from localStorage on component mount (only once)
+  // Mark cart as loaded since we initialized from localStorage
   useEffect(() => {
-    if (isAuthenticated && user && !cartLoadedRef.current) {
-      const { items, discount: savedDiscount } = loadCartFromStorage();
-      console.log('🛒 Loading cart from localStorage:', { items, discount: savedDiscount });
-      setCartItems(items);
-      setDiscount(savedDiscount);
+    if (isAuthenticated && user) {
       cartLoadedRef.current = true;
+      console.log('🛒 Cart initialized from localStorage on mount');
     }
   }, [isAuthenticated, user]);
 
