@@ -944,8 +944,14 @@ export const Dashboard: React.FC = () => {
       const orderSources = currentDashboardMetrics.orderSources;
       const totalAmount = Object.values(orderSources).reduce((sum: number, amount: any) => sum + (amount || 0), 0);
       
+      console.log('🔍 Dashboard: Order source data from API:', {
+        orderSources,
+        totalAmount,
+        entries: Object.entries(orderSources)
+      });
+      
       return Object.entries(orderSources).map(([source, amount]: [string, any]) => ({
-        name: source === 'online' ? 'Online' : 'In-Store',
+        name: (source === 'online') ? 'Online' : 'In-Store',
         value: amount || 0,
         percentage: totalAmount > 0 ? (((amount || 0) / totalAmount) * 100).toFixed(1) : '0.0',
         color: source === 'online' ? '#3b82f6' : '#22c55e' // Blue for online, Green for in-store
@@ -958,6 +964,7 @@ export const Dashboard: React.FC = () => {
       : ((filteredSales && filteredSales.length > 0) ? filteredSales : []);
     
     if (!sales || sales.length === 0) {
+      console.log('🔍 Dashboard: No sales data for order source calculation');
       return [];
     }
     
@@ -967,11 +974,27 @@ export const Dashboard: React.FC = () => {
     };
     let totalAmount = 0;
     
+    console.log('🔍 Dashboard: Processing sales for order source (fallback):', {
+      salesCount: sales.length,
+      sampleSales: sales.slice(0, 3).map(s => ({
+        id: s._id,
+        total_amount: s.total_amount,
+        order_source: s.order_source
+      }))
+    });
+    
     sales.forEach(sale => {
       const src = sale.order_source;
-      const normalized = src === 'in-store' ? 'in_store' : (src || 'in_store');
+      // Normalize both 'in-store' and 'in_store' to 'in_store' for frontend consistency
+      const normalized = (src === 'in-store' || src === 'in_store') ? 'in_store' : (src || 'in_store');
       orderSources[normalized] = (orderSources[normalized] || 0) + (sale.total_amount || 0);
       totalAmount += (sale.total_amount || 0);
+    });
+    
+    console.log('🔍 Dashboard: Order source calculation (fallback):', {
+      orderSources,
+      totalAmount,
+      salesProcessed: sales.length
     });
     
     return Object.entries(orderSources).map(([source, amount]) => ({
