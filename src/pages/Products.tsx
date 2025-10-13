@@ -1220,5 +1220,6 @@ export const Products: React.FC = () => {
           position="bottom-right"
         />
       </div>
-    );
-  };
+    </div>
+  );
+};
