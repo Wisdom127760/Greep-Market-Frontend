@@ -1207,9 +1207,6 @@ export const Products: React.FC = () => {
               priceHistory={priceHistory}
             />
 
-          </div>
-        </div>
-
         {/* Floating Action Button */}
         <FloatingActionButton
           onClick={() => setIsAddModalOpen(true)}
