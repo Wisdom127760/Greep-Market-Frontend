@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { CreditCard, X, Users, DollarSign } from 'lucide-react';
+import { CreditCard, X, Users, DollarSign, ShoppingCart } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -11,6 +11,7 @@ import { BarcodeScanner } from '../components/ui/BarcodeScanner';
 import { EnhancedPaymentModal, PaymentData } from '../components/ui/EnhancedPaymentModal';
 import { SmartNavButton } from '../components/ui/SmartNavButton';
 import { CheckoutLoader } from '../components/ui/CheckoutLoader';
+import { FloatingActionButton } from '../components/ui/FloatingActionButton';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { useRiders } from '../context/RiderContext';
@@ -708,6 +709,21 @@ export const POS: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Floating Action Button */}
+      <FloatingActionButton
+        onClick={() => {
+          // Quick action: focus on search to start a new sale
+          if (searchInputRef.current) {
+            searchInputRef.current.focus();
+          }
+        }}
+        icon={ShoppingCart}
+        label="Start New Sale"
+        color="emerald"
+        size="lg"
+        position="bottom-right"
+      />
     </div>
   );
 };
