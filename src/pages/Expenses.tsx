@@ -946,7 +946,7 @@ export const Expenses: React.FC = () => {
 
       {/* Floating Action Button */}
       <FloatingActionButton
-        onClick={() => setIsAddModalOpen(true)}
+        onClick={() => setShowAddExpense(true)}
         icon={Plus}
         label="Add Expense"
         color="green"

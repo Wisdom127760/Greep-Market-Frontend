@@ -97,7 +97,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
           <div className={`
             absolute top-full
             border-4 border-transparent
-            ${position === 'bottom-center' ? 'left-1/2 transform -translate-x-1/2 border-t-gray-900 dark:border-t-gray-700' :
+            ${position === 'bottom-center' ? 'left-1/2 transform -translate-x-1/2 border-t-gray-900 dark:border-t-gray-700' : 
               position === 'bottom-left' ? 'right-4 border-t-gray-900 dark:border-t-gray-700' : 
               'left-4 border-t-gray-900 dark:border-t-gray-700'}
           `}></div>
