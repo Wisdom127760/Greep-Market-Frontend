@@ -1156,16 +1156,18 @@ class ApiService {
       is_active: boolean;
     }>;
   }> {
-    const response = await this.privateRequest<{
-      success: boolean;
-      data: Array<{
-        id: string;
-        name: string;
-        address: string;
-        is_active: boolean;
-      }>;
-    }>('/stores/for-assignment');
-    return (response as any).data;
+    const response = await this.privateRequest<Array<{
+      id: string;
+      name: string;
+      address: string;
+      is_active: boolean;
+    }>>('/stores/for-assignment');
+    
+    // The API returns the array directly, not wrapped in a data object
+    return {
+      success: true,
+      data: response as any
+    };
   }
 
   // Notification API methods
