@@ -1165,7 +1165,7 @@ class ApiService {
         is_active: boolean;
       }>;
     }>('/stores/for-assignment');
-    return response;
+    return (response as any).data;
   }
 
   // Notification API methods
