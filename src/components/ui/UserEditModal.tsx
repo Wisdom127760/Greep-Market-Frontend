@@ -83,12 +83,15 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
 
   const loadStores = async () => {
     try {
-      console.log('Loading stores for assignment...');
+      console.log('🔄 Loading stores for assignment...');
       const response = await apiService.getStoresForAssignment();
-      console.log('Stores loaded:', response);
+      console.log('✅ Stores API response:', response);
+      console.log('📊 Stores data:', response.data);
+      console.log('📊 Stores array length:', response.data?.length || 0);
       setStores(response.data || []);
+      console.log('🎯 Stores state set to:', response.data || []);
     } catch (error) {
-      console.error('Failed to load stores:', error);
+      console.error('❌ Failed to load stores:', error);
       toast.error('Failed to load stores for assignment');
     }
   };
@@ -248,6 +251,10 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
                 <Building2 className="h-4 w-4 inline mr-1" />
                 Store Assignment
               </label>
+              {/* Debug info */}
+              <div className="text-xs text-gray-400 mb-1">
+                Debug: {stores.length} stores loaded
+              </div>
               <select
                 value={formData.store_id}
                 onChange={(e) => handleInputChange('store_id', e.target.value)}
