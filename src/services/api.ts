@@ -1146,6 +1146,28 @@ class ApiService {
     return (response as any).data;
   }
 
+  // Get stores for assignment (for user management)
+  async getStoresForAssignment(): Promise<{
+    success: boolean;
+    data: Array<{
+      id: string;
+      name: string;
+      address: string;
+      is_active: boolean;
+    }>;
+  }> {
+    const response = await this.privateRequest<{
+      success: boolean;
+      data: Array<{
+        id: string;
+        name: string;
+        address: string;
+        is_active: boolean;
+      }>;
+    }>('/stores/for-assignment');
+    return response;
+  }
+
   // Notification API methods
   async getNotifications(params?: {
     limit?: number;

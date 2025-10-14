@@ -83,18 +83,13 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
 
   const loadStores = async () => {
     try {
-      const response = await fetch('/api/v1/stores/for-assignment', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setStores(data.data || []);
-      }
+      console.log('Loading stores for assignment...');
+      const response = await apiService.getStoresForAssignment();
+      console.log('Stores loaded:', response);
+      setStores(response.data || []);
     } catch (error) {
       console.error('Failed to load stores:', error);
+      toast.error('Failed to load stores for assignment');
     }
   };
 
