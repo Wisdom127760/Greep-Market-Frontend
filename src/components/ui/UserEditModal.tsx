@@ -87,9 +87,9 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
       const response = await apiService.getStoresForAssignment();
       console.log('✅ Stores API response:', response);
       console.log('📊 Stores data:', response.data);
-      console.log('📊 Stores array length:', response.data?.length || 0);
-      setStores(response.data || []);
-      console.log('🎯 Stores state set to:', response.data || []);
+      console.log('📊 Stores array length:', response.data?.data?.length || 0);
+      setStores(response.data?.data || []);
+      console.log('🎯 Stores state set to:', response.data?.data || []);
     } catch (error) {
       console.error('❌ Failed to load stores:', error);
       toast.error('Failed to load stores for assignment');
