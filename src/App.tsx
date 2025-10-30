@@ -177,7 +177,7 @@ function App() {
             <Toaster
               position="top-right"
               toastOptions={{
-                duration: 3000,
+                duration: 2000,
                 style: {
                   background: '#363636',
                   color: '#fff',
@@ -189,9 +189,11 @@ function App() {
                   },
                 },
                 error: {
+                  duration: 1000, // Shorter duration for errors
                   style: {
-                    background: '#ef4444',
+                    background: '#6b7280', // Less alarming gray color
                     color: '#fff',
+                    opacity: 0.8, // Make it less prominent
                   },
                 },
               }}

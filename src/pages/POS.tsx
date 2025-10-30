@@ -18,6 +18,7 @@ import { useGoals } from '../context/GoalContext';
 import { useNotifications } from '../context/NotificationContext';
 import { TransactionItem } from '../types';
 import { usePageRefresh } from '../hooks/usePageRefresh';
+import Receipt from '../components/ui/Receipt';
 
 export const POS: React.FC = () => {
   const { products, addTransaction, updateInventory, loadAllProducts, updateProduct } = useApp();
@@ -90,6 +91,9 @@ export const POS: React.FC = () => {
   const [restockQuantity, setRestockQuantity] = useState('');
   const [restockContext, setRestockContext] = useState<'addToCart' | 'updateQty' | 'checkout' | null>(null);
   const cartLoadedRef = useRef(false);
+  const [receiptTransaction, setReceiptTransaction] = useState<any | null>(null);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const receiptRef = useRef<HTMLDivElement>(null);
 
   // Cart persistence functions
   const CART_STORAGE_KEY = 'pos_cart_items';
@@ -386,11 +390,15 @@ export const POS: React.FC = () => {
       const transaction = {
         store_id: storeId,
         cashier_id: user.id,
-        items: cartItems.map(item => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-        })),
+        items: cartItems.map(item => {
+          const product = products?.find(p => p._id === item.product_id);
+          return {
+            product_id: item.product_id,
+            product_name: product?.name || item.product_id,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+          };
+        }),
         discount_amount: parseFloat(discount) || 0,
         payment_method: primaryPaymentMethod.type, // Keep for backward compatibility
         payment_methods: paymentData.payment_methods, // Save ALL payment methods
@@ -412,7 +420,6 @@ export const POS: React.FC = () => {
       await Promise.all([
         addTransaction(transaction),
         updateGoalProgress(),
-        // Update inventory for all sold items
         ...cartItems.map(async (item) => {
           if (products && Array.isArray(products)) {
             const product = products.find(p => p._id === item.product_id);
@@ -423,15 +430,23 @@ export const POS: React.FC = () => {
         })
       ]);
 
-      // Trigger notification refresh to get new milestone notifications
+      setReceiptTransaction({
+        ...transaction,
+        // Patch in subtotal, total_amount if available (may come from cart calculations)
+        subtotal: cartTotal,
+        total_amount: finalTotal,
+        created_at: new Date(), // for display
+      });
+      setIsReceiptModalOpen(true);
+
       setTimeout(() => {
         refreshNotifications();
-      }, 2000); // Wait 2 seconds for backend to process
+      }, 2000);
 
-      // Clear cart and close modal
-      clearCart();
+      // Clear cart and close modal (not before showing receipt)
+      clearCart();  // optionally consider deferring clear until receipt close
       setIsPaymentModalOpen(false);
-      setDiscount('');
+      setIsProcessingPayment(false);
 
       const paymentMethodsText = paymentData.payment_methods.map(pm => 
         `${pm.type.charAt(0).toUpperCase() + pm.type.slice(1)}: ₺${pm.amount.toFixed(2)}`
@@ -707,6 +722,20 @@ export const POS: React.FC = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Receipt Modal */}
+      <Modal
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        title="Sales Receipt"
+        size="md"
+      >
+        <Receipt
+          ref={receiptRef}
+          transaction={receiptTransaction}
+          onClose={() => setIsReceiptModalOpen(false)}
+        />
       </Modal>
     </div>
   );

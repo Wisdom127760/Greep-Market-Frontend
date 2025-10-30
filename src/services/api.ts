@@ -212,10 +212,10 @@ class ApiService {
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           console.error('Request timed out after 10 seconds');
-          throw new Error('Request timed out. Please check your connection and try again.');
+          throw new Error('Request timeout. Please try again.');
         } else if (error.message.includes('Failed to fetch')) {
           console.error('Network error - server might be down');
-          throw new Error('Unable to connect to server. Please check if the backend is running.');
+          throw new Error('Connection issue. Please try again.');
         } else if (error.message.includes('Authentication token is invalid or expired')) {
           console.error('Token validation failed before request');
           // Token expiration callback will be triggered by clearTokens()

@@ -698,7 +698,7 @@ export const SalesHistory: React.FC = () => {
             </div>
           </div>
         )}
-
+        
         {/* Enhanced Header */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -771,7 +771,7 @@ export const SalesHistory: React.FC = () => {
                 debounceMs={300}
                 showBarcodeButton={false}
               />
-            </div>
+              </div>
             <Button
               variant="outline"
               onClick={() => setShowTransactionIds(!showTransactionIds)}
@@ -780,8 +780,8 @@ export const SalesHistory: React.FC = () => {
               {showTransactionIds ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               <span>{showTransactionIds ? 'Hide IDs' : 'Show IDs'}</span>
             </Button>
-          </div>
-        </div>
+              </div>
+            </div>
 
         {/* Enhanced Filters */}
         {showFilters && (
@@ -918,7 +918,7 @@ export const SalesHistory: React.FC = () => {
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Revenue</p>
                 <p className="text-3xl font-bold text-gray-900 dark:text-white">₺{summaryStats.totalRevenue.toLocaleString()}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">From {summaryStats.totalTransactions} transactions</p>
-              </div>
+            </div>
               <div className="p-4 bg-gradient-to-r from-green-500 to-green-600 rounded-xl">
                 <DollarSign className="h-7 w-7 text-white" />
               </div>

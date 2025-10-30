@@ -65,11 +65,31 @@ export function getYesterdayRange(): DateRange {
  * Create a date range for "this month" in the app timezone
  */
 export function getThisMonthRange(): DateRange {
-  const now = getCurrentDateTime();
+  // Use system date directly to avoid timezone conversion issues
+  const now = new Date();
+  
+  // Create dates in the app timezone to avoid timezone conversion issues
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  
+  // Start of month: first day at 00:00:00
+  const start = new Date(year, month, 1, 0, 0, 0, 0);
+  
+  // End of month: last day at 23:59:59
+  const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  
+  console.log('🔍 getThisMonthRange calculated:', {
+    year,
+    month,
+    start: start.toISOString(),
+    end: end.toISOString(),
+    startLocal: start.toLocaleDateString(),
+    endLocal: end.toLocaleDateString()
+  });
   
   return {
-    start: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
-    end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+    start,
+    end
   };
 }
 

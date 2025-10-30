@@ -210,8 +210,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     } catch (error) {
       console.error('Failed to load products:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to load products';
-      toast.error(errorMessage);
+      // Silent error handling - no user notification
     }
   }, [isAuthenticated, user]);
 
@@ -232,7 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_TRANSACTIONS', payload: response.transactions });
     } catch (error) {
       console.error('Failed to load transactions:', error);
-      toast.error('Failed to load transactions');
+      // Silent error handling - no user notification
     }
   };
 
@@ -246,7 +245,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_INVENTORY_ALERTS', payload: alerts });
     } catch (error) {
       console.error('Failed to load inventory alerts:', error);
-      toast.error('Failed to load inventory alerts');
+      // Silent error handling - no user notification
     }
   };
 
@@ -311,7 +310,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return await apiService.getProductPriceHistory(productId);
     } catch (error) {
       console.error('Failed to get product price history:', error);
-      toast.error('Failed to load price history');
+      // Silent error handling - no user notification
       throw error;
     }
   };
@@ -480,7 +479,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_DASHBOARD_METRICS', payload: metrics });
     } catch (error) {
       console.error('Failed to refresh dashboard:', error);
-      toast.error('Failed to refresh dashboard');
+      // Silent error handling - no user notification
     }
   }, [isAuthenticated, user?.store_id, user?.id]);
 

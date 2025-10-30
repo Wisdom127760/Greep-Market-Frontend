@@ -74,6 +74,21 @@ export const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { dailyProgress, monthlyProgress, updateGoalProgress } = useGoals();
   const { isDark } = useTheme();
+  // Suppress verbose debug logs from this component to keep console clean
+  useEffect(() => {
+    const originalLog = console.log;
+    const suppressedPrefixes = ['🔍', '⚠️', '🔄'];
+    // Wrap console.log to filter noisy dashboard logs
+    console.log = (...args: any[]) => {
+      if (typeof args[0] === 'string' && suppressedPrefixes.some((p) => args[0].startsWith(p))) {
+        return; // drop verbose dashboard debug lines
+      }
+      originalLog.apply(console, args as any);
+    };
+    return () => {
+      console.log = originalLog;
+    };
+  }, []);
   
   // Tooltip styles based on theme
   const getTooltipStyles = () => ({
@@ -111,7 +126,7 @@ export const Dashboard: React.FC = () => {
   
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
-  const [dateRange, setDateRange] = useState<'today' | 'this_month' | 'custom'>('today');
+  const [dateRange, setDateRange] = useState<'today' | 'this_month' | 'custom'>('today'); // Default to today as requested
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
@@ -360,6 +375,8 @@ export const Dashboard: React.FC = () => {
       let filterParams: any = {};
       // Expense dates no longer needed - handled by dashboard metrics API
       
+      console.log('🔍 Calculating filter parameters for dateRange:', dateRange);
+      
       switch (dateRange) {
         case 'today':
           // Use system timezone to ensure correct "today" calculation
@@ -369,15 +386,20 @@ export const Dashboard: React.FC = () => {
             startDate: todayRange.start.toISOString(), // Full ISO timestamp for start of day
             endDate: todayRange.end.toISOString() // Full ISO timestamp for end of day
           };
+          console.log('🔍 Today filter params:', filterParams);
           break;
         case 'this_month':
-          // Use system timezone for month boundaries
-          const monthRange = getThisMonthRange();
+          // Use simple date strings for the current month
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = now.getMonth() + 1; // getMonth() returns 0-11, so add 1
+          
           filterParams = {
             dateRange: 'this_month',
-            startDate: monthRange.start.toISOString(), // Full ISO timestamp for start of month
-            endDate: monthRange.end.toISOString() // Full ISO timestamp for end of month
+            startDate: `${year}-${month.toString().padStart(2, '0')}-01`, // YYYY-MM-01 format
+            endDate: `${year}-${month.toString().padStart(2, '0')}-31` // YYYY-MM-31 format
           };
+          console.log('🔍 This month filter params (simple format):', filterParams);
           break;
         case 'custom':
           if (customStartDate && customEndDate) {
@@ -412,7 +434,10 @@ export const Dashboard: React.FC = () => {
           customStartDate,
           customEndDate,
           todayDate: new Date().toISOString().split('T')[0],
-          apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&dateRange=${filterParams.dateRange}&startDate=${startDate}&endDate=${endDate}`
+          startDate,
+          endDate,
+          apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&dateRange=${filterParams.dateRange}&startDate=${startDate}&endDate=${endDate}`,
+          monthRange: dateRange === 'this_month' ? getThisMonthRange() : null
         });
 
         const metrics = await apiService.getDashboardAnalytics({
@@ -423,9 +448,24 @@ export const Dashboard: React.FC = () => {
           endDate: endDate,
         });
 
+        console.log('🔍 API Response for this_month filter:', {
+          dateRange,
+          startDate,
+          endDate,
+          totalSales: metrics?.totalSales,
+          totalExpenses: metrics?.totalExpenses,
+          totalTransactions: metrics?.totalTransactions,
+          monthlySales: metrics?.monthlySales,
+          monthlyExpenses: metrics?.monthlyExpenses,
+          hasSalesByMonth: !!metrics?.salesByMonth,
+          salesByMonthLength: metrics?.salesByMonth?.length,
+          hasTopProducts: !!metrics?.topProducts,
+          topProductsLength: metrics?.topProducts?.length
+        });
+
         // Check if expenses are missing and fetch them separately if needed
         let finalMetrics = { ...metrics };
-        if (metrics && (metrics.totalExpenses === undefined || metrics.totalExpenses === null || metrics.totalExpenses === 0)) {
+        if (metrics && (metrics.totalExpenses === undefined || metrics.totalExpenses === null)) {
           console.log('🔍 Expenses missing from dashboard metrics, fetching separately...', {
             dateRange,
             startDate,
@@ -463,6 +503,25 @@ export const Dashboard: React.FC = () => {
           }
         }
 
+        // Additional check: If dateRange is 'today', ensure we only show today's actual expenses
+        if (dateRange === 'today') {
+          console.log('🔍 Today filter active, checking if expenses are actually from today...', {
+            totalExpenses: finalMetrics.totalExpenses,
+            expensesVsYesterday: finalMetrics.expensesVsYesterday,
+            isShowingYesterdayData: finalMetrics.expensesVsYesterday === -100
+          });
+          
+          // If the comparison shows -100% vs yesterday, it means today's expenses are 0
+          // but we might be showing yesterday's data as totalExpenses
+          if (finalMetrics.expensesVsYesterday === -100 && finalMetrics.totalExpenses > 0) {
+            console.log('🔍 Detected yesterday data being shown as today total, correcting to 0');
+            finalMetrics = {
+              ...finalMetrics,
+              totalExpenses: 0
+            };
+          }
+        }
+
         setLocalDashboardMetrics(finalMetrics);
         console.log('🔍 Dashboard Metrics Debug (Unified):', {
           totalExpenses: finalMetrics?.totalExpenses,
@@ -494,7 +553,14 @@ export const Dashboard: React.FC = () => {
             hasExpenseData: metrics?.totalExpenses !== undefined && metrics?.totalExpenses !== null,
             expenseType: typeof metrics?.totalExpenses,
             customStartDate,
-            customEndDate
+            customEndDate,
+            // Additional debugging for the fallback issue
+            isUsingFallback: finalMetrics !== metrics,
+            originalTotalExpenses: metrics?.totalExpenses,
+            finalTotalExpenses: finalMetrics?.totalExpenses,
+            dateRangeFilter: dateRange,
+            startDateFilter: startDate,
+            endDateFilter: endDate
           }
         });
 
@@ -523,6 +589,7 @@ export const Dashboard: React.FC = () => {
 
       // Mark initial load as complete
       if (isInitialLoad) {
+        console.log('🔍 Setting isInitialLoad to false');
         setIsInitialLoad(false);
       }
 
@@ -562,10 +629,28 @@ export const Dashboard: React.FC = () => {
   // Filter changes trigger unified refresh with debounce
   // Remove unifiedRefresh from dependencies to prevent infinite loop
   useEffect(() => {
+    console.log('🔍 Filter useEffect triggered:', {
+      dateRange,
+      customStartDate,
+      customEndDate,
+      isInitialLoad
+    });
+    
     // Skip initial load to prevent duplicate calls
-    if (isInitialLoad) return;
+    if (isInitialLoad) {
+      console.log('🔍 Skipping filter change - still in initial load');
+      return;
+    }
+    
+    console.log('🔍 Filter change detected, scheduling refresh:', {
+      dateRange,
+      customStartDate,
+      customEndDate,
+      isInitialLoad
+    });
     
     const timeoutId = setTimeout(() => {
+      console.log('🔍 Triggering unified refresh due to filter change');
       unifiedRefresh();
     }, 500); // 500ms debounce to prevent API spam
 
@@ -577,14 +662,28 @@ export const Dashboard: React.FC = () => {
   // Use local dashboard metrics when available, otherwise use smart metrics
   const currentDashboardMetrics = localDashboardMetrics || dashboardMetrics;
   
-  // Debug: Log dashboard metrics to see payment method data
-  console.log('🔍 Dashboard - Current Metrics:', {
-    hasLocalMetrics: !!localDashboardMetrics,
-    hasDashboardMetrics: !!dashboardMetrics,
-    paymentMethods: currentDashboardMetrics?.paymentMethods,
-    totalSales: currentDashboardMetrics?.totalSales,
-    metricsKeys: currentDashboardMetrics ? Object.keys(currentDashboardMetrics) : []
-  });
+  // Debug: Log metrics only when the signature actually changes to avoid spam
+  const lastMetricsSignatureRef = useRef<string>('');
+  useEffect(() => {
+    const signature = JSON.stringify({
+      hasLocal: !!localDashboardMetrics,
+      hasRemote: !!dashboardMetrics,
+      totalSales: currentDashboardMetrics?.totalSales ?? null,
+      totalExpenses: currentDashboardMetrics?.totalExpenses ?? null,
+      keys: currentDashboardMetrics ? Object.keys(currentDashboardMetrics) : []
+    });
+
+    if (signature !== lastMetricsSignatureRef.current) {
+      lastMetricsSignatureRef.current = signature;
+      console.log('🔍 Dashboard - Current Metrics:', {
+        hasLocalMetrics: !!localDashboardMetrics,
+        hasDashboardMetrics: !!dashboardMetrics,
+        paymentMethods: currentDashboardMetrics?.paymentMethods,
+        totalSales: currentDashboardMetrics?.totalSales,
+        metricsKeys: currentDashboardMetrics ? Object.keys(currentDashboardMetrics) : []
+      });
+    }
+  }, [localDashboardMetrics, dashboardMetrics, currentDashboardMetrics?.totalSales, currentDashboardMetrics?.totalExpenses]);
 
   // Debug timezone information
   useEffect(() => {
@@ -596,6 +695,17 @@ export const Dashboard: React.FC = () => {
 
   // Fetch expense data when filters change
   useEffect(() => {
+    // Prefer backend-provided series if available
+    const seriesFromMetrics = (currentDashboardMetrics as any)?.expensesByPeriod;
+    if (Array.isArray(seriesFromMetrics) && seriesFromMetrics.length > 0) {
+      const mapped = seriesFromMetrics.map((item: any) => ({
+        day: formatChartDate(item.period, 'daily'), // Convert to same format as sales data
+        expenses: item.amount || 0
+      }));
+      setExpenseData(mapped);
+      return; // Skip fallback fetch when series is provided
+    }
+
     const fetchExpenseData = async () => {
       if (!user?.store_id) return;
 
@@ -615,6 +725,7 @@ export const Dashboard: React.FC = () => {
               break;
             case 'this_month':
             default:
+              // For this_month, use the actual month range
               const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
               startDate = monthStart.toISOString().split('T')[0];
               endDate = now.toISOString().split('T')[0];
@@ -622,6 +733,15 @@ export const Dashboard: React.FC = () => {
           }
         }
 
+        console.log('🔍 Fetching expense data for chart (fallback, no series in metrics):', {
+          store_id: user.store_id,
+          startDate,
+          endDate,
+          dateRange,
+          note: 'Fetching expenses with date filtering to match current date range'
+        });
+
+        // Fetch expenses with date filtering to match the current date range
         const expensesResponse = await apiService.getExpenses({
           store_id: user.store_id,
           start_date: startDate,
@@ -629,7 +749,19 @@ export const Dashboard: React.FC = () => {
           limit: 1000
         });
 
+        console.log('🔍 Expense API Response:', {
+          totalExpenses: expensesResponse.expenses.length,
+          expenses: expensesResponse.expenses,
+          sampleExpense: expensesResponse.expenses[0]
+        });
+
         // Group expenses by day
+        console.log('🔍 Processing expenses for chart:', {
+          totalExpenses: expensesResponse.expenses.length,
+          expenseDates: expensesResponse.expenses.map(e => e.date).slice(0, 5), // Show first 5 dates
+          expenseAmounts: expensesResponse.expenses.map(e => e.amount).slice(0, 5) // Show first 5 amounts
+        });
+
         const dailyExpenses = expensesResponse.expenses.reduce((acc: any, expense: any) => {
           const expenseDate = new Date(expense.date);
           const dayKey = `${expenseDate.getFullYear()}-${String(expenseDate.getMonth() + 1).padStart(2, '0')}-${String(expenseDate.getDate()).padStart(2, '0')}`;
@@ -642,7 +774,18 @@ export const Dashboard: React.FC = () => {
           return acc;
         }, {} as Record<string, { day: string; expenses: number }>);
 
-        setExpenseData(Object.values(dailyExpenses));
+        // Convert expense data to use the same date format as sales data
+        const finalExpenseData = (Object.values(dailyExpenses) as { day: string; expenses: number }[]).map(expenseItem => ({
+          day: formatChartDate(expenseItem.day, 'daily'),
+          expenses: expenseItem.expenses
+        }));
+        console.log('🔍 Final expense data for chart:', {
+          dailyExpenses,
+          finalExpenseData,
+          totalDays: finalExpenseData.length
+        });
+
+        setExpenseData(finalExpenseData);
       } catch (error) {
         console.error('Failed to fetch expense data for chart:', error);
         setExpenseData([]);
@@ -650,7 +793,7 @@ export const Dashboard: React.FC = () => {
     };
 
     fetchExpenseData();
-  }, [user?.store_id, dateRange, customStartDate, customEndDate]);
+  }, [user?.store_id, dateRange, customStartDate, customEndDate, (currentDashboardMetrics as any)?.expensesByPeriod]);
 
   // Use filtered sales data for charts when filters are applied, otherwise use API data
   const salesData = useMemo(() => {
@@ -664,6 +807,7 @@ export const Dashboard: React.FC = () => {
           rawData = currentDashboardMetrics.salesByMonth.map((item: any) => ({
             day: item.month,
             sales: item.sales,
+            expenses: item.expenses ?? 0,
             created_at: item.month
           }));
         }
@@ -693,6 +837,7 @@ export const Dashboard: React.FC = () => {
         rawData = currentDashboardMetrics.salesByMonth.map((item: any) => ({
           day: item.month,
           sales: item.sales,
+          expenses: item.expenses ?? 0,
           created_at: item.month
         }));
       }
@@ -728,14 +873,29 @@ export const Dashboard: React.FC = () => {
     const aggregatedData = aggregateDataByPeriod(rawData, finalPeriod);
 
     // Merge with expense data
+    console.log('🔍 Merging sales and expense data:', {
+      aggregatedData: aggregatedData.slice(0, 3), // Show first 3 items
+      expenseData: expenseData.slice(0, 3), // Show first 3 items
+      salesDataLength: aggregatedData.length,
+      expenseDataLength: expenseData.length
+    });
+
     const mergedData = aggregatedData.map(salesItem => {
       // Find matching expense data for the same day
       const matchingExpense = expenseData.find(expenseItem => expenseItem.day === salesItem.day);
-      return {
+      const result = {
         ...salesItem,
-        expenses: matchingExpense ? matchingExpense.expenses : 0
+        expenses: (salesItem as any).expenses ?? (matchingExpense ? matchingExpense.expenses : 0)
       };
+      
+      if (matchingExpense) {
+        console.log('🔍 Found matching expense for', salesItem.day, ':', matchingExpense);
+      }
+      
+      return result;
     });
+
+    console.log('🔍 Merged data sample:', mergedData.slice(0, 5));
 
     // If we have expense data for days not in sales data, add them
     expenseData.forEach(expenseItem => {
@@ -898,9 +1058,19 @@ export const Dashboard: React.FC = () => {
     // We'll compute from sales if available; otherwise fallback entirely to API metrics
     if (!sales || sales.length === 0) {
       if (currentDashboardMetrics?.paymentMethods && Object.keys(currentDashboardMetrics.paymentMethods).length > 0) {
-        const pm = currentDashboardMetrics.paymentMethods as Record<string, number>;
-        const totalAmount = Object.values(pm).reduce((s, a) => s + (a || 0), 0);
-        return Object.entries(pm).map(([method, amount]) => ({
+        // Normalize backend keys into unified buckets (pos, transfer, cash, crypto)
+        const raw = currentDashboardMetrics.paymentMethods as Record<string, number>;
+        const normalized: Record<string, number> = {};
+        for (const [apiKey, amt] of Object.entries(raw)) {
+          let key = apiKey.toLowerCase();
+          if (key === 'pos_isbank_transfer' || key === 'card') key = 'pos';
+          if (key === 'naira_transfer' || key === 'transfer') key = 'transfer';
+          if (key === 'crypto_payment') key = 'crypto';
+          if (key === 'cash_on_delivery') key = 'cash';
+          normalized[key] = (normalized[key] || 0) + (amt || 0);
+        }
+        const totalAmount = Object.values(normalized).reduce((s, a) => s + (a || 0), 0);
+        return Object.entries(normalized).map(([method, amount]) => ({
           name: method.charAt(0).toUpperCase() + method.slice(1),
           value: amount || 0,
           percentage: totalAmount > 0 ? (((amount || 0) / totalAmount) * 100).toFixed(1) : '0.0',
@@ -1344,16 +1514,43 @@ export const Dashboard: React.FC = () => {
 
   if (loading || isInitialLoad) {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900 p-4 pb-24 transition-colors duration-300">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 transition-colors duration-300">
-            <div className="text-center">
-            <h1 className="text-xl font-semibold text-gray-800 dark:text-white mb-1">Dashboard</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Welcome to {app.name} Management System</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-green-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 pb-24">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Header */}
+          <div className="relative overflow-hidden bg-gradient-to-r from-white via-white to-green-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-700 rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-r from-green-600/5 to-green-700/5 dark:from-green-400/5 dark:to-green-500/5"></div>
+            <div className="relative text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-green-700 rounded-2xl mb-4 shadow-lg">
+                <Activity className="h-8 w-8 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-2">
+                Dashboard
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                Welcome to {app.name} Management System
+              </p>
             </div>
-            <div className="flex items-center justify-center py-8">
-              <LoadingSpinner size="lg" className="mr-3" />
-              <span className="text-gray-500 dark:text-gray-400">Loading dashboard data...</span>
+          </div>
+
+          {/* Loading State */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="group relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/50 p-6 transition-all duration-300">
+                <div className="animate-pulse">
+                  <div className="w-14 h-14 bg-gray-200 dark:bg-gray-700 rounded-2xl mb-4"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Loading Chart */}
+          <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300">
+            <div className="animate-pulse">
+              <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
+              <div className="h-80 bg-gray-200 dark:bg-gray-700 rounded"></div>
             </div>
           </div>
         </div>
