@@ -18,7 +18,8 @@ import {
   ArrowDown,
   Edit,
   Trash2,
-  Coins
+  Coins,
+  Receipt
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
@@ -64,6 +65,7 @@ export const SalesHistory: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [showFilters, setShowFilters] = useState(false);
+  const [receiptModal, setReceiptModal] = useState<{ open: boolean, transaction: Transaction | null }>({ open: false, transaction: null });
 
   // Auto-show filters if any filters are active
   useEffect(() => {
@@ -669,6 +671,75 @@ export const SalesHistory: React.FC = () => {
     );
   }
 
+  // Utility: group sales by transaction
+  function groupSalesByTransaction(sales: Transaction[]) {
+    return sales;
+  }
+
+  // Modal definition (with type safety)
+  function ReceiptModalInline({ open, onClose, transaction }: { open: boolean, onClose: () => void, transaction: Transaction | null }) {
+    if (!open || !transaction) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 text-gray-400 hover:text-red-500"
+            title="Close receipt modal"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <h2 className="flex items-center gap-2 mb-2 font-bold text-xl">
+            <Receipt className="text-blue-500" /> Transaction Receipt
+          </h2>
+          <div className="text-xs text-gray-400 mb-1">
+            {new Date(transaction.created_at).toLocaleString()}
+          </div>
+          <div className="text-xs text-gray-400 mb-3">
+            Transaction ID: <span className="font-mono">{transaction._id?.slice(-8) || 'N/A'}</span>
+          </div>
+          <div className="divide-y">
+            {transaction.items.map((item, idx) => (
+              <div className="flex justify-between py-2" key={item._id || idx}>
+                <span className="font-medium">{item.product_name}</span>
+                <span>{item.quantity} × ₺{item.unit_price.toLocaleString()}</span>
+                <span className="font-bold text-green-700">₺{(item.unit_price * item.quantity).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+          <div className="font-bold mt-4 flex justify-between">
+            <span className="text-gray-700">Total:</span>
+            <span className="text-green-800 text-lg">₺{transaction.total_amount.toLocaleString()}</span>
+          </div>
+          {transaction.payment_methods && transaction.payment_methods.length > 0 && (
+            <div className="mt-2 text-xs">
+              Payment: {transaction.payment_methods.map((pm) => `${pm.type}: ₺${pm.amount.toLocaleString()}`).join(', ')}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Payment method badge util
+  function PaymentBadge({ method }: { method: string }) {
+    const colorMap: Record<string, string> = {
+      cash: 'bg-green-100 text-green-800',
+      pos_isbank_transfer: 'bg-blue-100 text-blue-800',
+      naira_transfer: 'bg-purple-100 text-purple-800',
+      crypto_payment: 'bg-orange-100 text-orange-800',
+      card: 'bg-pink-100 text-pink-700',
+    };
+    const labelMap: Record<string, string> = {
+      cash: 'Cash',
+      pos_isbank_transfer: 'POS',
+      naira_transfer: 'Transfer',
+      crypto_payment: 'Crypto',
+      card: 'Card',
+    };
+    return <span className={`${colorMap[method] || 'bg-gray-100 text-gray-700'} inline-flex items-center px-2 py-0.5 rounded text-xs font-bold mr-2`}>{labelMap[method] || method}</span>;
+  }
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -1066,244 +1137,76 @@ export const SalesHistory: React.FC = () => {
         {filteredProducts.length > 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
             {viewMode === 'list' ? (
-              /* Enhanced Excel-like Table View */
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b-2 border-gray-300 dark:border-gray-600">
-                    <tr>
-                      <th 
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
-                        onClick={() => handleSort('productName')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Product Name</span>
-                          {sortField === 'productName' ? (
-                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-50" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
-                        onClick={() => handleSort('category')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Category</span>
-                          {sortField === 'category' ? (
-                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-50" />
-                          )}
-                        </div>
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-200 dark:border-gray-600">
-                        Tags
-                      </th>
-                      <th 
-                        className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
-                        onClick={() => handleSort('quantitySold')}
-                      >
-                        <div className="flex items-center justify-end space-x-1">
-                          <span>Quantity</span>
-                          {sortField === 'quantitySold' ? (
-                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-50" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
-                        onClick={() => handleSort('unitPrice')}
-                      >
-                        <div className="flex items-center justify-end space-x-1">
-                          <span>Unit Price</span>
-                          {sortField === 'unitPrice' ? (
-                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-50" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
-                        onClick={() => handleSort('totalRevenue')}
-                      >
-                        <div className="flex items-center justify-end space-x-1">
-                          <span>Total Revenue</span>
-                          {sortField === 'totalRevenue' ? (
-                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-50" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
-                        onClick={() => handleSort('saleDate')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Sale Date</span>
-                          {sortField === 'saleDate' ? (
-                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-50" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
-                        onClick={() => handleSort('paymentMethod')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Payment Method</span>
-                          {sortField === 'paymentMethod' ? (
-                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-50" />
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 border-r border-gray-200 dark:border-gray-600"
-                        onClick={() => handleSort('orderSource')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Order Source</span>
-                          {sortField === 'orderSource' ? (
-                            sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-50" />
-                          )}
-                        </div>
-                      </th>
-                      {showTransactionIds && (
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                          Transaction ID
-                        </th>
-                      )}
-                      {isAdmin && (
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800">
-                    {filteredProducts.map((item, index) => (
-                      <tr 
-                        key={`${item.transactionId}-${item.productId}-${index}`} 
-                        className={`hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150 border-b border-gray-200 dark:border-gray-700 ${
-                          index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-800/50'
-                        }`}
-                      >
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
-                          <div className="max-w-xs truncate" title={item.productName}>
-                            {item.productName}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm border-r border-gray-200 dark:border-gray-700">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
-                            {item.category}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm border-r border-gray-200 dark:border-gray-700">
-                          <div className="flex flex-wrap gap-1 max-w-xs">
-                            {item.tags.slice(0, 2).map(tag => (
-                              <span key={tag} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                                {tag}
-                              </span>
+              <div>
+                {sales.map((transaction) => {
+                  const items = transaction.items || [];
+                  const isMulti = items.length > 1;
+                  const itemSpacing = 72;
+                  const primaryPayment = transaction.payment_methods?.[0]?.type || transaction.payment_method || 'cash';
+                  const dateStr = new Date(transaction.created_at).toLocaleDateString('en-US', {year: 'numeric', month:'short', day:'2-digit'});
+                  const timeStr = new Date(transaction.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+                  return (
+                    <div
+                      className="mb-10 relative group cursor-pointer transition-all lg:hover:bg-green-50/40 rounded-2xl p-2"
+                      key={transaction._id}
+                      onClick={() => setReceiptModal({ open: true, transaction })}
+                      tabIndex={0}
+                    >
+                      {/* Connector SVG for multi-product */}
+                      {isMulti && (
+                        <div className="absolute top-7 left-0 h-full w-10 z-0 pointer-events-none">
+                          <svg width={24} height={items.length * itemSpacing + 70} className="h-full">
+                            <circle cx={10} cy={12} r={5} fill="#10b981" />
+                            <line
+                              x1={10}
+                              y1={12}
+                              x2={10}
+                              y2={itemSpacing * items.length + 15}
+                              stroke="#10b981"
+                              strokeWidth={2}
+                              opacity={0.32}
+                            />
+                            {items.map((_, idx) => (
+                              <line
+                                key={idx}
+                                x1={10}
+                                y1={itemSpacing * idx + 36}
+                                x2={36}
+                                y2={itemSpacing * idx + 36}
+                                stroke="#10b981"
+                                strokeWidth={2}
+                                opacity={0.32}
+                              />
                             ))}
-                            {item.tags.length > 2 && (
-                              <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                                +{item.tags.length - 2}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white text-right border-r border-gray-200 dark:border-gray-700">
-                          {item.quantitySold}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right border-r border-gray-200 dark:border-gray-700">
-                          ₺{item.unitPrice.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-bold text-green-600 dark:text-green-400 text-right border-r border-gray-200 dark:border-gray-700">
-                          ₺{item.totalRevenue.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
-                          {item.saleDate.toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </td>
-                        <td className="px-4 py-3 text-sm border-r border-gray-200 dark:border-gray-700">
-                          <PaymentMethodsDisplay 
-                            paymentMethods={item.paymentMethods}
-                            compact={true}
-                            showAmounts={false}
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-sm border-r border-gray-200 dark:border-gray-700">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            item.orderSource === 'online' 
-                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' 
-                              : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                          }`}>
-                            {item.orderSource === 'online' ? 'Online' : 'In-Store'}
-                          </span>
-                        </td>
-                        {showTransactionIds && (
-                          <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-mono">
-                            #{item.transactionId.slice(-8)}
-                          </td>
-                        )}
-                        {isAdmin && (
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center space-x-2">
-                              <button
-                                onClick={() => {
-                                  const transaction = sales.find(t => t._id === item.transactionId);
-                                  if (transaction) {
-                                    handleEditTransaction(transaction);
-                                  }
-                                }}
-                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/20 rounded-md transition-colors duration-200"
-                                title="Edit Transaction"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteTransaction(item.transactionId)}
-                                disabled={deletingTransactionId === item.transactionId}
-                                className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Delete Transaction"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                          </svg>
+                        </div>
+                      )}
+                      {/* Group header */}
+                      <div className={`flex items-center mb-2 gap-4 pl-${isMulti ? '12' : '3'} `}>
+                        <div className="text-sm text-green-900 font-bold tracking-wide flex items-center">
+                          <Receipt className="w-5 h-5 mr-1 text-green-500" />
+                          {dateStr}
+                          <span className="ml-2 font-normal text-gray-500">{timeStr}</span>
+                        </div>
+                        <PaymentBadge method={primaryPayment} />
+                        <span className="text-xs text-gray-400 ml-auto font-mono">#{transaction._id?.slice(-8)}</span>
+                        <span className="ml-4 bg-green-100 text-green-700 font-bold text-base px-3 py-1 rounded-xl shadow-sm">₺{transaction.total_amount.toLocaleString()}</span>
+                      </div>
+                      {items.map((item, idx) => (
+                        <div className={`flex items-center mb-3 ${isMulti ? 'pl-12' : 'pl-4'}`} key={item._id || idx}>
+                          <div className="flex-1 bg-white rounded-xl shadow-md px-4 py-3 flex items-center justify-between border border-green-100 group-hover:border-green-400 transition-all duration-300">
+                            <div>
+                              <div className="font-semibold text-gray-800 mb-1">{item.product_name}</div>
+                              <div className="text-xs text-gray-400 ">{item.quantity} × ₺{item.unit_price.toLocaleString()}</div>
                             </div>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
-                    <tr>
-                      <td colSpan={showTransactionIds ? (isAdmin ? 11 : 10) : (isAdmin ? 10 : 9)} className="px-4 py-3">
-                        <div className="flex justify-between items-center text-sm font-semibold text-gray-700 dark:text-gray-300">
-                          <div className="flex items-center space-x-6">
-                            <span>Total Records: <span className="text-blue-600 dark:text-blue-400">{filteredProducts.length}</span></span>
-                            <span>Total Quantity: <span className="text-green-600 dark:text-green-400">{summaryStats.totalQuantity}</span></span>
-                          </div>
-                          <div className="flex items-center space-x-6">
-                            <span>Total Revenue: <span className="text-green-600 dark:text-green-400 font-bold">₺{summaryStats.totalRevenue.toLocaleString()}</span></span>
+                            <div className="text-green-700 font-bold text-lg">₺{(item.unit_price * item.quantity).toLocaleString()}</div>
                           </div>
                         </div>
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+                      ))}
+                    </div>
+                  );
+                })}
+                <ReceiptModalInline open={receiptModal.open} onClose={() => setReceiptModal({ open: false, transaction: null })} transaction={receiptModal.transaction} />
               </div>
             ) : (
               /* Grid View */
@@ -1420,6 +1323,7 @@ export const SalesHistory: React.FC = () => {
         transaction={editingTransaction}
         onSave={handleSaveTransaction}
       />
+      <ReceiptModalInline open={receiptModal.open} onClose={() => setReceiptModal({ open: false, transaction: null })} transaction={receiptModal.transaction} />
     </div>
   );
 };
