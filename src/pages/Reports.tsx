@@ -17,7 +17,6 @@ import { formatStockQuantity } from '../utils/formatUtils';
 import { Button } from '../components/ui/Button';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { PerformanceDashboard } from '../components/ui/PerformanceDashboard';
-import { ReportPeriodFilter } from '../components/ui/ReportPeriodFilter';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -405,10 +404,31 @@ export const Reports: React.FC = () => {
     const now = new Date();
     const data = [];
     
-    for (let i = 29; i >= 0; i--) {
+    // Limit to 20 data points for better chart visibility
+    const daysToShow = 20;
+    const step = Math.ceil(30 / daysToShow); // Sample every Nth day from last 30 days
+    const includedDays = new Set<string>(); // Track which days we've included
+    
+    // Always include today (day 0)
+    const todayDate = new Date(now);
+    const todayStr = todayDate.toISOString().split('T')[0];
+    includedDays.add(todayStr);
+    
+    // Sample days going back, ensuring we include today
+    for (let i = 29; i >= 0; i -= step) {
       const date = new Date(now);
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
+      
+      if (!includedDays.has(dateStr)) {
+        includedDays.add(dateStr);
+      }
+    }
+    
+    // Process all included days
+    const sortedDays = Array.from(includedDays).sort();
+    for (const dateStr of sortedDays) {
+      const date = new Date(dateStr + 'T00:00:00');
       
       const daySales = sales.filter(sale => {
         const saleDate = new Date(sale.created_at).toISOString().split('T')[0];
@@ -856,11 +876,6 @@ export const Reports: React.FC = () => {
           </div>
         </div>
 
-        {/* Enhanced Period Filter */}
-        <ReportPeriodFilter
-          selectedPeriod={selectedPeriod}
-          onPeriodChange={handlePeriodChange}
-        />
 
 
       {/* Performance Dashboard */}

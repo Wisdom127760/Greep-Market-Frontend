@@ -232,6 +232,11 @@ export const Expenses: React.FC = () => {
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Allow 0 value for expenses - explicitly check for null/undefined, not 0
+    if (newExpense.amount === null || newExpense.amount === undefined) {
+      toast.error('Please enter an amount');
+      return;
+    }
     try {
       await apiService.createExpense(newExpense);
       toast.success('Expense added successfully');

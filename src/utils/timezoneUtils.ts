@@ -153,6 +153,127 @@ export function isSameDay(date1: Date | string, date2: Date | string): boolean {
 }
 
 /**
+ * Standardize date to YYYY-MM-DD format for storage and comparison
+ * This is the canonical format used throughout the app for date matching
+ * IMPORTANT: Uses local timezone (Europe/Nicosia) to extract date components
+ */
+export function normalizeDateToYYYYMMDD(date: Date | string): string {
+  // Handle YYYY-MM-DD strings (already normalized)
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return date;
+  }
+  
+  // Parse the date - this creates a Date object from the input
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  
+  // Check if date is valid
+  if (isNaN(dateObj.getTime())) {
+    console.warn('⚠️ Invalid date in normalizeDateToYYYYMMDD:', date);
+    return typeof date === 'string' ? date : '';
+  }
+  
+  // Use timezone-aware date extraction to get local date components
+  // This ensures dates are grouped by the local day, not UTC day
+  const localDateStr = dateObj.toLocaleDateString('en-CA', { timeZone: DEFAULT_TIMEZONE });
+  
+  // en-CA format is YYYY-MM-DD, which is exactly what we need
+  if (/^\d{4}-\d{2}-\d{2}$/.test(localDateStr)) {
+    return localDateStr;
+  }
+  
+  // Fallback: extract components manually using timezone-aware methods
+  // Create a date formatter for the local timezone
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: DEFAULT_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  
+  const parts = formatter.formatToParts(dateObj);
+  const year = parts.find(p => p.type === 'year')?.value || '';
+  const month = parts.find(p => p.type === 'month')?.value || '';
+  const day = parts.find(p => p.type === 'day')?.value || '';
+  
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Format date for chart display (e.g., "Nov 13", "Oct 2023")
+ * This is for visual display only, not for matching/comparison
+ */
+export function formatDateForChart(date: Date | string, period: 'daily' | 'weekly' | 'monthly' = 'daily'): string {
+  let dateObj: Date;
+  
+  // Handle YYYY-MM format for monthly period
+  if (period === 'monthly' && typeof date === 'string' && /^\d{4}-\d{2}$/.test(date)) {
+    const [year, month] = date.split('-').map(Number);
+    dateObj = new Date(year, month - 1, 1); // Create date from YYYY-MM format
+  } else {
+    dateObj = typeof date === 'string' ? new Date(date) : date;
+  }
+  
+  // Ensure we have a valid date
+  if (isNaN(dateObj.getTime())) {
+    return typeof date === 'string' ? date : '';
+  }
+  
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  switch (period) {
+    case 'weekly':
+      const month = monthNames[dateObj.getMonth()];
+      const day = dateObj.getDate();
+      return `W${month} ${day}`;
+    case 'monthly':
+      return `${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+    default:
+      // Daily format: "Nov 13"
+      const dayMonth = monthNames[dateObj.getMonth()];
+      const dayNum = dateObj.getDate();
+      return `${dayMonth} ${dayNum}`;
+  }
+}
+
+/**
+ * Parse date from various formats and return normalized YYYY-MM-DD string
+ */
+export function parseAndNormalizeDate(dateInput: string | Date): string {
+  if (dateInput instanceof Date) {
+    return normalizeDateToYYYYMMDD(dateInput);
+  }
+  
+  // Handle ISO format
+  if (dateInput.includes('T')) {
+    return dateInput.split('T')[0];
+  }
+  
+  // Handle YYYY-MM-DD format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    return dateInput;
+  }
+  
+  // Try parsing as Date
+  const parsed = new Date(dateInput);
+  if (!isNaN(parsed.getTime())) {
+    return normalizeDateToYYYYMMDD(parsed);
+  }
+  
+  // Return as-is if can't parse
+  return dateInput;
+}
+
+/**
+ * Compare two dates to see if they're the same day (using normalized format)
+ */
+export function isSameDate(date1: Date | string, date2: Date | string): boolean {
+  const normalized1 = normalizeDateToYYYYMMDD(date1);
+  const normalized2 = normalizeDateToYYYYMMDD(date2);
+  return normalized1 === normalized2;
+}
+
+/**
  * Debug helper to log timezone information
  */
 export function debugTimezoneInfo(): void {
