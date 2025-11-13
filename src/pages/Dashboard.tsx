@@ -28,7 +28,16 @@ import { NotificationStatus } from '../components/ui/NotificationStatus';
 import { GoalSettingModal } from '../components/ui/GoalSettingModal';
 import { apiService } from '../services/api';
 import { app } from '../config/environment';
-import { getTodayRange, getThisMonthRange, getCurrentDateTime, debugTimezoneInfo } from '../utils/timezoneUtils';
+import { 
+  getTodayRange, 
+  getThisMonthRange, 
+  getCurrentDateTime, 
+  debugTimezoneInfo,
+  normalizeDateToYYYYMMDD,
+  formatDateForChart,
+  parseAndNormalizeDate,
+  isSameDate
+} from '../utils/timezoneUtils';
 // import { usePageRefresh } from '../hooks/usePageRefresh'; // Temporarily disabled
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
 
@@ -75,12 +84,19 @@ export const Dashboard: React.FC = () => {
   const { dailyProgress, monthlyProgress, updateGoalProgress } = useGoals();
   const { isDark } = useTheme();
   // Suppress verbose debug logs from this component to keep console clean
+  // BUT allow expense-related logs for debugging
   useEffect(() => {
     const originalLog = console.log;
     const suppressedPrefixes = ['🔍', '⚠️', '🔄'];
     // Wrap console.log to filter noisy dashboard logs
     console.log = (...args: any[]) => {
       if (typeof args[0] === 'string' && suppressedPrefixes.some((p) => args[0].startsWith(p))) {
+        // Allow expense-related logs to pass through for debugging
+        const logMessage = args[0];
+        if (logMessage.includes('Expense') || logMessage.includes('EXPENSE') || logMessage.includes('expense')) {
+          originalLog.apply(console, args as any);
+          return;
+        }
         return; // drop verbose dashboard debug lines
       }
       originalLog.apply(console, args as any);
@@ -130,8 +146,7 @@ export const Dashboard: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  // Chart aggregation states
-  const [chartPeriod, setChartPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  // Chart period is now automatically determined by dateRange filter - no separate state needed
   
   // Auto-refresh states
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
@@ -208,34 +223,184 @@ export const Dashboard: React.FC = () => {
 
 
 
-  // Fetch full transaction data for payment methods chart
-  const fetchFullTransactionsForPaymentMethods = useCallback(async (filterParams: any) => {
+  // Fetch full transaction data for payment methods chart and sales chart
+  // Fetches historical data for context based on the filter
+  const fetchFullTransactionsForPaymentMethods = useCallback(async (filterParams: any, dateRangeFilter?: string): Promise<any[]> => {
     try {
-      console.log('🔍 Fetching full transactions for payment methods...', {
+      console.log('🔍 Fetching full transactions for chart context...', {
         store_id: user?.store_id,
-        filterParams
+        filterParams,
+        dateRangeFilter
       });
       
-      // Convert ISO timestamps to date strings for backend compatibility
-      // Use the original filterParams dates directly to avoid timezone conversion issues
-      const startDate = filterParams.startDate ? filterParams.startDate.split('T')[0] : undefined;
-      const endDate = filterParams.endDate ? filterParams.endDate.split('T')[0] : undefined;
+      if (!user?.store_id) {
+        console.error('❌ No store_id available for fetching transactions');
+        return [];
+      }
+      
+      // Fetch ALL historical transactions for complete chart context
+      // This ensures all sales data across all dates is available for the chart
+      let historicalStartDate: string | undefined;
+      let historicalEndDate: string | undefined;
+      const now = new Date();
+      
+      // For chart context, fetch ALL available transactions (no date limits)
+      // This allows the chart to show complete historical trends
+      console.log('🔍 Fetching ALL transactions for complete chart context (no date limits)');
+      
+      // Optionally, you can set a very wide range if the backend requires dates
+      // But ideally, we fetch without date filters to get everything
+      // For now, set to a very wide range (2 years back) to ensure we get all data
+      const twoYearsAgo = new Date(now.getFullYear() - 2, now.getMonth(), 1);
+      historicalStartDate = normalizeDateToYYYYMMDD(twoYearsAgo);
+      historicalEndDate = normalizeDateToYYYYMMDD(now);
+      
+      console.log('🔍 Using wide date range to fetch all transactions:', {
+        historicalStartDate,
+        historicalEndDate,
+        note: 'This ensures all historical sales data is available for the chart'
+      });
+      
+      console.warn('💰 SALES API CALL - Requesting ALL transactions:', {
+        store_id: user?.store_id,
+        page: 1,
+        limit: 10000, // Increased limit to get all transactions
+        status: 'all',
+        start_date: historicalStartDate,
+        end_date: historicalEndDate,
+        dateRangeFilter,
+        note: 'Fetching ALL historical transactions for complete chart context'
+      });
       
       const response = await apiService.getTransactions({
         store_id: user?.store_id,
         page: 1,
-        limit: 1000, // Get all transactions
+        limit: 10000, // Increased limit to ensure we get all transactions
         status: 'all',
-        start_date: startDate,
-        end_date: endDate,
+        start_date: historicalStartDate,
+        end_date: historicalEndDate,
       });
+      
+      console.warn('💰 SALES API CALL - Response received:', {
+        transactionCount: response.transactions?.length || 0,
+        total: response.total,
+        hasTransactions: !!response.transactions,
+        isArray: Array.isArray(response.transactions),
+        note: 'Checking if API returned transactions'
+      });
+      
+      // Check if transactions exist and is an array
+      if (!response.transactions || !Array.isArray(response.transactions)) {
+        console.error('❌ SALES API ERROR - Invalid response:', {
+          hasTransactions: !!response.transactions,
+          isArray: Array.isArray(response.transactions),
+          responseType: typeof response.transactions,
+          responseKeys: response ? Object.keys(response) : [],
+          fullResponse: response
+        });
+        return [];
+      }
+      
+      // WORKAROUND: If date-filtered request returns 0 or very few transactions, try fetching without date filters
+      // This ensures we get ALL transactions regardless of date range
+      if (response.transactions.length === 0 || (response.transactions.length < 10 && response.total > response.transactions.length)) {
+        console.warn('⚠️ SALES API - Date-filtered request returned limited transactions. Trying without date filters to get ALL data...', {
+          transactionCount: response.transactions.length,
+          total: response.total,
+          historicalStartDate,
+          historicalEndDate,
+          dateRangeFilter,
+          note: 'Fetching ALL transactions without date limits'
+        });
+        
+        try {
+          const fallbackResponse = await apiService.getTransactions({
+            store_id: user?.store_id,
+            page: 1,
+            limit: 10000, // Increased limit to get all transactions
+            status: 'all',
+            // No date filters - get everything
+          });
+          
+          console.warn('💰 SALES API - Fallback (no date filters) response:', {
+            transactionCount: fallbackResponse.transactions?.length || 0,
+            total: fallbackResponse.total,
+            sampleDates: fallbackResponse.transactions?.slice(0, 5).map((tx: any) => ({
+              id: tx._id,
+              created_at: tx.created_at,
+              month: tx.created_at ? `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}` : 'unknown'
+            }))
+          });
+          
+          // If fallback has transactions, use ALL of them (no filtering)
+          // This ensures the chart shows all historical data across all dates
+          if (fallbackResponse.transactions && fallbackResponse.transactions.length > 0) {
+            console.warn('💰 SALES API - Using ALL transactions (no date filtering):', {
+              transactionCount: fallbackResponse.transactions.length,
+              total: fallbackResponse.total,
+              transactionsByMonth: Object.keys(fallbackResponse.transactions.reduce((acc: any, tx: any) => {
+                const month = `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}`;
+                acc[month] = true;
+                return acc;
+              }, {})).join(', '),
+              note: 'Using ALL transactions for complete chart context'
+            });
+            
+            // Use ALL transactions without filtering - this ensures all historical data is shown
+            response.transactions = fallbackResponse.transactions;
+            response.total = fallbackResponse.total;
+          }
+        } catch (fallbackError) {
+          console.error('❌ SALES API - Fallback request also failed:', fallbackError);
+        }
+      }
+      
+      // Group transactions by month for verification
+      const transactionsByMonthFromAPI = response.transactions.reduce((acc: any, tx: any) => {
+        const txDate = new Date(tx.created_at);
+        const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+        if (!acc[monthKey]) acc[monthKey] = [];
+        acc[monthKey].push({
+          id: tx._id,
+          created_at: tx.created_at,
+          total_amount: tx.total_amount
+        });
+        return acc;
+      }, {});
       
       console.log('🔍 Full Transactions API Response:', {
         success: true,
         transactionCount: response.transactions.length,
         total: response.total,
-        sampleTransaction: response.transactions[0]
+        dateRangeFilter,
+        historicalStartDate,
+        historicalEndDate,
+        sampleTransaction: response.transactions[0],
+        transactionDates: response.transactions.slice(0, 5).map((tx: any) => ({
+          id: tx._id,
+          created_at: tx.created_at,
+          total_amount: tx.total_amount
+        })),
+        allTransactionDates: response.transactions.map((tx: any) => ({
+          id: tx._id,
+          created_at: tx.created_at,
+          total_amount: tx.total_amount,
+          month: `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}`
+        })),
+        transactionsByMonth: Object.keys(transactionsByMonthFromAPI).map(month => ({
+          month,
+          count: transactionsByMonthFromAPI[month].length,
+          total: transactionsByMonthFromAPI[month].reduce((sum: number, tx: any) => sum + (tx.total_amount || 0), 0)
+        }))
       });
+      
+      // Also log to console.warn so it's visible
+      console.warn('💰 SALES API - Transactions by Month from API:', 
+        Object.keys(transactionsByMonthFromAPI).map(month => {
+          const total = transactionsByMonthFromAPI[month].reduce((sum: number, tx: any) => sum + (tx.total_amount || 0), 0);
+          return `${month}: ₺${total.toLocaleString()} (${transactionsByMonthFromAPI[month].length} transactions)`;
+        }).join(', ')
+      );
       
       setFullTransactions(response.transactions);
       console.log('🔍 Full Transactions for Payment Methods:', {
@@ -244,14 +409,17 @@ export const Dashboard: React.FC = () => {
         hasPaymentMethods: response.transactions[0]?.payment_methods,
         hasPaymentMethod: response.transactions[0]?.payment_method
       });
+      
+      return response.transactions || [];
     } catch (error) {
       console.error('❌ Failed to fetch full transactions for payment methods:', error);
       console.error('Error details:', {
         message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
       });
+      return [];
     }
-  }, [user?.store_id]);
+  }, [user?.store_id, dateRange]);
 
   // Initial load will be handled after unifiedRefresh is defined
 
@@ -262,51 +430,8 @@ export const Dashboard: React.FC = () => {
     }).format(price);
   };
 
-  // Format date for chart display (user-friendly format)
-  const formatChartDate = (dateString: string, period: 'daily' | 'weekly' | 'monthly' = 'daily') => {
-    try {
-      // Handle different date formats from API
-      let date: Date;
-
-      if (dateString.includes('T') || dateString.includes(' ')) {
-        // Handle ISO format or datetime format
-        date = new Date(dateString);
-      } else if (dateString.includes('-')) {
-        // Handle YYYY-MM-DD format
-        date = new Date(dateString + 'T00:00:00');
-      } else {
-        // Fallback
-        date = new Date(dateString);
-      }
-
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        return dateString; // Return original if invalid
-      }
-
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-      switch (period) {
-        case 'weekly':
-          // Format as "Week of Sep 26"
-      const month = monthNames[date.getMonth()];
-      const day = date.getDate();
-          return `W${month} ${day}`;
-        case 'monthly':
-          // Format as "Sep 2023"
-          return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-        default:
-          // Format as "Sep 26"
-          const dayMonth = monthNames[date.getMonth()];
-          const dayNum = date.getDate();
-          return `${dayMonth} ${dayNum}`;
-      }
-    } catch (error) {
-      console.error('Error formatting chart date:', error);
-      return dateString; // Return original if error
-    }
-  };
+  // Use standardized date formatting utility
+  // formatChartDate is now replaced by formatDateForChart from timezoneUtils
 
   // Helper function to aggregate data by time period
   const aggregateDataByPeriod = (data: any[], period: 'daily' | 'weekly' | 'monthly') => {
@@ -315,37 +440,49 @@ export const Dashboard: React.FC = () => {
     const aggregated = new Map<string, number>();
 
     data.forEach(item => {
-      let key: string;
-      const date = new Date(item.day || item.month || item.created_at);
+      // Use the originalDate if available (already normalized), otherwise normalize the date
+      const itemDate = item.originalDate || item.day || item.created_at;
+      let originalDateKey: string;
+      
+      // Normalize the date to YYYY-MM-DD format using timezone-aware function
+      const normalizedDate = normalizeDateToYYYYMMDD(itemDate);
+      const date = new Date(normalizedDate + 'T00:00:00'); // Create date at midnight in local timezone
       
       switch (period) {
         case 'weekly':
-          // Group by week (Monday as start of week)
+          // Group by week (Monday as start of week) - use timezone-aware calculation
           const weekStart = new Date(date);
-          weekStart.setDate(date.getDate() - date.getDay() + 1); // Monday
+          const dayOfWeek = weekStart.getDay(); // 0 = Sunday, 1 = Monday, etc.
+          const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Days to subtract to get Monday
+          weekStart.setDate(weekStart.getDate() - daysToMonday);
           weekStart.setHours(0, 0, 0, 0);
-          key = weekStart.toISOString().split('T')[0];
+          originalDateKey = normalizeDateToYYYYMMDD(weekStart);
           break;
         case 'monthly':
-          // Group by month
-          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          // Group by month (YYYY-MM format) - use timezone-aware extraction
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          originalDateKey = `${year}-${month}`;
           break;
         default:
-          // Daily grouping
-          key = date.toISOString().split('T')[0];
+          // Daily grouping (YYYY-MM-DD format) - already normalized
+          originalDateKey = normalizedDate;
       }
 
-      const existingValue = aggregated.get(key) || 0;
-      aggregated.set(key, existingValue + (item.sales || 0));
+      const existingValue = aggregated.get(originalDateKey) || 0;
+      aggregated.set(originalDateKey, existingValue + (item.sales || 0));
     });
 
     return Array.from(aggregated.entries())
-      .map(([key, sales]) => ({
-        day: formatChartDate(key, period),
+      .map(([originalDateKey, sales]) => ({
+        day: formatDateForChart(originalDateKey, period), // Display format (e.g., "Nov 13", "Oct 2025")
         sales,
-        originalDate: key
+        originalDate: originalDateKey // Keep normalized format for matching (YYYY-MM-DD or YYYY-MM)
       }))
-      .sort((a, b) => a.originalDate.localeCompare(b.originalDate));
+      .sort((a, b) => {
+        // Sort by originalDate (normalized format)
+        return a.originalDate.localeCompare(b.originalDate);
+      });
   };
 
   // Filter sales data locally from AppContext instead of making separate API calls
@@ -421,10 +558,9 @@ export const Dashboard: React.FC = () => {
           filterParams = { dateRange: '30d' };
       }
 
-      // Convert ISO timestamps to date strings for backend compatibility
-      // Use the original filterParams dates directly to avoid timezone conversion issues
-      const startDate = filterParams.startDate ? filterParams.startDate.split('T')[0] : undefined;
-      const endDate = filterParams.endDate ? filterParams.endDate.split('T')[0] : undefined;
+      // Convert dates to standardized YYYY-MM-DD format for backend compatibility
+      const startDate = filterParams.startDate ? normalizeDateToYYYYMMDD(filterParams.startDate) : undefined;
+      const endDate = filterParams.endDate ? normalizeDateToYYYYMMDD(filterParams.endDate) : undefined;
 
       // Single API call to get all dashboard data
       try {
@@ -448,7 +584,7 @@ export const Dashboard: React.FC = () => {
           endDate: endDate,
         });
 
-        console.log('🔍 API Response for this_month filter:', {
+        console.log('🔍 API Response Debug:', {
           dateRange,
           startDate,
           endDate,
@@ -460,7 +596,23 @@ export const Dashboard: React.FC = () => {
           hasSalesByMonth: !!metrics?.salesByMonth,
           salesByMonthLength: metrics?.salesByMonth?.length,
           hasTopProducts: !!metrics?.topProducts,
-          topProductsLength: metrics?.topProducts?.length
+          topProductsLength: metrics?.topProducts?.length,
+          hasExpensesByPeriod: !!metrics?.expensesByPeriod,
+          expensesByPeriodLength: metrics?.expensesByPeriod?.length || 0,
+          expensesByPeriod: metrics?.expensesByPeriod?.slice(0, 10), // Show first 10
+          todayDate: normalizeDateToYYYYMMDD(new Date()),
+          expensesByPeriodIncludesToday: metrics?.expensesByPeriod?.some((item: any) => {
+            const periodDate = item.period && /^\d{4}-\d{2}-\d{2}$/.test(item.period) 
+              ? item.period 
+              : normalizeDateToYYYYMMDD(item.period);
+            return periodDate === normalizeDateToYYYYMMDD(new Date());
+          }),
+          todayExpenseFromSeries: metrics?.expensesByPeriod?.find((item: any) => {
+            const periodDate = item.period && /^\d{4}-\d{2}-\d{2}$/.test(item.period) 
+              ? item.period 
+              : normalizeDateToYYYYMMDD(item.period);
+            return periodDate === normalizeDateToYYYYMMDD(new Date());
+          })
         });
 
         // Check if expenses are missing and fetch them separately if needed
@@ -569,9 +721,86 @@ export const Dashboard: React.FC = () => {
           updateGoalProgress(finalMetrics, finalMetrics);
         }
 
-        // Fetch full transaction data for payment methods chart
+        // Fetch full transaction data for payment methods chart and sales chart
+        // Include historical context based on the filter
         console.log('🔍 About to fetch full transactions with params:', filterParams);
-        await fetchFullTransactionsForPaymentMethods(filterParams);
+        const fetchedTransactions = await fetchFullTransactionsForPaymentMethods(filterParams, dateRange);
+
+        // Log what was fetched
+        console.warn('💰 SALES FETCH - Transactions fetched from API:', {
+          count: fetchedTransactions?.length || 0,
+          dateRange,
+          transactionsByMonth: fetchedTransactions ? fetchedTransactions.reduce((acc: any, tx: any) => {
+            const txDate = new Date(tx.created_at);
+            const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+            if (!acc[monthKey]) acc[monthKey] = [];
+            acc[monthKey].push({
+              id: tx._id,
+              created_at: tx.created_at,
+              total_amount: tx.total_amount
+            });
+            return acc;
+          }, {}) : {},
+          sampleTransactions: fetchedTransactions?.slice(0, 5).map((tx: any) => ({
+            id: tx._id,
+            created_at: tx.created_at,
+            total_amount: tx.total_amount,
+            month: `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}`
+          }))
+        });
+
+        // Populate filteredSales from API data for chart display
+        // Use fetchedTransactions first, then recentTransactions from API, then fullTransactions state
+        let transactionsForChart: any[] = [];
+        
+        if (fetchedTransactions && fetchedTransactions.length > 0) {
+          // Use freshly fetched transactions (most complete data)
+          transactionsForChart = fetchedTransactions;
+          console.warn('✅ Using fetchedTransactions for chart:', {
+            count: fetchedTransactions.length,
+            dateRange,
+            months: Object.keys(fetchedTransactions.reduce((acc: any, tx: any) => {
+              const month = `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}`;
+              acc[month] = true;
+              return acc;
+            }, {})).join(', ')
+          });
+        } else if (finalMetrics?.recentTransactions && finalMetrics.recentTransactions.length > 0) {
+          // Convert recentTransactions to the format expected by chart
+          transactionsForChart = finalMetrics.recentTransactions.map((tx: any) => ({
+            _id: tx.id,
+            total_amount: tx.totalAmount || tx.total_amount,
+            created_at: tx.createdAt || tx.created_at,
+            payment_method: tx.paymentMethod || tx.payment_method,
+            payment_methods: tx.paymentMethods || tx.payment_methods,
+            order_source: tx.orderSource || tx.order_source,
+            status: tx.status || 'completed'
+          }));
+          console.warn('⚠️ Using recentTransactions for chart (fetchedTransactions empty):', {
+            count: transactionsForChart.length,
+            dateRange,
+            note: 'recentTransactions might only contain current month data'
+          });
+        } else if (fullTransactions && fullTransactions.length > 0) {
+          // Fallback to state (might be from previous fetch)
+          transactionsForChart = fullTransactions;
+          console.warn('⚠️ Using fullTransactions state for chart (fetchedTransactions and recentTransactions empty):', {
+            count: fullTransactions.length,
+            dateRange
+          });
+        }
+        
+        // Set filteredSales for chart rendering
+        console.warn('💰 Setting filteredSales:', {
+          count: transactionsForChart.length,
+          dateRange,
+          months: Object.keys(transactionsForChart.reduce((acc: any, tx: any) => {
+            const month = `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}`;
+            acc[month] = true;
+            return acc;
+          }, {})).join(', ')
+        });
+        setFilteredSales(transactionsForChart);
 
         // Dashboard metrics are now managed locally - no need to update AppContext
 
@@ -692,46 +921,139 @@ export const Dashboard: React.FC = () => {
 
   // State for expense data
   const [expenseData, setExpenseData] = useState<any[]>([]);
+  // Ref to store series expense data for merging (avoids React closure issues)
+  const seriesExpenseDataRef = useRef<any[]>([]);
 
   // Fetch expense data when filters change
   useEffect(() => {
+    // Determine chart period to know how to group expenses
+    const chartPeriod = dateRange === 'today' ? 'daily' 
+      : dateRange === 'this_month' ? 'monthly' 
+      : (dateRange === 'custom' && customStartDate && customEndDate) 
+        ? (() => {
+            const start = new Date(customStartDate);
+            const end = new Date(customEndDate);
+            const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+            if (daysDiff <= 30) return 'daily';
+            if (daysDiff <= 90) return 'weekly';
+            return 'monthly';
+          })()
+        : 'daily';
+    
     // Prefer backend-provided series if available
+    // Backend now returns expensesByPeriod with timezone-aware dates in YYYY-MM-DD format (daily) or YYYY-MM (monthly)
     const seriesFromMetrics = (currentDashboardMetrics as any)?.expensesByPeriod;
+    
+    console.log('🔍 Checking expensesByPeriod from backend:', {
+      hasSeries: !!seriesFromMetrics,
+      isArray: Array.isArray(seriesFromMetrics),
+      length: seriesFromMetrics?.length || 0,
+      sample: seriesFromMetrics?.slice(0, 5),
+      chartPeriod,
+      dateRange,
+      note: 'Checking if backend provides expense series data'
+    });
+    
     if (Array.isArray(seriesFromMetrics) && seriesFromMetrics.length > 0) {
-      const mapped = seriesFromMetrics.map((item: any) => ({
-        day: formatChartDate(item.period, 'daily'), // Convert to same format as sales data
-        expenses: item.amount || 0
-      }));
-      setExpenseData(mapped);
-      return; // Skip fallback fetch when series is provided
+      console.log('🔍 Using backend expensesByPeriod (timezone-aware):', {
+        count: seriesFromMetrics.length,
+        sample: seriesFromMetrics.slice(0, 5),
+        allPeriods: seriesFromMetrics.map((item: any) => item.period),
+        chartPeriod,
+        note: 'Backend returns dates in YYYY-MM-DD format (daily) or YYYY-MM (monthly) in local timezone (Europe/Nicosia)'
+      });
+      
+      const mapped = seriesFromMetrics.map((item: any) => {
+        // Backend provides dates in YYYY-MM-DD format (daily) or YYYY-MM (monthly) in local timezone
+        let normalizedDate: string;
+        
+        if (chartPeriod === 'monthly') {
+          // For monthly, backend should provide YYYY-MM format
+          // But handle both YYYY-MM and YYYY-MM-DD formats
+          if (/^\d{4}-\d{2}$/.test(item.period)) {
+            normalizedDate = item.period; // Already in YYYY-MM format
+          } else if (/^\d{4}-\d{2}-\d{2}$/.test(item.period)) {
+            // If backend provides YYYY-MM-DD, extract YYYY-MM
+            normalizedDate = item.period.substring(0, 7);
+          } else {
+            // Parse and extract month
+            const date = new Date(item.period);
+            normalizedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          }
+        } else {
+          // For daily, backend should provide YYYY-MM-DD format
+          normalizedDate = item.period && /^\d{4}-\d{2}-\d{2}$/.test(item.period) 
+            ? item.period  // Already in correct format from backend
+            : normalizeDateToYYYYMMDD(item.period); // Fallback normalization if needed
+        }
+        
+        return {
+          day: normalizedDate, // YYYY-MM-DD (daily) or YYYY-MM (monthly) format from backend
+          originalDate: normalizedDate, // Same as day - ensure consistent format
+          expenses: item.amount || 0
+        };
+      });
+      
+      console.log('🔍 Mapped expense data from backend:', {
+        mapped: mapped.slice(0, 5),
+        chartPeriod,
+        note: 'Mapped expenses with period-specific format'
+      });
+      
+      // Store series data for merging later (don't set state yet)
+      seriesExpenseDataRef.current = mapped;
+      
+      // IMPORTANT: Even if we have expensesByPeriod, we still need to fetch individual expenses
+      // because expensesByPeriod might only cover the filtered period, but the chart needs
+      // historical data (e.g., last 30 days for "today" filter, last 12 months for "this_month")
+      // We'll merge both sources, with individual expenses supplementing the series
+      // NOTE: For accuracy, we prioritize individual expenses over backend series data
+      console.log('🔍 expensesByPeriod found, but also fetching individual expenses for full historical context...');
+      console.log('⚠️ IMPORTANT: Individual expenses will take precedence over backend series data to ensure accuracy');
+    } else {
+      console.log('🔍 No expensesByPeriod from backend, fetching individual expenses...');
+      seriesExpenseDataRef.current = [];
     }
 
     const fetchExpenseData = async () => {
       if (!user?.store_id) return;
 
-      try {
-        // Calculate date range for expenses
-        const now = new Date();
-        let startDate: string;
-        let endDate: string;
+        try {
+          // Calculate date range for expenses - fetch historical data for chart context
+          const now = new Date();
+          let startDate: string;
+          let endDate: string;
 
-        if (customStartDate && customEndDate) {
-          startDate = customStartDate;
-          endDate = customEndDate;
-        } else {
-          switch (dateRange) {
-            case 'today':
-              startDate = endDate = now.toISOString().split('T')[0];
-              break;
-            case 'this_month':
-            default:
-              // For this_month, use the actual month range
-              const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-              startDate = monthStart.toISOString().split('T')[0];
-              endDate = now.toISOString().split('T')[0];
-              break;
+          // Fetch historical data for context based on filter
+          if (dateRange === 'today') {
+          // For "today" filter, fetch last 30 days for daily trend context
+          const thirtyDaysAgo = new Date(now);
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          startDate = normalizeDateToYYYYMMDD(thirtyDaysAgo);
+          endDate = normalizeDateToYYYYMMDD(now);
+          } else if (dateRange === 'this_month') {
+          // For "this_month" filter, fetch last 12 months for monthly trend context
+          const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+          startDate = normalizeDateToYYYYMMDD(twelveMonthsAgo);
+          endDate = normalizeDateToYYYYMMDD(now);
+          } else if (dateRange === 'custom' && customStartDate && customEndDate) {
+            // For custom range, extend by 30% for context
+            const startDateObj = new Date(customStartDate);
+            const endDateObj = new Date(customEndDate);
+            const daysDiff = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
+            const contextDays = Math.max(7, Math.floor(daysDiff * 0.3));
+            
+            const contextStart = new Date(startDateObj);
+            contextStart.setDate(contextStart.getDate() - contextDays);
+            startDate = normalizeDateToYYYYMMDD(contextStart);
+            endDate = normalizeDateToYYYYMMDD(endDateObj);
+          } else {
+            // Fallback to last 30 days
+            const thirtyDaysAgo = new Date(now);
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            startDate = normalizeDateToYYYYMMDD(thirtyDaysAgo);
+            endDate = normalizeDateToYYYYMMDD(now);
           }
-        }
 
         console.log('🔍 Fetching expense data for chart (fallback, no series in metrics):', {
           store_id: user.store_id,
@@ -749,10 +1071,36 @@ export const Dashboard: React.FC = () => {
           limit: 1000
         });
 
-        console.log('🔍 Expense API Response:', {
+        console.log('🔍 Expense API Response - DETAILED:', {
           totalExpenses: expensesResponse.expenses.length,
-          expenses: expensesResponse.expenses,
-          sampleExpense: expensesResponse.expenses[0]
+          dateRange: {
+            startDate,
+            endDate,
+            chartPeriod
+          },
+          allExpenses: expensesResponse.expenses.map((e: any) => ({
+            id: e._id,
+            date: e.date,
+            amount: e.amount,
+            product_name: e.product_name,
+            category: e.category,
+            normalizedDate: normalizeDateToYYYYMMDD(e.date),
+            monthKey: chartPeriod === 'monthly' ? `${new Date(e.date).getFullYear()}-${String(new Date(e.date).getMonth() + 1).padStart(2, '0')}` : normalizeDateToYYYYMMDD(e.date)
+          })),
+          totalAmount: expensesResponse.expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0),
+          expenseDatesDebug: expensesResponse.expenses.slice(0, 10).map((e: any) => ({
+            original: e.date,
+            type: typeof e.date,
+            parsed: new Date(e.date),
+            normalized: normalizeDateToYYYYMMDD(e.date),
+            localYear: new Date(e.date).getFullYear(),
+            localMonth: new Date(e.date).getMonth() + 1,
+            localDay: new Date(e.date).getDate(),
+            utcYear: new Date(e.date).getUTCFullYear(),
+            utcMonth: new Date(e.date).getUTCMonth() + 1,
+            utcDay: new Date(e.date).getUTCDate(),
+            amount: e.amount
+          }))
         });
 
         // Group expenses by day
@@ -762,28 +1110,171 @@ export const Dashboard: React.FC = () => {
           expenseAmounts: expensesResponse.expenses.map(e => e.amount).slice(0, 5) // Show first 5 amounts
         });
 
-        const dailyExpenses = expensesResponse.expenses.reduce((acc: any, expense: any) => {
-          const expenseDate = new Date(expense.date);
-          const dayKey = `${expenseDate.getFullYear()}-${String(expenseDate.getMonth() + 1).padStart(2, '0')}-${String(expenseDate.getDate()).padStart(2, '0')}`;
+        // Group expenses by period (day or month) based on chartPeriod
+        // Backend now uses timezone-aware date operations, so expense.date should be in YYYY-MM-DD format
+        // or we need to parse it correctly if it's still an ISO timestamp
+        const groupedExpenses = expensesResponse.expenses.reduce((acc: any, expense: any) => {
+          let periodKey: string;
           
-          if (!acc[dayKey]) {
-            acc[dayKey] = { day: dayKey, expenses: 0 };
+          // Parse expense date
+          let expenseDate: Date;
+          if (typeof expense.date === 'string') {
+            if (/^\d{4}-\d{2}-\d{2}$/.test(expense.date)) {
+              expenseDate = new Date(expense.date + 'T00:00:00'); // Add time to avoid UTC conversion issues
+            } else if (expense.date.includes('T')) {
+              expenseDate = new Date(expense.date);
+            } else {
+              expenseDate = new Date(expense.date);
+            }
+          } else {
+            expenseDate = new Date(expense.date);
           }
-          acc[dayKey].expenses += expense.amount || 0;
+          
+          // Group by period based on chartPeriod
+          if (chartPeriod === 'monthly') {
+            // Group by month (YYYY-MM format)
+            const year = expenseDate.getFullYear();
+            const month = String(expenseDate.getMonth() + 1).padStart(2, '0');
+            periodKey = `${year}-${month}`;
+          } else {
+            // Group by day (YYYY-MM-DD format)
+            const year = expenseDate.getFullYear();
+            const month = String(expenseDate.getMonth() + 1).padStart(2, '0');
+            const day = String(expenseDate.getDate()).padStart(2, '0');
+            periodKey = `${year}-${month}-${day}`;
+          }
+          
+          if (!acc[periodKey]) {
+            acc[periodKey] = { day: periodKey, expenses: 0 };
+          }
+          acc[periodKey].expenses += expense.amount || 0;
           
           return acc;
         }, {} as Record<string, { day: string; expenses: number }>);
 
-        // Convert expense data to use the same date format as sales data
-        const finalExpenseData = (Object.values(dailyExpenses) as { day: string; expenses: number }[]).map(expenseItem => ({
-          day: formatChartDate(expenseItem.day, 'daily'),
+        // Convert expense data - use standardized format for matching
+        const fetchedExpenseData = (Object.values(groupedExpenses) as { day: string; expenses: number }[]).map(expenseItem => ({
+          day: expenseItem.day, // YYYY-MM-DD (daily) or YYYY-MM (monthly) format for matching
+          originalDate: expenseItem.day, // Same as day (normalized format)
           expenses: expenseItem.expenses
         }));
-        console.log('🔍 Final expense data for chart:', {
-          dailyExpenses,
-          finalExpenseData,
-          totalDays: finalExpenseData.length
+        
+        console.log('🔍 Fetched individual expense data:', {
+          groupedExpenses,
+          fetchedExpenseData,
+          totalPeriods: fetchedExpenseData.length,
+          chartPeriod,
+          sampleExpenses: fetchedExpenseData.slice(0, 5),
+          note: chartPeriod === 'monthly' ? 'Grouped by month (YYYY-MM)' : 'Grouped by day (YYYY-MM-DD)'
         });
+
+        // Merge with expensesByPeriod if it was set earlier
+        // Individual expenses are more accurate and include full historical range
+        const seriesExpenseData = seriesExpenseDataRef.current || [];
+        const mergedExpenseMap = new Map<string, { day: string; originalDate: string; expenses: number }>();
+        
+        console.log('🔍 EXPENSE MERGING DEBUG:', {
+          fromBackendSeries: seriesExpenseData.length,
+          fromIndividualFetch: fetchedExpenseData.length,
+          backendSeriesData: seriesExpenseData.map((item: any) => ({
+            period: item.originalDate || item.day,
+            amount: item.expenses
+          })),
+          individualExpenseData: fetchedExpenseData.map((item: any) => ({
+            period: item.originalDate || item.day,
+            amount: item.expenses
+          })),
+          note: 'Checking for potential double-counting or incorrect aggregation'
+        });
+        
+        // CRITICAL: For accuracy, we ONLY use individual expenses when they're available
+        // Backend series data may contain incorrect aggregations or timezone issues
+        // Individual expenses are the source of truth
+        if (fetchedExpenseData.length > 0) {
+          console.log('✅ Using ONLY individual expenses (source of truth) - ignoring backend series data');
+          // Use only individual expenses
+          fetchedExpenseData.forEach(item => {
+            const key = item.originalDate || item.day;
+            mergedExpenseMap.set(key, {
+              day: item.day,
+              originalDate: item.originalDate,
+              expenses: item.expenses
+            });
+          });
+        } else {
+          // Fallback to backend series data only if no individual expenses available
+          console.log('⚠️ No individual expenses found, falling back to backend series data');
+          seriesExpenseData.forEach(item => {
+            const key = item.originalDate || item.day;
+            mergedExpenseMap.set(key, item);
+          });
+        }
+        
+        const finalExpenseData = Array.from(mergedExpenseMap.values()).sort((a, b) => {
+          const dateA = new Date(a.originalDate || a.day);
+          const dateB = new Date(b.originalDate || b.day);
+          return dateA.getTime() - dateB.getTime();
+        });
+        
+        // CRITICAL: Log expense breakdown for verification
+        console.log('🔍 Final merged expense data for chart:', {
+          fromSeries: seriesExpenseData.length,
+          fromIndividual: fetchedExpenseData.length,
+          merged: finalExpenseData.length,
+          allExpensesByPeriod: finalExpenseData.map((item: any) => ({
+            period: item.originalDate || item.day,
+            amount: item.expenses,
+            display: item.day
+          })),
+          totalExpenseAmount: finalExpenseData.reduce((sum: number, item: any) => sum + (item.expenses || 0), 0),
+          sampleExpenses: finalExpenseData.slice(0, 5),
+          todayDate: normalizeDateToYYYYMMDD(new Date()),
+          hasToday: finalExpenseData.some(e => (e.originalDate || e.day) === normalizeDateToYYYYMMDD(new Date())),
+          todayExpense: finalExpenseData.find(e => (e.originalDate || e.day) === normalizeDateToYYYYMMDD(new Date())),
+          note: 'This is the final expense data that will be displayed in the chart'
+        });
+        
+        // Also log to console.warn so it's not suppressed
+        console.warn('💰 EXPENSE VERIFICATION - Monthly Totals:', 
+          finalExpenseData.map((item: any) => `${item.day || item.originalDate}: ₺${item.expenses.toLocaleString()}`).join(', ')
+        );
+        
+        // Log individual expenses that contributed to each month
+        if (expensesResponse?.expenses) {
+          const expensesByMonth = expensesResponse.expenses.reduce((acc: any, expense: any) => {
+            const expenseDate = new Date(expense.date);
+            const monthKey = `${expenseDate.getFullYear()}-${String(expenseDate.getMonth() + 1).padStart(2, '0')}`;
+            if (!acc[monthKey]) acc[monthKey] = [];
+            acc[monthKey].push({
+              id: expense._id,
+              date: expense.date,
+              amount: expense.amount,
+              product_name: expense.product_name,
+              category: expense.category
+            });
+            return acc;
+          }, {});
+          
+          // Calculate monthly totals
+          const monthlyTotals = Object.keys(expensesByMonth).map(month => {
+            const expenses = expensesByMonth[month];
+            const total = expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+            return {
+              month,
+              total,
+              count: expenses.length,
+              expenses: expenses
+            };
+          });
+          
+          console.warn('💰 EXPENSE VERIFICATION - Individual Expenses by Month:', expensesByMonth);
+          console.warn('💰 EXPENSE VERIFICATION - Monthly Totals Breakdown:', monthlyTotals);
+          console.warn('💰 EXPENSE VERIFICATION - Summary:', {
+            totalExpenses: expensesResponse.expenses.length,
+            totalAmount: expensesResponse.expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0),
+            monthlyBreakdown: monthlyTotals.map(m => `${m.month}: ₺${m.total.toLocaleString()} (${m.count} expenses)`)
+          });
+        }
 
         setExpenseData(finalExpenseData);
       } catch (error) {
@@ -795,85 +1286,399 @@ export const Dashboard: React.FC = () => {
     fetchExpenseData();
   }, [user?.store_id, dateRange, customStartDate, customEndDate, (currentDashboardMetrics as any)?.expensesByPeriod]);
 
-  // Use filtered sales data for charts when filters are applied, otherwise use API data
+  // Auto-determine chart period based on dateRange filter
+  const getChartPeriod = useMemo(() => {
+    if (dateRange === 'today') {
+      return 'daily'; // Show daily data for today filter
+    } else if (dateRange === 'this_month') {
+      return 'monthly'; // Show monthly data for this_month filter
+    } else if (dateRange === 'custom' && customStartDate && customEndDate) {
+      // Determine based on date range span
+      const start = new Date(customStartDate);
+      const end = new Date(customEndDate);
+      const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysDiff <= 30) {
+        return 'daily'; // Show daily for short custom ranges
+      } else if (daysDiff <= 90) {
+        return 'weekly'; // Show weekly for medium ranges
+      } else {
+        return 'monthly'; // Show monthly for long ranges
+      }
+    }
+    return 'daily'; // Default
+  }, [dateRange, customStartDate, customEndDate]);
+
+  // Use filtered sales data for charts - automatically shows historical context based on filter
   const salesData = useMemo(() => {
     let rawData: any[] = [];
+    let transactionsToUse: any[] = [];
 
-    // Get raw data based on filters
-    if (dateRange !== 'this_month' || customStartDate || customEndDate) {
-      if (!filteredSales || filteredSales.length === 0) {
-        // If filtered sales is empty, try to use currentDashboardMetrics data as fallback
-        if (currentDashboardMetrics?.salesByMonth && currentDashboardMetrics.salesByMonth.length > 0) {
-          rawData = currentDashboardMetrics.salesByMonth.map((item: any) => ({
-            day: item.month,
-            sales: item.sales,
-            expenses: item.expenses ?? 0,
-            created_at: item.month
-          }));
-        }
+    // Debug: Check if salesByMonth or salesByPeriod is available
+    console.warn('💰 SALES DATA SOURCE CHECK:', {
+      chartPeriod: getChartPeriod,
+      hasSalesByMonth: !!currentDashboardMetrics?.salesByMonth,
+      salesByMonthLength: currentDashboardMetrics?.salesByMonth?.length || 0,
+      hasSalesByPeriod: !!currentDashboardMetrics?.salesByPeriod,
+      salesByPeriodLength: currentDashboardMetrics?.salesByPeriod?.length || 0,
+      salesByMonth: currentDashboardMetrics?.salesByMonth,
+      salesByPeriod: currentDashboardMetrics?.salesByPeriod,
+      hasFilteredSales: !!filteredSales,
+      filteredSalesLength: filteredSales?.length || 0,
+      hasRecentTransactions: !!currentDashboardMetrics?.recentTransactions,
+      recentTransactionsLength: currentDashboardMetrics?.recentTransactions?.length || 0,
+      recentTransactionsSample: currentDashboardMetrics?.recentTransactions?.slice(0, 2)
+    });
+
+    // For daily/weekly charts, prefer salesByPeriod from API if available (has historical data)
+    // BUT only if it has valid non-zero amounts, otherwise fall back to transactions
+    const hasValidSalesByPeriod = currentDashboardMetrics?.salesByPeriod && 
+      currentDashboardMetrics.salesByPeriod.length > 0 &&
+      currentDashboardMetrics.salesByPeriod.some((item: any) => item && item.period && (item.amount || 0) > 0);
+    
+    if ((getChartPeriod === 'daily' || getChartPeriod === 'weekly') && hasValidSalesByPeriod) {
+      console.warn('💰 Using salesByPeriod from API for daily/weekly chart (preferred over transactions):', {
+        salesByPeriod: currentDashboardMetrics.salesByPeriod,
+        count: currentDashboardMetrics.salesByPeriod.length,
+        periods: currentDashboardMetrics.salesByPeriod
+          .filter((item: any) => item && item.period)
+          .map((item: any) => item.period)
+          .slice(0, 5)
+          .join(', ')
+      });
+      
+      // Convert salesByPeriod to the format expected by the chart
+      // Filter out any null/undefined items and ensure all required fields exist
+      rawData = currentDashboardMetrics.salesByPeriod
+        .filter((item: any) => item && item.period) // Filter out null/undefined items
+        .map((item: any) => ({
+          day: item.period, // Should be in YYYY-MM-DD format for daily
+          sales: item.amount || 0, // Default to 0 if amount is undefined
+          created_at: item.period,
+          originalDate: item.period
+        }));
+      
+      console.warn('💰 SALES VERIFICATION - Using salesByPeriod from API:', 
+        currentDashboardMetrics.salesByPeriod
+          .filter((item: any) => item && item.period) // Filter out null/undefined items
+          .map((item: any) => `${item.period}: ₺${(item.amount || 0).toLocaleString()}`)
+          .slice(0, 5)
+          .join(', ') + 
+        (currentDashboardMetrics.salesByPeriod.length > 5 ? ` ... (${currentDashboardMetrics.salesByPeriod.length} total)` : '')
+      );
+    } else if ((getChartPeriod === 'daily' || getChartPeriod === 'weekly') && currentDashboardMetrics?.salesByPeriod && currentDashboardMetrics.salesByPeriod.length > 0) {
+      // salesByPeriod exists but all amounts are zero - fall back to transactions
+      console.warn('⚠️ salesByPeriod from API has all zero amounts, falling back to transaction data:', {
+        salesByPeriod: currentDashboardMetrics.salesByPeriod,
+        periods: currentDashboardMetrics.salesByPeriod.map((item: any) => `${item.period}: ₺${(item.amount || 0).toLocaleString()}`).join(', '),
+        willUseTransactions: true
+      });
+      // Populate transactionsToUse here so it can be processed
+      if (filteredSales && filteredSales.length > 0) {
+        transactionsToUse = filteredSales;
+        console.log('🔍 Using filteredSales for chart (salesByPeriod had zeros):', {
+          count: filteredSales.length,
+          dateRange,
+          chartPeriod: getChartPeriod
+        });
+      } else if (fullTransactions && fullTransactions.length > 0) {
+        transactionsToUse = fullTransactions;
+        console.log('🔍 Using fullTransactions for chart (salesByPeriod had zeros, filteredSales empty):', {
+          count: fullTransactions.length,
+          dateRange,
+          chartPeriod: getChartPeriod
+        });
+      } else if (currentDashboardMetrics?.recentTransactions && Array.isArray(currentDashboardMetrics.recentTransactions) && currentDashboardMetrics.recentTransactions.length > 0) {
+        // Convert recentTransactions format to match expected structure
+        transactionsToUse = currentDashboardMetrics.recentTransactions.map((tx: any) => ({
+          _id: tx.id || tx._id,
+          total_amount: tx.totalAmount || tx.total_amount || 0,
+          created_at: tx.createdAt || tx.created_at || tx.createdAt,
+          payment_method: tx.paymentMethod || tx.payment_method,
+          payment_methods: tx.paymentMethods || tx.payment_methods,
+          order_source: tx.orderSource || tx.order_source,
+          status: tx.status || 'completed',
+          items: tx.items || []
+        }));
+        console.log('🔍 Using recentTransactions for chart (salesByPeriod had zeros, filteredSales and fullTransactions empty):', {
+          count: transactionsToUse.length,
+          dateRange,
+          chartPeriod: getChartPeriod
+        });
+      }
+    } else if (getChartPeriod === 'monthly' && currentDashboardMetrics?.salesByMonth && currentDashboardMetrics.salesByMonth.length > 0) {
+      // For monthly charts, prefer salesByMonth from API if available (has historical data)
+      console.warn('💰 Using salesByMonth from API for monthly chart (preferred over transactions):', {
+        salesByMonth: currentDashboardMetrics.salesByMonth,
+        count: currentDashboardMetrics.salesByMonth.length,
+        months: currentDashboardMetrics.salesByMonth.map((item: any) => item.month).join(', ')
+      });
+      
+      // Convert salesByMonth to the format expected by the chart
+      rawData = currentDashboardMetrics.salesByMonth.map((item: any) => ({
+        day: item.month, // Should be in YYYY-MM format
+        sales: item.sales,
+        created_at: item.month,
+        originalDate: item.month
+      }));
+      
+      console.warn('💰 SALES VERIFICATION - Using salesByMonth from API:', 
+        currentDashboardMetrics.salesByMonth.map((item: any) => `${item.month}: ₺${item.sales.toLocaleString()} (${item.transactions} transactions)`).join(', ')
+      );
+    } else {
+      // Get transactions data - prefer filteredSales, fallback to fullTransactions or recentTransactions
+      if (filteredSales && filteredSales.length > 0) {
+        transactionsToUse = filteredSales;
+        console.log('🔍 Using filteredSales for chart:', {
+          count: filteredSales.length,
+          dateRange,
+          chartPeriod: getChartPeriod
+        });
+      } else if (fullTransactions && fullTransactions.length > 0) {
+        transactionsToUse = fullTransactions;
+        console.log('🔍 Using fullTransactions for chart (filteredSales empty):', {
+          count: fullTransactions.length,
+          dateRange,
+          chartPeriod: getChartPeriod
+        });
+      } else if (currentDashboardMetrics?.recentTransactions && Array.isArray(currentDashboardMetrics.recentTransactions) && currentDashboardMetrics.recentTransactions.length > 0) {
+        // Convert recentTransactions format to match expected structure
+        transactionsToUse = currentDashboardMetrics.recentTransactions.map((tx: any) => ({
+          _id: tx.id || tx._id,
+          total_amount: tx.totalAmount || tx.total_amount || 0,
+          created_at: tx.createdAt || tx.created_at || tx.createdAt,
+          payment_method: tx.paymentMethod || tx.payment_method,
+          payment_methods: tx.paymentMethods || tx.payment_methods,
+          order_source: tx.orderSource || tx.order_source,
+          status: tx.status || 'completed',
+          items: tx.items || [] // Include items for product aggregation
+        }));
+        console.log('🔍 Using recentTransactions for chart (filteredSales and fullTransactions empty):', {
+          count: transactionsToUse.length,
+          dateRange,
+          chartPeriod: getChartPeriod,
+          sampleTransaction: transactionsToUse[0] ? {
+            id: transactionsToUse[0]._id,
+            total_amount: transactionsToUse[0].total_amount,
+            created_at: transactionsToUse[0].created_at
+          } : null
+        });
       } else {
-      // Group filtered sales by day
-      const dailySales = filteredSales.reduce((acc, sale) => {
-        const saleDate = new Date(sale.created_at);
-        const dayKey = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
-        
-        if (!acc[dayKey]) {
-            acc[dayKey] = { day: dayKey, sales: 0 };
-        }
-        acc[dayKey].sales += sale.total_amount;
-        
-        return acc;
-      }, {} as Record<string, { day: string; sales: number }>);
+        console.warn('⚠️ No transactions available for chart:', {
+          hasFilteredSales: !!filteredSales,
+          filteredSalesLength: filteredSales?.length || 0,
+          hasFullTransactions: !!fullTransactions,
+          fullTransactionsLength: fullTransactions?.length || 0,
+          hasRecentTransactions: !!currentDashboardMetrics?.recentTransactions,
+          recentTransactionsLength: currentDashboardMetrics?.recentTransactions?.length || 0,
+          hasSalesByMonth: !!currentDashboardMetrics?.salesByMonth,
+          salesByMonthLength: currentDashboardMetrics?.salesByMonth?.length || 0,
+          dateRange,
+          chartPeriod: getChartPeriod
+        });
+      }
+    }
 
-        rawData = (Object.values(dailySales) as { day: string; sales: number }[]).map((item) => ({
-          day: item.day,
+    // Determine chart period and data structure based on dateRange
+    const chartPeriod = getChartPeriod;
+
+    // Debug: Log the state before processing
+    console.warn('💰 SALES DATA PROCESSING - Before aggregation:', {
+      rawDataLength: rawData.length,
+      transactionsToUseLength: transactionsToUse.length,
+      chartPeriod,
+      hasRawData: rawData.length > 0,
+      hasTransactions: transactionsToUse.length > 0
+    });
+
+    // If rawData was already set from salesByMonth or salesByPeriod, skip transaction processing
+    if (rawData.length > 0) {
+      // rawData already populated from salesByMonth or valid salesByPeriod, proceed to aggregation
+      console.log('💰 Using pre-aggregated data (salesByMonth or salesByPeriod), skipping transaction processing');
+    } else if (transactionsToUse.length > 0) {
+      // Always use transaction data for aggregation to ensure we have full historical context
+      console.log('🔍 Processing transactions for chart:', {
+        chartPeriod,
+        transactionCount: transactionsToUse.length,
+        sampleTransactions: transactionsToUse.slice(0, 3).map((tx: any) => ({
+          id: tx._id,
+          total_amount: tx.total_amount,
+          created_at: tx.created_at,
+          created_at_type: typeof tx.created_at
+        }))
+      });
+      
+      if (chartPeriod === 'monthly') {
+        // For monthly view (this_month filter), group transactions by month
+        const monthlySales = transactionsToUse.reduce((acc, sale) => {
+          // Parse date correctly - handle both ISO strings and Date objects
+          let saleDate: Date;
+          if (typeof sale.created_at === 'string') {
+            saleDate = new Date(sale.created_at);
+          } else {
+            saleDate = sale.created_at;
+          }
+          
+          // Use local timezone components to avoid UTC conversion issues
+          const year = saleDate.getFullYear();
+          const month = String(saleDate.getMonth() + 1).padStart(2, '0');
+          const monthKey = `${year}-${month}`; // YYYY-MM format
+
+          if (!acc[monthKey]) {
+            acc[monthKey] = { day: monthKey, sales: 0 };
+          }
+          acc[monthKey].sales += sale.total_amount || 0;
+
+          return acc;
+        }, {} as Record<string, { day: string; sales: number }>);
+
+        // Group transactions by month for verification
+        const transactionsByMonth = transactionsToUse.reduce((acc: any, tx: any) => {
+          const txDate = new Date(tx.created_at);
+          const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+          if (!acc[monthKey]) acc[monthKey] = [];
+          acc[monthKey].push({
+            id: tx._id,
+            created_at: tx.created_at,
+            total_amount: tx.total_amount
+          });
+          return acc;
+        }, {});
+        
+        console.log('🔍 Monthly sales aggregation:', {
+          monthlySalesKeys: Object.keys(monthlySales),
+          monthlySalesValues: Object.values(monthlySales).map((item: any) => ({
+            month: item.day,
+            sales: item.sales
+          })),
+          totalMonths: Object.keys(monthlySales).length,
+          transactionsByMonth: Object.keys(transactionsByMonth).map(month => ({
+            month,
+            transactionCount: transactionsByMonth[month].length,
+            totalSales: transactionsByMonth[month].reduce((sum: number, tx: any) => sum + (tx.total_amount || 0), 0),
+            transactions: transactionsByMonth[month]
+          }))
+        });
+        
+        // Also log to console.warn so it's visible
+        console.warn('💰 SALES VERIFICATION - Monthly Totals:', 
+          Object.keys(transactionsByMonth).map(month => {
+            const total = transactionsByMonth[month].reduce((sum: number, tx: any) => sum + (tx.total_amount || 0), 0);
+            return `${month}: ₺${total.toLocaleString()} (${transactionsByMonth[month].length} transactions)`;
+          }).join(', ')
+        );
+        
+        console.warn('💰 SALES VERIFICATION - Transactions by Month:', transactionsByMonth);
+
+        rawData = (Object.values(monthlySales) as { day: string; sales: number }[]).map((item) => ({
+          day: item.day, // YYYY-MM format for monthly
           sales: item.sales,
           created_at: item.day
         }));
-      }
-    } else {
-    // Use API data when no filters are applied
-    if (currentDashboardMetrics?.salesByMonth && currentDashboardMetrics.salesByMonth.length > 0) {
-        rawData = currentDashboardMetrics.salesByMonth.map((item: any) => ({
-          day: item.month,
+      } else {
+        // For daily/weekly view (today or custom filters), group transactions by day
+        console.warn('💰 DAILY SALES AGGREGATION - Processing transactions:', {
+          transactionCount: transactionsToUse.length,
+          chartPeriod,
+          dateRange,
+          sampleTransactions: transactionsToUse.slice(0, 5).map((tx: any) => ({
+            id: tx._id,
+            created_at: tx.created_at,
+            total_amount: tx.total_amount,
+            normalizedDate: normalizeDateToYYYYMMDD(tx.created_at)
+          }))
+        });
+        
+        const dailySales = transactionsToUse.reduce((acc, sale) => {
+          const dayKey = normalizeDateToYYYYMMDD(sale.created_at);
+          
+          // Debug: Log date conversion for first few transactions
+          if (Object.keys(acc).length < 3) {
+            console.warn('💰 DATE NORMALIZATION DEBUG:', {
+              originalDate: sale.created_at,
+              normalizedDate: dayKey,
+              totalAmount: sale.total_amount,
+              transactionId: sale._id
+            });
+          }
+
+          if (!acc[dayKey]) {
+            acc[dayKey] = { day: dayKey, sales: 0, transactionCount: 0 };
+          }
+          acc[dayKey].sales += sale.total_amount || 0;
+          acc[dayKey].transactionCount += 1;
+
+          return acc;
+        }, {} as Record<string, { day: string; sales: number; transactionCount: number }>);
+
+        console.warn('💰 DAILY SALES AGGREGATION - Grouped by day:', {
+          dailySalesKeys: Object.keys(dailySales),
+          dailySalesValues: Object.values(dailySales).map((item: any) => ({
+            day: item.day,
+            sales: item.sales,
+            transactionCount: item.transactionCount
+          })),
+          totalDays: Object.keys(dailySales).length
+        });
+
+        rawData = (Object.values(dailySales) as { day: string; sales: number; transactionCount: number }[]).map((item) => ({
+          day: item.day, // YYYY-MM-DD format for daily
           sales: item.sales,
-          expenses: item.expenses ?? 0,
-          created_at: item.month
+          created_at: item.day,
+          originalDate: item.day // Store normalized date for matching with expenses
         }));
       }
+    } else if (rawData.length === 0) {
+      // No transactions available and no salesByMonth fallback - return empty (will show "no data" message)
+      console.warn('⚠️ No sales data available - returning empty chart data');
+      return [];
     }
 
     if (rawData.length === 0) return [];
 
     // Sort raw data by date
     rawData.sort((a, b) => {
-      const dateA = new Date(a.day || a.originalDate);
-      const dateB = new Date(b.day || b.originalDate);
-      return dateA.getTime() - dateB.getTime();
+      const dateAStr = a.day || a.originalDate;
+      const dateBStr = b.day || b.originalDate;
+      
+      // For monthly (YYYY-MM format), use string comparison
+      // For daily/weekly (YYYY-MM-DD format), use Date comparison
+      if (chartPeriod === 'monthly') {
+        return dateAStr.localeCompare(dateBStr);
+      } else {
+        const dateA = new Date(dateAStr);
+        const dateB = new Date(dateBStr);
+        return dateA.getTime() - dateB.getTime();
+      }
     });
 
-    // Respect user's chart period selection, but apply intelligent aggregation only for very large datasets
-    let finalPeriod = chartPeriod;
-    
-    // Only override user selection for extremely large datasets (>365 days) to prevent performance issues
-    if (rawData.length > 365) {
-      console.log(`⚠️ Large dataset detected (${rawData.length} points), switching to monthly view for performance`);
-      finalPeriod = 'monthly';
+    // Apply aggregation based on determined period
+    // Note: For monthly, rawData is already grouped by month (YYYY-MM), so we just need to format for display
+    let aggregatedData: any[];
+    if (chartPeriod === 'monthly') {
+      // Already grouped by month, just format for display
+      aggregatedData = rawData.map(item => ({
+        day: formatDateForChart(item.day, 'monthly'), // Display format: "Oct 2025"
+        sales: item.sales,
+        originalDate: item.day // Keep YYYY-MM format for matching
+      }));
+      
+      console.log('🔍 Monthly aggregated sales data:', {
+        count: aggregatedData.length,
+        data: aggregatedData.map((item: any) => ({
+          display: item.day,
+          originalDate: item.originalDate,
+          sales: item.sales
+        }))
+      });
+    } else {
+      // For daily/weekly, use aggregateDataByPeriod
+      aggregatedData = aggregateDataByPeriod(rawData, chartPeriod);
     }
-    // For datasets between 90-365 days, respect user choice but warn in console
-    else if (rawData.length > 90) {
-      console.log(`📊 Large dataset detected (${rawData.length} points), using user-selected period: ${chartPeriod}`);
-    }
-    // For smaller datasets, always respect user selection
-    else {
-      console.log(`📈 Using user-selected period: ${chartPeriod} for ${rawData.length} data points`);
-    }
-
-    // Apply aggregation
-    const aggregatedData = aggregateDataByPeriod(rawData, finalPeriod);
 
     // Merge with expense data
     console.log('🔍 Merging sales and expense data:', {
+      chartPeriod,
       aggregatedData: aggregatedData.slice(0, 3), // Show first 3 items
       expenseData: expenseData.slice(0, 3), // Show first 3 items
       salesDataLength: aggregatedData.length,
@@ -881,15 +1686,40 @@ export const Dashboard: React.FC = () => {
     });
 
     const mergedData = aggregatedData.map(salesItem => {
-      // Find matching expense data for the same day
-      const matchingExpense = expenseData.find(expenseItem => expenseItem.day === salesItem.day);
+      // Find matching expense data using period-appropriate comparison
+      const salesOriginalDate = (salesItem as any).originalDate || salesItem.day;
+      const matchingExpense = expenseData.find(expenseItem => {
+        const expenseOriginalDate = expenseItem.originalDate || expenseItem.day;
+        // For monthly, compare YYYY-MM format directly
+        // Handle both YYYY-MM and YYYY-MM-DD formats for expenses
+        if (chartPeriod === 'monthly') {
+          // Sales should be in YYYY-MM format
+          // Expenses might be in YYYY-MM or YYYY-MM-DD format
+          const expenseMonth = expenseOriginalDate.length === 7 
+            ? expenseOriginalDate  // Already YYYY-MM
+            : expenseOriginalDate.substring(0, 7); // Extract YYYY-MM from YYYY-MM-DD
+          return salesOriginalDate === expenseMonth;
+        } else {
+          // Both should be in YYYY-MM-DD format
+          return normalizeDateToYYYYMMDD(salesOriginalDate) === normalizeDateToYYYYMMDD(expenseOriginalDate);
+        }
+      });
+      
+      // Always use 0 if no matching expense found - never carry over previous day's data
+      // Only use matchingExpense.expenses if an exact match is found for this period
       const result = {
         ...salesItem,
-        expenses: (salesItem as any).expenses ?? (matchingExpense ? matchingExpense.expenses : 0)
+        expenses: matchingExpense ? (matchingExpense.expenses || 0) : 0
       };
       
       if (matchingExpense) {
-        console.log('🔍 Found matching expense for', salesItem.day, ':', matchingExpense);
+        console.log('🔍 Found matching expense for', salesItem.day, ':', {
+          salesOriginalDate,
+          expenseOriginalDate: normalizeDateToYYYYMMDD(matchingExpense.originalDate || matchingExpense.day),
+          expenseAmount: matchingExpense.expenses
+        });
+      } else {
+        console.log('🔍 No matching expense for', salesItem.day, '- using 0 (not carrying over previous day data)');
       }
       
       return result;
@@ -897,31 +1727,66 @@ export const Dashboard: React.FC = () => {
 
     console.log('🔍 Merged data sample:', mergedData.slice(0, 5));
 
-    // If we have expense data for days not in sales data, add them
+    // If we have expense data for periods not in sales data, add them
     expenseData.forEach(expenseItem => {
-      const hasMatchingSales = mergedData.some(salesItem => salesItem.day === expenseItem.day);
+      const expenseOriginalDate = expenseItem.originalDate || expenseItem.day;
+      const hasMatchingSales = mergedData.some(salesItem => {
+        const salesOriginalDate = (salesItem as any).originalDate || salesItem.day;
+        // For monthly, compare YYYY-MM format directly
+        // Handle both YYYY-MM and YYYY-MM-DD formats for expenses
+        if (chartPeriod === 'monthly') {
+          // Sales should be in YYYY-MM format
+          // Expenses might be in YYYY-MM or YYYY-MM-DD format
+          const expenseMonth = expenseOriginalDate.length === 7 
+            ? expenseOriginalDate  // Already YYYY-MM
+            : expenseOriginalDate.substring(0, 7); // Extract YYYY-MM from YYYY-MM-DD
+          return salesOriginalDate === expenseMonth;
+        } else {
+          return normalizeDateToYYYYMMDD(salesOriginalDate) === normalizeDateToYYYYMMDD(expenseOriginalDate);
+        }
+      });
+      
       if (!hasMatchingSales) {
+        // For monthly, normalize expense date to YYYY-MM format
+        const normalizedExpenseDate = chartPeriod === 'monthly' 
+          ? (expenseOriginalDate.length === 7 
+              ? expenseOriginalDate 
+              : expenseOriginalDate.substring(0, 7))
+          : expenseOriginalDate;
+        
         mergedData.push({
-          day: expenseItem.day,
+          day: formatDateForChart(expenseItem.day, chartPeriod), // Format for display
           sales: 0,
           expenses: expenseItem.expenses,
-          originalDate: expenseItem.day
+          originalDate: normalizedExpenseDate // YYYY-MM (monthly) or YYYY-MM-DD (daily) format
         });
       }
     });
 
-    // Sort the merged data by date
+    // Sort the merged data by date (use originalDate for accurate sorting)
     mergedData.sort((a, b) => {
-      const dateA = new Date(a.day || a.originalDate);
-      const dateB = new Date(b.day || b.originalDate);
-      return dateA.getTime() - dateB.getTime();
+      const dateAStr = (a as any).originalDate || a.day;
+      const dateBStr = (b as any).originalDate || b.day;
+      
+      // For monthly (YYYY-MM format), use string comparison
+      // For daily/weekly (YYYY-MM-DD format), use Date comparison
+      if (chartPeriod === 'monthly') {
+        return dateAStr.localeCompare(dateBStr);
+      } else {
+        const dateA = new Date(dateAStr);
+        const dateB = new Date(dateBStr);
+        return dateA.getTime() - dateB.getTime();
+      }
     });
 
-    // Limit final data points for optimal chart display, but respect user's period choice
-    if (mergedData.length > 24) {
-      console.log(`📉 Limiting ${mergedData.length} data points to 24 for optimal display while preserving ${chartPeriod} period`);
-      // For very large datasets, limit to 24 points max
-      const step = Math.floor(mergedData.length / 22);
+    // Limit final data points for optimal chart display and better visibility
+    // Reduced limits for cleaner, more readable charts
+    const maxPoints = chartPeriod === 'monthly' ? 12 : chartPeriod === 'weekly' ? 12 : 20;
+    if (mergedData.length > maxPoints) {
+      console.log(`📉 Limiting ${mergedData.length} data points to ${maxPoints} for optimal display`);
+      // For large datasets, use smart sampling to preserve important data points
+      // Always include first and last points, then sample evenly
+      const step = Math.floor(mergedData.length / (maxPoints - 2));
       const limitedData = [mergedData[0]]; // Always include first point
       for (let i = step; i < mergedData.length - 1; i += step) {
         limitedData.push(mergedData[i]);
@@ -931,60 +1796,11 @@ export const Dashboard: React.FC = () => {
     }
 
     return mergedData;
-  }, [currentDashboardMetrics?.salesByMonth, filteredSales, dateRange, customStartDate, customEndDate, chartPeriod, expenseData]);
+  }, [currentDashboardMetrics?.salesByMonth, currentDashboardMetrics?.salesByPeriod, currentDashboardMetrics?.recentTransactions, currentDashboardMetrics?.recentTransactions?.length, filteredSales, filteredSales?.length, fullTransactions, fullTransactions?.length, dateRange, customStartDate, customEndDate, getChartPeriod, expenseData]);
 
   // Use filtered sales data for top products when filters are applied, otherwise use API data
   const topProductsData = useMemo(() => {
-    // If filters are applied (not default 'this_month'), use filtered sales
-    if (dateRange !== 'this_month' || customStartDate || customEndDate) {
-      if (!filteredSales || filteredSales.length === 0) {
-        // If filtered sales is empty, try to use currentDashboardMetrics data as fallback
-        if (currentDashboardMetrics?.topProducts && currentDashboardMetrics.topProducts.length > 0) {
-          return currentDashboardMetrics.topProducts.map((product: any) => ({
-            name: product.productName?.length > 8
-              ? product.productName.substring(0, 8) + '...'
-              : product.productName,
-            fullName: product.productName,
-            revenue: product.revenue,
-            quantity: product.quantitySold,
-          }));
-        }
-        return [];
-      }
-      
-      // Aggregate product sales from filtered transactions
-      const productSales = filteredSales.reduce((acc, sale) => {
-        sale.items?.forEach((item: any) => {
-          const productId = item.product_id;
-          if (!acc[productId]) {
-            acc[productId] = {
-              productId,
-              productName: item.product_name,
-              revenue: 0,
-              quantitySold: 0
-            };
-          }
-          acc[productId].revenue += item.total_price;
-          acc[productId].quantitySold += item.quantity;
-        });
-        return acc;
-      }, {} as Record<string, { productId: string; productName: string; revenue: number; quantitySold: number }>);
-      
-      // Convert to array and sort by revenue
-      return Object.values(productSales)
-        .sort((a: any, b: any) => b.revenue - a.revenue)
-        .slice(0, 10) // Top 10 products
-        .map((product: any) => ({
-          name: product.productName?.length > 8
-            ? product.productName.substring(0, 8) + '...'
-      : product.productName || 'Unknown Product',
-          fullName: product.productName || 'Unknown Product',
-          revenue: product.revenue,
-          quantity: product.quantitySold,
-        }));
-    }
-    
-    // Use API data when no filters are applied
+    // Always prefer API topProducts data when available (most accurate and complete)
     if (currentDashboardMetrics?.topProducts && currentDashboardMetrics.topProducts.length > 0) {
       return currentDashboardMetrics.topProducts.map((product: any) => ({
         name: product.productName?.length > 8
@@ -996,8 +1812,60 @@ export const Dashboard: React.FC = () => {
       }));
     }
     
+    // If filters are applied (not default 'this_month'), try to aggregate from transactions
+    if (dateRange !== 'this_month' || customStartDate || customEndDate) {
+      // Get transactions to use - prefer filteredSales, fallback to fullTransactions
+      const transactionsToUse = filteredSales && filteredSales.length > 0 
+        ? filteredSales 
+        : (fullTransactions && fullTransactions.length > 0 ? fullTransactions : []);
+      
+      if (transactionsToUse.length > 0) {
+        // Aggregate product sales from transactions (only if transactions have items array)
+        const productSales = transactionsToUse.reduce((acc, sale) => {
+          if (sale.items && Array.isArray(sale.items)) {
+            sale.items.forEach((item: any) => {
+              const productId = item.product_id;
+              if (!acc[productId]) {
+                acc[productId] = {
+                  productId,
+                  productName: item.product_name,
+                  revenue: 0,
+                  quantitySold: 0
+                };
+              }
+              acc[productId].revenue += item.total_price || 0;
+              acc[productId].quantitySold += item.quantity || 0;
+            });
+          }
+          return acc;
+        }, {} as Record<string, { productId: string; productName: string; revenue: number; quantitySold: number }>);
+        
+        // Convert to array and sort by revenue
+        const aggregated = Object.values(productSales)
+          .sort((a: any, b: any) => b.revenue - a.revenue)
+          .slice(0, 10) // Top 10 products
+          .map((product: any) => ({
+            name: product.productName?.length > 8
+              ? product.productName.substring(0, 8) + '...'
+              : product.productName || 'Unknown Product',
+            fullName: product.productName || 'Unknown Product',
+            revenue: product.revenue,
+            quantity: product.quantitySold,
+          }));
+        
+        // Only return aggregated data if we have products
+        if (aggregated.length > 0) {
+          return aggregated;
+        }
+      }
+      
+      // No data available
+      return [];
+    }
+    
+    // Default: return empty array if no data available
     return [];
-  }, [currentDashboardMetrics?.topProducts, filteredSales, dateRange, customStartDate, customEndDate]);
+  }, [currentDashboardMetrics?.topProducts, filteredSales, fullTransactions, dateRange, customStartDate, customEndDate]);
 
   const getPaymentMethodColor = (method: string) => {
     const colors: { [key: string]: string } = {
@@ -1943,46 +2811,17 @@ export const Dashboard: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Sales & Expenses Overview</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {chartPeriod === 'daily' ? 'Daily' : chartPeriod === 'weekly' ? 'Weekly' : 'Monthly'} performance trends
+                    {getChartPeriod === 'daily' 
+                      ? 'Daily performance trends' 
+                      : getChartPeriod === 'weekly' 
+                      ? 'Weekly performance trends' 
+                      : 'Monthly performance trends'}
+                    {dateRange === 'today' && ' (showing last 30 days for context)'}
+                    {dateRange === 'this_month' && ' (showing last 12 months for context)'}
                   </p>
-                </div>
-                <div className="flex items-center space-x-3">
-                  {/* Period Selector */}
-                  <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                    <button
-                      onClick={() => setChartPeriod('daily')}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
-                        chartPeriod === 'daily'
-                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                      }`}
-                    >
-                      Daily
-                    </button>
-                    <button
-                      onClick={() => setChartPeriod('weekly')}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
-                        chartPeriod === 'weekly'
-                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                      }`}
-                    >
-                      Weekly
-                    </button>
-                    <button
-                      onClick={() => setChartPeriod('monthly')}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
-                        chartPeriod === 'monthly'
-                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                      }`}
-                    >
-                      Monthly
-                    </button>
                 </div>
                 <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg">
                   <BarChart3 className="h-6 w-6 text-white" />
-                  </div>
                 </div>
               </div>
               <div className="h-80">
@@ -1993,14 +2832,14 @@ export const Dashboard: React.FC = () => {
                       <XAxis 
                         dataKey="day"
                         stroke="#6b7280" 
-                        fontSize={chartPeriod === 'monthly' ? 12 : 11}
+                        fontSize={getChartPeriod === 'monthly' ? 12 : 11}
                         tickLine={false}
                         axisLine={false}
-                        interval={chartPeriod === 'monthly' ? 0 : "preserveStartEnd"}
-                        tick={{ fontSize: chartPeriod === 'monthly' ? 12 : 11 }}
-                        height={chartPeriod === 'monthly' ? 40 : 50}
-                        angle={chartPeriod === 'monthly' ? 0 : -45}
-                        textAnchor={chartPeriod === 'monthly' ? 'middle' : 'end'}
+                        interval={getChartPeriod === 'monthly' ? 0 : "preserveStartEnd"}
+                        tick={{ fontSize: getChartPeriod === 'monthly' ? 12 : 11 }}
+                        height={getChartPeriod === 'monthly' ? 40 : 50}
+                        angle={getChartPeriod === 'monthly' ? 0 : -45}
+                        textAnchor={getChartPeriod === 'monthly' ? 'middle' : 'end'}
                       />
                       <YAxis 
                         stroke="#6b7280" 
@@ -2084,7 +2923,7 @@ export const Dashboard: React.FC = () => {
           {/* Second Row: Top Products */}
           <div className="grid grid-cols-1 gap-8">
             {/* Top Products Chart */}
-          <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300 hover:shadow-2xl">
+          <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-sm rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300 hover:shadow-2xl">
             <div className="absolute inset-0 bg-gradient-to-r from-green-600/5 to-green-700/5 dark:from-green-400/5 dark:to-green-500/5"></div>
             <div className="relative">
               <div className="flex items-center justify-between mb-6">
@@ -2177,7 +3016,7 @@ export const Dashboard: React.FC = () => {
           {/* Payment Methods Chart removed per request */}
 
           {/* Order Source Analytics */}
-          <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300 hover:shadow-2xl">
+          <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-sm rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300 hover:shadow-2xl">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-green-600/5 dark:from-blue-400/5 dark:to-green-400/5"></div>
             <div className="relative">
               <div className="flex items-center justify-between mb-6">
@@ -2417,7 +3256,7 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Quick Actions - Compact Version */}
-        <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 dark:border-gray-700/50 p-4 transition-all duration-300">
+        <div className="relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-sm rounded-xl shadow-lg border border-white/20 dark:border-gray-700/50 p-4 transition-all duration-300">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-green-700 rounded-lg flex items-center justify-center">

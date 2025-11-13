@@ -724,11 +724,11 @@ export const SalesHistory: React.FC = () => {
   // Payment method badge util
   function PaymentBadge({ method }: { method: string }) {
     const colorMap: Record<string, string> = {
-      cash: 'bg-green-100 text-green-800',
-      pos_isbank_transfer: 'bg-blue-100 text-blue-800',
-      naira_transfer: 'bg-purple-100 text-purple-800',
-      crypto_payment: 'bg-orange-100 text-orange-800',
-      card: 'bg-pink-100 text-pink-700',
+      cash: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
+      pos_isbank_transfer: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
+      naira_transfer: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
+      crypto_payment: 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300',
+      card: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300',
     };
     const labelMap: Record<string, string> = {
       cash: 'Cash',
@@ -737,7 +737,7 @@ export const SalesHistory: React.FC = () => {
       crypto_payment: 'Crypto',
       card: 'Card',
     };
-    return <span className={`${colorMap[method] || 'bg-gray-100 text-gray-700'} inline-flex items-center px-2 py-0.5 rounded text-xs font-bold mr-2`}>{labelMap[method] || method}</span>;
+    return <span className={`${colorMap[method] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'} inline-flex items-center px-2 py-0.5 rounded text-xs font-bold mr-2`}>{labelMap[method] || method}</span>;
   }
 
   return (
@@ -932,18 +932,18 @@ export const SalesHistory: React.FC = () => {
                     <TrendingUp className="h-4 w-4 inline mr-1" />
                     Tags
                   </label>
-                  <div className="max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700">
+                  <div className="max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-800">
                     {availableTags.length > 0 ? (
                       <div className="space-y-2">
                         {availableTags.map(tag => (
-                          <label key={tag} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 p-2 rounded">
+                          <label key={tag} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded transition-colors">
                             <input
                               type="checkbox"
                               checked={selectedTags.includes(tag)}
                               onChange={() => handleTagToggle(tag)}
-                              className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800"
+                              className="w-4 h-4 rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 checked:bg-blue-600 dark:checked:bg-blue-500 checked:border-blue-600 dark:checked:border-blue-500"
                             />
-                            <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">{tag}</span>
+                            <span className="text-sm text-gray-700 dark:text-gray-200 font-medium">{tag}</span>
                           </label>
                         ))}
                       </div>
@@ -1147,7 +1147,7 @@ export const SalesHistory: React.FC = () => {
                   const timeStr = new Date(transaction.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
                   return (
                     <div
-                      className="mb-10 relative group cursor-pointer transition-all lg:hover:bg-green-50/40 rounded-2xl p-2"
+                      className="mb-10 relative group cursor-pointer transition-all lg:hover:bg-green-50/40 dark:hover:bg-green-900/20 rounded-2xl p-2"
                       key={transaction._id}
                       onClick={() => setReceiptModal({ open: true, transaction })}
                       tabIndex={0}
@@ -1182,24 +1182,54 @@ export const SalesHistory: React.FC = () => {
                         </div>
                       )}
                       {/* Group header */}
-                      <div className={`flex items-center mb-2 gap-4 pl-${isMulti ? '12' : '3'} `}>
-                        <div className="text-sm text-green-900 font-bold tracking-wide flex items-center">
-                          <Receipt className="w-5 h-5 mr-1 text-green-500" />
+                      <div className={`flex items-center mb-2 gap-4 pl-${isMulti ? '12' : '3'}`}>  
+                        <div className="text-sm text-green-900 dark:text-green-300 font-bold tracking-wide flex items-center">
+                          <Receipt className="w-5 h-5 mr-1 text-green-500 dark:text-green-400" />
                           {dateStr}
-                          <span className="ml-2 font-normal text-gray-500">{timeStr}</span>
+                          <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">{timeStr}</span>
                         </div>
                         <PaymentBadge method={primaryPayment} />
-                        <span className="text-xs text-gray-400 ml-auto font-mono">#{transaction._id?.slice(-8)}</span>
-                        <span className="ml-4 bg-green-100 text-green-700 font-bold text-base px-3 py-1 rounded-xl shadow-sm">₺{transaction.total_amount.toLocaleString()}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto font-mono">#{transaction._id?.slice(-8)}</span>
+                        <span className="ml-4 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-bold text-base px-3 py-1 rounded-xl shadow-sm">₺{transaction.total_amount.toLocaleString()}</span>
+                        {/* Edit/Delete buttons - only for admins */}
+                        {isAdmin && (
+                          <span className="ml-4 flex items-center gap-2">
+                            {/* Edit button */}
+                            <button
+                              title="Edit Transaction"
+                              aria-label="Edit Transaction"
+                              className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleEditTransaction(transaction);
+                              }}
+                            >
+                              <Edit className="h-5 w-5" />
+                            </button>
+                            {/* Delete button */}
+                            <button
+                              title="Delete Transaction"
+                              aria-label="Delete Transaction"
+                              className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 rounded-md transition-colors"
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleDeleteTransaction(transaction._id);
+                              }}
+                              disabled={deletingTransactionId === transaction._id}
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </button>
+                          </span>
+                        )}
                       </div>
                       {items.map((item, idx) => (
                         <div className={`flex items-center mb-3 ${isMulti ? 'pl-12' : 'pl-4'}`} key={item._id || idx}>
-                          <div className="flex-1 bg-white rounded-xl shadow-md px-4 py-3 flex items-center justify-between border border-green-100 group-hover:border-green-400 transition-all duration-300">
+                          <div className="flex-1 bg-white dark:bg-gray-700 rounded-xl shadow-md px-4 py-3 flex items-center justify-between border border-green-100 dark:border-green-800/50 group-hover:border-green-400 dark:group-hover:border-green-600 transition-all duration-300">
                             <div>
-                              <div className="font-semibold text-gray-800 mb-1">{item.product_name}</div>
-                              <div className="text-xs text-gray-400 ">{item.quantity} × ₺{item.unit_price.toLocaleString()}</div>
+                              <div className="font-semibold text-gray-800 dark:text-white mb-1">{item.product_name}</div>
+                              <div className="text-xs text-gray-400 dark:text-gray-400">{item.quantity} × ₺{item.unit_price.toLocaleString()}</div>
                             </div>
-                            <div className="text-green-700 font-bold text-lg">₺{(item.unit_price * item.quantity).toLocaleString()}</div>
+                            <div className="text-green-700 dark:text-green-400 font-bold text-lg">₺{(item.unit_price * item.quantity).toLocaleString()}</div>
                           </div>
                         </div>
                       ))}
