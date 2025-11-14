@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import { ModernToastProvider } from './components/ui/ModernToastProvider';
 import { AuthProvider } from './context/AuthContext';
 import { AppProvider } from './context/AppContext';
 import { StoreProvider } from './context/StoreContext';
@@ -39,15 +39,16 @@ function App() {
       <ThemeProvider>
         <SettingsProvider>
           <RiderProvider>
-            <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <ErrorBoundary>
-                <AuthProvider>
-                  <NotificationProvider>
-                    <StoreProvider>
-                      <AppProvider>
-                        <GoalProvider>
-                          <RefreshProvider>
-                            <NavigationProvider>
+            <ModernToastProvider>
+              <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <ErrorBoundary>
+                  <AuthProvider>
+                    <NotificationProvider>
+                      <StoreProvider>
+                        <AppProvider>
+                          <GoalProvider>
+                            <RefreshProvider>
+                              <NavigationProvider>
                   <ScrollToTopWrapper>
                   <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
                 <GoalCelebrationManager />
@@ -174,41 +175,18 @@ function App() {
               <Route path="/catalog" element={<CustomerCatalog />} />
               <Route path="/track-order" element={<OrderTracking />} />
             </Routes>
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                duration: 2000,
-                style: {
-                  background: '#363636',
-                  color: '#fff',
-                },
-                success: {
-                  style: {
-                    background: '#22c55e',
-                    color: '#fff',
-                  },
-                },
-                error: {
-                  duration: 1000, // Shorter duration for errors
-                  style: {
-                    background: '#6b7280', // Less alarming gray color
-                    color: '#fff',
-                    opacity: 0.8, // Make it less prominent
-                  },
-                },
-              }}
-            />
                   </div>
                   </ScrollToTopWrapper>
-                            </NavigationProvider>
-                          </RefreshProvider>
-                        </GoalProvider>
-                      </AppProvider>
-                    </StoreProvider>
-                  </NotificationProvider>
-                </AuthProvider>
-              </ErrorBoundary>
-            </Router>
+                              </NavigationProvider>
+                            </RefreshProvider>
+                          </GoalProvider>
+                        </AppProvider>
+                      </StoreProvider>
+                    </NotificationProvider>
+                  </AuthProvider>
+                </ErrorBoundary>
+              </Router>
+            </ModernToastProvider>
           </RiderProvider>
         </SettingsProvider>
       </ThemeProvider>

@@ -103,23 +103,15 @@ export const SalesHistory: React.FC = () => {
 
   // Load all sales data from server (without filters)
   const loadAllSales = useCallback(async () => {
-    console.log('🚀 Loading sales data...', { 
-      store_id: user?.store_id, 
-      user_id: user?.id,
-      isAuthenticated: !!user,
-      role: user?.role
-    });
     
     // For cashiers without store_id, show a warning but still attempt to load data
     if (!user?.store_id && user?.role !== 'cashier') {
-      console.warn('⚠️ No store_id found for user:', user);
       toast.error('Store ID not found. Please contact support.');
       return;
     }
     
     // For cashiers without store_id, show a different message
     if (!user?.store_id && user?.role === 'cashier') {
-      console.warn('⚠️ Cashier without store_id - attempting to load transactions without store filter');
       toast.error('Store ID not found. Please contact support.');
     }
     
@@ -135,35 +127,15 @@ export const SalesHistory: React.FC = () => {
       if (user.store_id && user.store_id !== 'null') {
         apiParams.store_id = user.store_id;
       }
-      
-      console.log('🔍 Sales History - Making API call with params:', apiParams);
-      
+
       const response = await apiService.getTransactions(apiParams);
-      
-      console.log('🔍 Sales History - Raw API Response:', response);
-      
-      console.log('📊 API Response:', {
-        totalTransactions: response.transactions?.length || 0,
-        total: response.total,
-        transactions: response.transactions?.slice(0, 3) // First 3 transactions for debugging
-      });
-      
+
       // Store all transactions for calculations
       setAllSales(response.transactions || []);
       setTotalPages(response.total || 1);
       setTotalSales(response.total || 0);
       
       // Debug: Log all loaded transactions with payment method data
-      console.log('🔍 Sales History - Loaded Transactions:', {
-        totalTransactions: response.transactions?.length || 0,
-        transactions: response.transactions?.map(t => ({
-          id: t._id,
-          total_amount: t.total_amount,
-          payment_methods: t.payment_methods,
-          payment_method: t.payment_method,
-          created_at: t.created_at
-        })) || []
-      });
       
     } catch (error) {
       console.error('❌ Failed to load sales:', error);
@@ -182,7 +154,6 @@ export const SalesHistory: React.FC = () => {
   useEffect(() => {
     loadAllSales();
   }, [loadAllSales]);
-
 
   // Check if user is admin
   const isAdmin = user?.role === 'admin';
@@ -242,15 +213,8 @@ export const SalesHistory: React.FC = () => {
 
   // Process sales data to extract sold products (use allSales for calculations)
   const soldProducts = useMemo(() => {
-    console.log('🔄 Processing sold products...', {
-      allSalesLength: allSales?.length || 0,
-      productsLength: products?.length || 0,
-      allSalesIsArray: Array.isArray(allSales),
-      productsIsArray: Array.isArray(products)
-    });
     
     if (!allSales || !products || !Array.isArray(allSales) || !Array.isArray(products)) {
-      console.log('⚠️ Missing data for sold products calculation');
       return [];
     }
 
@@ -286,8 +250,7 @@ export const SalesHistory: React.FC = () => {
             // Handle both new (payment_methods array) and legacy (single payment_method) formats
             let paymentMethods: PaymentMethod[] = [];
             let paymentMethod: string = 'cash';
-            
-            
+
             if (transaction.payment_methods && transaction.payment_methods.length > 0) {
               // New format: payment_methods array
               paymentMethods = transaction.payment_methods;
@@ -300,8 +263,7 @@ export const SalesHistory: React.FC = () => {
                 amount: transaction.total_amount
               }];
             }
-            
-            
+
             soldItems.push({
               productId: product._id,
               productName: product.name,
@@ -324,12 +286,7 @@ export const SalesHistory: React.FC = () => {
 
     // Sort by most recent sales first
     const sortedItems = soldItems.sort((a, b) => b.saleDate.getTime() - a.saleDate.getTime());
-    
-    console.log('✅ Sold products processed:', {
-      totalSoldItems: sortedItems.length,
-      sampleItems: sortedItems.slice(0, 2)
-    });
-    
+
     return sortedItems;
   }, [allSales, products]);
 
@@ -467,15 +424,6 @@ export const SalesHistory: React.FC = () => {
     const totalTransactions = filteredTransactions.length;
 
     // Debug logging to verify calculations
-    console.log('SalesHistory Revenue Calculation Debug:', {
-      filteredProductsCount: filteredProducts.length,
-      filteredTransactionsCount: filteredTransactions.length,
-      totalRevenueFromTransactions: totalRevenue,
-      totalRevenueFromProducts: filteredProducts.reduce((sum, item) => sum + item.totalRevenue, 0),
-      totalQuantity,
-      uniqueProducts,
-      totalTransactions
-    });
 
     return {
       totalRevenue,
@@ -533,25 +481,7 @@ export const SalesHistory: React.FC = () => {
       }
       return acc;
     }, {} as Record<string, number>);
-    
-    console.log('🔍 Sales History Payment Method Debug:', {
-      totalTransactions: summaryStats.filteredTransactions.length,
-      paymentMethodAmounts: result,
-      sampleTransactions: summaryStats.filteredTransactions.slice(0, 3).map(t => ({
-        id: t._id,
-        total_amount: t.total_amount,
-        payment_methods: t.payment_methods,
-        payment_method: t.payment_method,
-        created_at: t.created_at
-      })),
-      allTransactions: summaryStats.filteredTransactions.map(t => ({
-        id: t._id,
-        total_amount: t.total_amount,
-        payment_methods: t.payment_methods,
-        payment_method: t.payment_method
-      }))
-    });
-    
+
     return result;
   }, [summaryStats.filteredTransactions]);
 
@@ -587,7 +517,6 @@ export const SalesHistory: React.FC = () => {
   const handleRefresh = () => {
     loadSales();
   };
-
 
   const handleTagToggle = (tag: string) => {
     setSelectedTags(prev => 
@@ -680,7 +609,7 @@ export const SalesHistory: React.FC = () => {
   function ReceiptModalInline({ open, onClose, transaction }: { open: boolean, onClose: () => void, transaction: Transaction | null }) {
     if (!open || !transaction) return null;
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 pt-0 px-4 pb-4">
         <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
           <button
             onClick={onClose}
@@ -751,7 +680,6 @@ export const SalesHistory: React.FC = () => {
           </div>
         </div>
 
-        
         {/* Store ID Notice for Cashiers */}
         {user?.role === 'cashier' && !user?.store_id && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl shadow-lg p-6">

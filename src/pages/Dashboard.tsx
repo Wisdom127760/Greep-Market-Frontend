@@ -83,28 +83,6 @@ export const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { dailyProgress, monthlyProgress, updateGoalProgress } = useGoals();
   const { isDark } = useTheme();
-  // Suppress verbose debug logs from this component to keep console clean
-  // BUT allow expense-related logs for debugging
-  useEffect(() => {
-    const originalLog = console.log;
-    const suppressedPrefixes = ['🔍', '⚠️', '🔄'];
-    // Wrap console.log to filter noisy dashboard logs
-    console.log = (...args: any[]) => {
-      if (typeof args[0] === 'string' && suppressedPrefixes.some((p) => args[0].startsWith(p))) {
-        // Allow expense-related logs to pass through for debugging
-        const logMessage = args[0];
-        if (logMessage.includes('Expense') || logMessage.includes('EXPENSE') || logMessage.includes('expense')) {
-          originalLog.apply(console, args as any);
-          return;
-        }
-        return; // drop verbose dashboard debug lines
-      }
-      originalLog.apply(console, args as any);
-    };
-    return () => {
-      console.log = originalLog;
-    };
-  }, []);
   
   // Tooltip styles based on theme
   const getTooltipStyles = () => ({
@@ -139,6 +117,7 @@ export const Dashboard: React.FC = () => {
   const [isGoalSettingModalOpen, setIsGoalSettingModalOpen] = useState(false);
   const isRefreshingRef = useRef(false);
   const lastRefreshRef = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
@@ -164,7 +143,6 @@ export const Dashboard: React.FC = () => {
     
     refreshIntervalRef.current = setInterval(() => {
       if (autoRefreshEnabled) {
-        console.log('🔄 Auto-refreshing dashboard data...');
         unifiedRefresh();
         setLastRefreshTime(new Date());
       }
@@ -193,7 +171,6 @@ export const Dashboard: React.FC = () => {
   // Refresh dashboard data when component mounts to get latest payment method data
   useEffect(() => {
     if (user?.store_id && !dashboardMetrics) {
-      console.log('🔄 Dashboard - Refreshing dashboard data on mount (no existing metrics)');
       refreshDashboard();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,6 +181,11 @@ export const Dashboard: React.FC = () => {
     return () => {
       // Cleanup any pending operations when component unmounts
       isRefreshingRef.current = false;
+      // Cancel any pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
     };
   }, []);
 
@@ -221,20 +203,11 @@ export const Dashboard: React.FC = () => {
   //   return 300000; // 5 minutes for other filters (increased to prevent excessive calls)
   // }, [dateRange]);
 
-
-
   // Fetch full transaction data for payment methods chart and sales chart
   // Fetches historical data for context based on the filter
   const fetchFullTransactionsForPaymentMethods = useCallback(async (filterParams: any, dateRangeFilter?: string): Promise<any[]> => {
     try {
-      console.log('🔍 Fetching full transactions for chart context...', {
-        store_id: user?.store_id,
-        filterParams,
-        dateRangeFilter
-      });
-      
       if (!user?.store_id) {
-        console.error('❌ No store_id available for fetching transactions');
         return [];
       }
       
@@ -246,7 +219,6 @@ export const Dashboard: React.FC = () => {
       
       // For chart context, fetch ALL available transactions (no date limits)
       // This allows the chart to show complete historical trends
-      console.log('🔍 Fetching ALL transactions for complete chart context (no date limits)');
       
       // Optionally, you can set a very wide range if the backend requires dates
       // But ideally, we fetch without date filters to get everything
@@ -254,23 +226,6 @@ export const Dashboard: React.FC = () => {
       const twoYearsAgo = new Date(now.getFullYear() - 2, now.getMonth(), 1);
       historicalStartDate = normalizeDateToYYYYMMDD(twoYearsAgo);
       historicalEndDate = normalizeDateToYYYYMMDD(now);
-      
-      console.log('🔍 Using wide date range to fetch all transactions:', {
-        historicalStartDate,
-        historicalEndDate,
-        note: 'This ensures all historical sales data is available for the chart'
-      });
-      
-      console.warn('💰 SALES API CALL - Requesting ALL transactions:', {
-        store_id: user?.store_id,
-        page: 1,
-        limit: 10000, // Increased limit to get all transactions
-        status: 'all',
-        start_date: historicalStartDate,
-        end_date: historicalEndDate,
-        dateRangeFilter,
-        note: 'Fetching ALL historical transactions for complete chart context'
-      });
       
       const response = await apiService.getTransactions({
         store_id: user?.store_id,
@@ -281,38 +236,14 @@ export const Dashboard: React.FC = () => {
         end_date: historicalEndDate,
       });
       
-      console.warn('💰 SALES API CALL - Response received:', {
-        transactionCount: response.transactions?.length || 0,
-        total: response.total,
-        hasTransactions: !!response.transactions,
-        isArray: Array.isArray(response.transactions),
-        note: 'Checking if API returned transactions'
-      });
-      
       // Check if transactions exist and is an array
       if (!response.transactions || !Array.isArray(response.transactions)) {
-        console.error('❌ SALES API ERROR - Invalid response:', {
-          hasTransactions: !!response.transactions,
-          isArray: Array.isArray(response.transactions),
-          responseType: typeof response.transactions,
-          responseKeys: response ? Object.keys(response) : [],
-          fullResponse: response
-        });
         return [];
       }
       
       // WORKAROUND: If date-filtered request returns 0 or very few transactions, try fetching without date filters
       // This ensures we get ALL transactions regardless of date range
       if (response.transactions.length === 0 || (response.transactions.length < 10 && response.total > response.transactions.length)) {
-        console.warn('⚠️ SALES API - Date-filtered request returned limited transactions. Trying without date filters to get ALL data...', {
-          transactionCount: response.transactions.length,
-          total: response.total,
-          historicalStartDate,
-          historicalEndDate,
-          dateRangeFilter,
-          note: 'Fetching ALL transactions without date limits'
-        });
-        
         try {
           const fallbackResponse = await apiService.getTransactions({
             store_id: user?.store_id,
@@ -322,36 +253,15 @@ export const Dashboard: React.FC = () => {
             // No date filters - get everything
           });
           
-          console.warn('💰 SALES API - Fallback (no date filters) response:', {
-            transactionCount: fallbackResponse.transactions?.length || 0,
-            total: fallbackResponse.total,
-            sampleDates: fallbackResponse.transactions?.slice(0, 5).map((tx: any) => ({
-              id: tx._id,
-              created_at: tx.created_at,
-              month: tx.created_at ? `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}` : 'unknown'
-            }))
-          });
-          
           // If fallback has transactions, use ALL of them (no filtering)
           // This ensures the chart shows all historical data across all dates
           if (fallbackResponse.transactions && fallbackResponse.transactions.length > 0) {
-            console.warn('💰 SALES API - Using ALL transactions (no date filtering):', {
-              transactionCount: fallbackResponse.transactions.length,
-              total: fallbackResponse.total,
-              transactionsByMonth: Object.keys(fallbackResponse.transactions.reduce((acc: any, tx: any) => {
-                const month = `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}`;
-                acc[month] = true;
-                return acc;
-              }, {})).join(', '),
-              note: 'Using ALL transactions for complete chart context'
-            });
-            
             // Use ALL transactions without filtering - this ensures all historical data is shown
             response.transactions = fallbackResponse.transactions;
             response.total = fallbackResponse.total;
           }
         } catch (fallbackError) {
-          console.error('❌ SALES API - Fallback request also failed:', fallbackError);
+          // Fallback request failed, continue with original response
         }
       }
       
@@ -367,56 +277,19 @@ export const Dashboard: React.FC = () => {
         });
         return acc;
       }, {});
-      
-      console.log('🔍 Full Transactions API Response:', {
-        success: true,
-        transactionCount: response.transactions.length,
-        total: response.total,
-        dateRangeFilter,
-        historicalStartDate,
-        historicalEndDate,
-        sampleTransaction: response.transactions[0],
-        transactionDates: response.transactions.slice(0, 5).map((tx: any) => ({
-          id: tx._id,
-          created_at: tx.created_at,
-          total_amount: tx.total_amount
-        })),
-        allTransactionDates: response.transactions.map((tx: any) => ({
-          id: tx._id,
-          created_at: tx.created_at,
-          total_amount: tx.total_amount,
-          month: `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}`
-        })),
-        transactionsByMonth: Object.keys(transactionsByMonthFromAPI).map(month => ({
-          month,
-          count: transactionsByMonthFromAPI[month].length,
-          total: transactionsByMonthFromAPI[month].reduce((sum: number, tx: any) => sum + (tx.total_amount || 0), 0)
-        }))
-      });
-      
-      // Also log to console.warn so it's visible
-      console.warn('💰 SALES API - Transactions by Month from API:', 
-        Object.keys(transactionsByMonthFromAPI).map(month => {
-          const total = transactionsByMonthFromAPI[month].reduce((sum: number, tx: any) => sum + (tx.total_amount || 0), 0);
-          return `${month}: ₺${total.toLocaleString()} (${transactionsByMonthFromAPI[month].length} transactions)`;
-        }).join(', ')
-      );
-      
+
       setFullTransactions(response.transactions);
-      console.log('🔍 Full Transactions for Payment Methods:', {
-        count: response.transactions.length,
-        sampleTransaction: response.transactions[0],
-        hasPaymentMethods: response.transactions[0]?.payment_methods,
-        hasPaymentMethod: response.transactions[0]?.payment_method
-      });
       
       return response.transactions || [];
     } catch (error) {
-      console.error('❌ Failed to fetch full transactions for payment methods:', error);
-      console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
-      });
+      // Don't log abort errors - they're expected when requests are cancelled
+      if (error instanceof Error && error.name === 'AbortError') {
+        return []; // Silently return empty array for aborted requests
+      }
+      // Only log real errors (not timeouts or aborted requests)
+      if (error instanceof Error && !error.message.includes('timeout') && !error.message.includes('aborted')) {
+        console.error('❌ Failed to fetch full transactions for payment methods:', error);
+      }
       return [];
     }
   }, [user?.store_id, dateRange]);
@@ -491,29 +364,30 @@ export const Dashboard: React.FC = () => {
   // Unified refresh function that loads all dashboard data at once
   const unifiedRefresh = useCallback(async () => {
     if (isRefreshingRef.current) {
-      console.log('🔄 Unified refresh skipped - already refreshing');
       return;
     }
 
     // Throttle API calls to prevent spam (minimum 2 seconds between calls)
     const now = Date.now();
     if (now - lastRefreshRef.current < 2000) {
-      console.log('🔄 Unified refresh throttled - too frequent');
       return;
     }
 
+    // Cancel any pending request before starting a new one
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     isRefreshingRef.current = true;
     lastRefreshRef.current = now;
-    console.log('🔄 Unified refresh triggered');
 
     try {
       // Calculate filter parameters based on current date range
       const now = new Date();
       let filterParams: any = {};
       // Expense dates no longer needed - handled by dashboard metrics API
-      
-      console.log('🔍 Calculating filter parameters for dateRange:', dateRange);
-      
+
       switch (dateRange) {
         case 'today':
           // Use system timezone to ensure correct "today" calculation
@@ -523,7 +397,6 @@ export const Dashboard: React.FC = () => {
             startDate: todayRange.start.toISOString(), // Full ISO timestamp for start of day
             endDate: todayRange.end.toISOString() // Full ISO timestamp for end of day
           };
-          console.log('🔍 Today filter params:', filterParams);
           break;
         case 'this_month':
           // Use simple date strings for the current month
@@ -536,7 +409,6 @@ export const Dashboard: React.FC = () => {
             startDate: `${year}-${month.toString().padStart(2, '0')}-01`, // YYYY-MM-01 format
             endDate: `${year}-${month.toString().padStart(2, '0')}-31` // YYYY-MM-31 format
           };
-          console.log('🔍 This month filter params (simple format):', filterParams);
           break;
         case 'custom':
           if (customStartDate && customEndDate) {
@@ -564,17 +436,6 @@ export const Dashboard: React.FC = () => {
 
       // Single API call to get all dashboard data
       try {
-        console.log('🔍 Dashboard API Call Debug:', {
-          dateRange,
-          filterParams,
-          customStartDate,
-          customEndDate,
-          todayDate: new Date().toISOString().split('T')[0],
-          startDate,
-          endDate,
-          apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&dateRange=${filterParams.dateRange}&startDate=${startDate}&endDate=${endDate}`,
-          monthRange: dateRange === 'this_month' ? getThisMonthRange() : null
-        });
 
         const metrics = await apiService.getDashboardAnalytics({
           store_id: user?.store_id,
@@ -584,47 +445,9 @@ export const Dashboard: React.FC = () => {
           endDate: endDate,
         });
 
-        console.log('🔍 API Response Debug:', {
-          dateRange,
-          startDate,
-          endDate,
-          totalSales: metrics?.totalSales,
-          totalExpenses: metrics?.totalExpenses,
-          totalTransactions: metrics?.totalTransactions,
-          monthlySales: metrics?.monthlySales,
-          monthlyExpenses: metrics?.monthlyExpenses,
-          hasSalesByMonth: !!metrics?.salesByMonth,
-          salesByMonthLength: metrics?.salesByMonth?.length,
-          hasTopProducts: !!metrics?.topProducts,
-          topProductsLength: metrics?.topProducts?.length,
-          hasExpensesByPeriod: !!metrics?.expensesByPeriod,
-          expensesByPeriodLength: metrics?.expensesByPeriod?.length || 0,
-          expensesByPeriod: metrics?.expensesByPeriod?.slice(0, 10), // Show first 10
-          todayDate: normalizeDateToYYYYMMDD(new Date()),
-          expensesByPeriodIncludesToday: metrics?.expensesByPeriod?.some((item: any) => {
-            const periodDate = item.period && /^\d{4}-\d{2}-\d{2}$/.test(item.period) 
-              ? item.period 
-              : normalizeDateToYYYYMMDD(item.period);
-            return periodDate === normalizeDateToYYYYMMDD(new Date());
-          }),
-          todayExpenseFromSeries: metrics?.expensesByPeriod?.find((item: any) => {
-            const periodDate = item.period && /^\d{4}-\d{2}-\d{2}$/.test(item.period) 
-              ? item.period 
-              : normalizeDateToYYYYMMDD(item.period);
-            return periodDate === normalizeDateToYYYYMMDD(new Date());
-          })
-        });
-
         // Check if expenses are missing and fetch them separately if needed
         let finalMetrics = { ...metrics };
         if (metrics && (metrics.totalExpenses === undefined || metrics.totalExpenses === null)) {
-          console.log('🔍 Expenses missing from dashboard metrics, fetching separately...', {
-            dateRange,
-            startDate,
-            endDate,
-            filterParams,
-            todayDate: new Date().toISOString().split('T')[0]
-          });
           try {
             const expensesResponse = await apiService.getExpenses({
               store_id: user?.store_id,
@@ -640,16 +463,6 @@ export const Dashboard: React.FC = () => {
               monthlyExpenses: totalExpenses
             };
             
-            console.log('🔍 Expenses fetched separately:', {
-              expenseCount: expensesResponse.expenses.length,
-              totalExpenses,
-              sampleExpenses: expensesResponse.expenses.slice(0, 3),
-              expenseDates: expensesResponse.expenses.map((expense: any) => ({
-                date: expense.date,
-                amount: expense.amount,
-                description: expense.description || expense.product_name
-              }))
-            });
           } catch (expenseError) {
             console.error('❌ Failed to fetch expenses separately:', expenseError);
           }
@@ -657,16 +470,10 @@ export const Dashboard: React.FC = () => {
 
         // Additional check: If dateRange is 'today', ensure we only show today's actual expenses
         if (dateRange === 'today') {
-          console.log('🔍 Today filter active, checking if expenses are actually from today...', {
-            totalExpenses: finalMetrics.totalExpenses,
-            expensesVsYesterday: finalMetrics.expensesVsYesterday,
-            isShowingYesterdayData: finalMetrics.expensesVsYesterday === -100
-          });
           
           // If the comparison shows -100% vs yesterday, it means today's expenses are 0
           // but we might be showing yesterday's data as totalExpenses
           if (finalMetrics.expensesVsYesterday === -100 && finalMetrics.totalExpenses > 0) {
-            console.log('🔍 Detected yesterday data being shown as today total, correcting to 0');
             finalMetrics = {
               ...finalMetrics,
               totalExpenses: 0
@@ -675,46 +482,6 @@ export const Dashboard: React.FC = () => {
         }
 
         setLocalDashboardMetrics(finalMetrics);
-        console.log('🔍 Dashboard Metrics Debug (Unified):', {
-          totalExpenses: finalMetrics?.totalExpenses,
-          monthlyExpenses: finalMetrics?.monthlyExpenses,
-          netProfit: finalMetrics?.netProfit,
-          totalSales: finalMetrics?.totalSales,
-          totalTransactions: finalMetrics?.totalTransactions,
-          todaySales: finalMetrics?.todaySales,
-          monthlySales: finalMetrics?.monthlySales,
-          dateRange,
-          filterParams,
-          recentTransactions: metrics?.recentTransactions?.length || 0,
-          recentTransactionsData: metrics?.recentTransactions?.slice(0, 2), // Log first 2 transactions
-          salesByMonth: metrics?.salesByMonth?.length || 0,
-          topProducts: metrics?.topProducts?.length || 0,
-          apiUrl: `/analytics/dashboard?store_id=${user?.store_id}&startDate=${startDate}&endDate=${endDate}`,
-          // Additional debugging for payment method data
-          fullMetricsStructure: {
-            hasRecentTransactions: !!metrics?.recentTransactions,
-            recentTransactionsType: typeof metrics?.recentTransactions,
-            recentTransactionsIsArray: Array.isArray(metrics?.recentTransactions),
-            firstTransactionStructure: metrics?.recentTransactions?.[0] ? Object.keys(metrics.recentTransactions[0]) : 'No transactions'
-          },
-          // Specific debugging for expenses
-          expenseDebug: {
-            totalExpenses: metrics?.totalExpenses,
-            monthlyExpenses: metrics?.monthlyExpenses,
-            expensesVsYesterday: metrics?.expensesVsYesterday,
-            hasExpenseData: metrics?.totalExpenses !== undefined && metrics?.totalExpenses !== null,
-            expenseType: typeof metrics?.totalExpenses,
-            customStartDate,
-            customEndDate,
-            // Additional debugging for the fallback issue
-            isUsingFallback: finalMetrics !== metrics,
-            originalTotalExpenses: metrics?.totalExpenses,
-            finalTotalExpenses: finalMetrics?.totalExpenses,
-            dateRangeFilter: dateRange,
-            startDateFilter: startDate,
-            endDateFilter: endDate
-          }
-        });
 
         // Update goal progress with the loaded metrics
         if (finalMetrics) {
@@ -723,31 +490,9 @@ export const Dashboard: React.FC = () => {
 
         // Fetch full transaction data for payment methods chart and sales chart
         // Include historical context based on the filter
-        console.log('🔍 About to fetch full transactions with params:', filterParams);
         const fetchedTransactions = await fetchFullTransactionsForPaymentMethods(filterParams, dateRange);
 
         // Log what was fetched
-        console.warn('💰 SALES FETCH - Transactions fetched from API:', {
-          count: fetchedTransactions?.length || 0,
-          dateRange,
-          transactionsByMonth: fetchedTransactions ? fetchedTransactions.reduce((acc: any, tx: any) => {
-            const txDate = new Date(tx.created_at);
-            const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
-            if (!acc[monthKey]) acc[monthKey] = [];
-            acc[monthKey].push({
-              id: tx._id,
-              created_at: tx.created_at,
-              total_amount: tx.total_amount
-            });
-            return acc;
-          }, {}) : {},
-          sampleTransactions: fetchedTransactions?.slice(0, 5).map((tx: any) => ({
-            id: tx._id,
-            created_at: tx.created_at,
-            total_amount: tx.total_amount,
-            month: `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}`
-          }))
-        });
 
         // Populate filteredSales from API data for chart display
         // Use fetchedTransactions first, then recentTransactions from API, then fullTransactions state
@@ -756,15 +501,6 @@ export const Dashboard: React.FC = () => {
         if (fetchedTransactions && fetchedTransactions.length > 0) {
           // Use freshly fetched transactions (most complete data)
           transactionsForChart = fetchedTransactions;
-          console.warn('✅ Using fetchedTransactions for chart:', {
-            count: fetchedTransactions.length,
-            dateRange,
-            months: Object.keys(fetchedTransactions.reduce((acc: any, tx: any) => {
-              const month = `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}`;
-              acc[month] = true;
-              return acc;
-            }, {})).join(', ')
-          });
         } else if (finalMetrics?.recentTransactions && finalMetrics.recentTransactions.length > 0) {
           // Convert recentTransactions to the format expected by chart
           transactionsForChart = finalMetrics.recentTransactions.map((tx: any) => ({
@@ -776,54 +512,41 @@ export const Dashboard: React.FC = () => {
             order_source: tx.orderSource || tx.order_source,
             status: tx.status || 'completed'
           }));
-          console.warn('⚠️ Using recentTransactions for chart (fetchedTransactions empty):', {
-            count: transactionsForChart.length,
-            dateRange,
-            note: 'recentTransactions might only contain current month data'
-          });
         } else if (fullTransactions && fullTransactions.length > 0) {
           // Fallback to state (might be from previous fetch)
           transactionsForChart = fullTransactions;
-          console.warn('⚠️ Using fullTransactions state for chart (fetchedTransactions and recentTransactions empty):', {
-            count: fullTransactions.length,
-            dateRange
-          });
         }
         
         // Set filteredSales for chart rendering
-        console.warn('💰 Setting filteredSales:', {
-          count: transactionsForChart.length,
-          dateRange,
-          months: Object.keys(transactionsForChart.reduce((acc: any, tx: any) => {
-            const month = `${new Date(tx.created_at).getFullYear()}-${String(new Date(tx.created_at).getMonth() + 1).padStart(2, '0')}`;
-            acc[month] = true;
-            return acc;
-          }, {})).join(', ')
-        });
         setFilteredSales(transactionsForChart);
 
         // Dashboard metrics are now managed locally - no need to update AppContext
 
       } catch (error) {
-        console.error('❌ Failed to load dashboard metrics:', error);
-        console.error('Error details:', {
-          message: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined,
-          dateRange,
-          filterParams,
-          customStartDate,
-          customEndDate
-        });
+        // Don't log abort errors - they're expected when requests are cancelled
+        if (error instanceof Error && error.name === 'AbortError') {
+          return; // Silently ignore aborted requests
+        }
+        // Only log real errors (not timeouts or aborted requests)
+        if (error instanceof Error && !error.message.includes('timeout') && !error.message.includes('aborted')) {
+          console.error('❌ Failed to load dashboard metrics:', error);
+        }
       }
 
       // Mark initial load as complete
       if (isInitialLoad) {
-        console.log('🔍 Setting isInitialLoad to false');
         setIsInitialLoad(false);
       }
 
     } catch (error) {
-      console.error('Failed to refresh dashboard:', error);
+      // Don't log abort errors - they're expected when requests are cancelled
+      if (error instanceof Error && error.name === 'AbortError') {
+        return; // Silently ignore aborted requests
+      }
+      // Only log real errors (not timeouts or aborted requests)
+      if (error instanceof Error && !error.message.includes('timeout') && !error.message.includes('aborted')) {
+        console.error('Failed to refresh dashboard:', error);
+      }
     } finally {
       isRefreshingRef.current = false;
     }
@@ -858,28 +581,13 @@ export const Dashboard: React.FC = () => {
   // Filter changes trigger unified refresh with debounce
   // Remove unifiedRefresh from dependencies to prevent infinite loop
   useEffect(() => {
-    console.log('🔍 Filter useEffect triggered:', {
-      dateRange,
-      customStartDate,
-      customEndDate,
-      isInitialLoad
-    });
     
     // Skip initial load to prevent duplicate calls
     if (isInitialLoad) {
-      console.log('🔍 Skipping filter change - still in initial load');
       return;
     }
-    
-    console.log('🔍 Filter change detected, scheduling refresh:', {
-      dateRange,
-      customStartDate,
-      customEndDate,
-      isInitialLoad
-    });
-    
+
     const timeoutId = setTimeout(() => {
-      console.log('🔍 Triggering unified refresh due to filter change');
       unifiedRefresh();
     }, 500); // 500ms debounce to prevent API spam
 
@@ -904,13 +612,6 @@ export const Dashboard: React.FC = () => {
 
     if (signature !== lastMetricsSignatureRef.current) {
       lastMetricsSignatureRef.current = signature;
-      console.log('🔍 Dashboard - Current Metrics:', {
-        hasLocalMetrics: !!localDashboardMetrics,
-        hasDashboardMetrics: !!dashboardMetrics,
-        paymentMethods: currentDashboardMetrics?.paymentMethods,
-        totalSales: currentDashboardMetrics?.totalSales,
-        metricsKeys: currentDashboardMetrics ? Object.keys(currentDashboardMetrics) : []
-      });
     }
   }, [localDashboardMetrics, dashboardMetrics, currentDashboardMetrics?.totalSales, currentDashboardMetrics?.totalExpenses]);
 
@@ -943,25 +644,8 @@ export const Dashboard: React.FC = () => {
     // Prefer backend-provided series if available
     // Backend now returns expensesByPeriod with timezone-aware dates in YYYY-MM-DD format (daily) or YYYY-MM (monthly)
     const seriesFromMetrics = (currentDashboardMetrics as any)?.expensesByPeriod;
-    
-    console.log('🔍 Checking expensesByPeriod from backend:', {
-      hasSeries: !!seriesFromMetrics,
-      isArray: Array.isArray(seriesFromMetrics),
-      length: seriesFromMetrics?.length || 0,
-      sample: seriesFromMetrics?.slice(0, 5),
-      chartPeriod,
-      dateRange,
-      note: 'Checking if backend provides expense series data'
-    });
-    
+
     if (Array.isArray(seriesFromMetrics) && seriesFromMetrics.length > 0) {
-      console.log('🔍 Using backend expensesByPeriod (timezone-aware):', {
-        count: seriesFromMetrics.length,
-        sample: seriesFromMetrics.slice(0, 5),
-        allPeriods: seriesFromMetrics.map((item: any) => item.period),
-        chartPeriod,
-        note: 'Backend returns dates in YYYY-MM-DD format (daily) or YYYY-MM (monthly) in local timezone (Europe/Nicosia)'
-      });
       
       const mapped = seriesFromMetrics.map((item: any) => {
         // Backend provides dates in YYYY-MM-DD format (daily) or YYYY-MM (monthly) in local timezone
@@ -993,13 +677,7 @@ export const Dashboard: React.FC = () => {
           expenses: item.amount || 0
         };
       });
-      
-      console.log('🔍 Mapped expense data from backend:', {
-        mapped: mapped.slice(0, 5),
-        chartPeriod,
-        note: 'Mapped expenses with period-specific format'
-      });
-      
+
       // Store series data for merging later (don't set state yet)
       seriesExpenseDataRef.current = mapped;
       
@@ -1008,10 +686,7 @@ export const Dashboard: React.FC = () => {
       // historical data (e.g., last 30 days for "today" filter, last 12 months for "this_month")
       // We'll merge both sources, with individual expenses supplementing the series
       // NOTE: For accuracy, we prioritize individual expenses over backend series data
-      console.log('🔍 expensesByPeriod found, but also fetching individual expenses for full historical context...');
-      console.log('⚠️ IMPORTANT: Individual expenses will take precedence over backend series data to ensure accuracy');
     } else {
-      console.log('🔍 No expensesByPeriod from backend, fetching individual expenses...');
       seriesExpenseDataRef.current = [];
     }
 
@@ -1055,14 +730,6 @@ export const Dashboard: React.FC = () => {
             endDate = normalizeDateToYYYYMMDD(now);
           }
 
-        console.log('🔍 Fetching expense data for chart (fallback, no series in metrics):', {
-          store_id: user.store_id,
-          startDate,
-          endDate,
-          dateRange,
-          note: 'Fetching expenses with date filtering to match current date range'
-        });
-
         // Fetch expenses with date filtering to match the current date range
         const expensesResponse = await apiService.getExpenses({
           store_id: user.store_id,
@@ -1071,44 +738,7 @@ export const Dashboard: React.FC = () => {
           limit: 1000
         });
 
-        console.log('🔍 Expense API Response - DETAILED:', {
-          totalExpenses: expensesResponse.expenses.length,
-          dateRange: {
-            startDate,
-            endDate,
-            chartPeriod
-          },
-          allExpenses: expensesResponse.expenses.map((e: any) => ({
-            id: e._id,
-            date: e.date,
-            amount: e.amount,
-            product_name: e.product_name,
-            category: e.category,
-            normalizedDate: normalizeDateToYYYYMMDD(e.date),
-            monthKey: chartPeriod === 'monthly' ? `${new Date(e.date).getFullYear()}-${String(new Date(e.date).getMonth() + 1).padStart(2, '0')}` : normalizeDateToYYYYMMDD(e.date)
-          })),
-          totalAmount: expensesResponse.expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0),
-          expenseDatesDebug: expensesResponse.expenses.slice(0, 10).map((e: any) => ({
-            original: e.date,
-            type: typeof e.date,
-            parsed: new Date(e.date),
-            normalized: normalizeDateToYYYYMMDD(e.date),
-            localYear: new Date(e.date).getFullYear(),
-            localMonth: new Date(e.date).getMonth() + 1,
-            localDay: new Date(e.date).getDate(),
-            utcYear: new Date(e.date).getUTCFullYear(),
-            utcMonth: new Date(e.date).getUTCMonth() + 1,
-            utcDay: new Date(e.date).getUTCDate(),
-            amount: e.amount
-          }))
-        });
-
         // Group expenses by day
-        console.log('🔍 Processing expenses for chart:', {
-          totalExpenses: expensesResponse.expenses.length,
-          expenseDates: expensesResponse.expenses.map(e => e.date).slice(0, 5), // Show first 5 dates
-          expenseAmounts: expensesResponse.expenses.map(e => e.amount).slice(0, 5) // Show first 5 amounts
-        });
 
         // Group expenses by period (day or month) based on chartPeriod
         // Backend now uses timezone-aware date operations, so expense.date should be in YYYY-MM-DD format
@@ -1158,40 +788,16 @@ export const Dashboard: React.FC = () => {
           originalDate: expenseItem.day, // Same as day (normalized format)
           expenses: expenseItem.expenses
         }));
-        
-        console.log('🔍 Fetched individual expense data:', {
-          groupedExpenses,
-          fetchedExpenseData,
-          totalPeriods: fetchedExpenseData.length,
-          chartPeriod,
-          sampleExpenses: fetchedExpenseData.slice(0, 5),
-          note: chartPeriod === 'monthly' ? 'Grouped by month (YYYY-MM)' : 'Grouped by day (YYYY-MM-DD)'
-        });
 
         // Merge with expensesByPeriod if it was set earlier
         // Individual expenses are more accurate and include full historical range
         const seriesExpenseData = seriesExpenseDataRef.current || [];
         const mergedExpenseMap = new Map<string, { day: string; originalDate: string; expenses: number }>();
-        
-        console.log('🔍 EXPENSE MERGING DEBUG:', {
-          fromBackendSeries: seriesExpenseData.length,
-          fromIndividualFetch: fetchedExpenseData.length,
-          backendSeriesData: seriesExpenseData.map((item: any) => ({
-            period: item.originalDate || item.day,
-            amount: item.expenses
-          })),
-          individualExpenseData: fetchedExpenseData.map((item: any) => ({
-            period: item.originalDate || item.day,
-            amount: item.expenses
-          })),
-          note: 'Checking for potential double-counting or incorrect aggregation'
-        });
-        
+
         // CRITICAL: For accuracy, we ONLY use individual expenses when they're available
         // Backend series data may contain incorrect aggregations or timezone issues
         // Individual expenses are the source of truth
         if (fetchedExpenseData.length > 0) {
-          console.log('✅ Using ONLY individual expenses (source of truth) - ignoring backend series data');
           // Use only individual expenses
           fetchedExpenseData.forEach(item => {
             const key = item.originalDate || item.day;
@@ -1203,7 +809,6 @@ export const Dashboard: React.FC = () => {
           });
         } else {
           // Fallback to backend series data only if no individual expenses available
-          console.log('⚠️ No individual expenses found, falling back to backend series data');
           seriesExpenseData.forEach(item => {
             const key = item.originalDate || item.day;
             mergedExpenseMap.set(key, item);
@@ -1215,29 +820,6 @@ export const Dashboard: React.FC = () => {
           const dateB = new Date(b.originalDate || b.day);
           return dateA.getTime() - dateB.getTime();
         });
-        
-        // CRITICAL: Log expense breakdown for verification
-        console.log('🔍 Final merged expense data for chart:', {
-          fromSeries: seriesExpenseData.length,
-          fromIndividual: fetchedExpenseData.length,
-          merged: finalExpenseData.length,
-          allExpensesByPeriod: finalExpenseData.map((item: any) => ({
-            period: item.originalDate || item.day,
-            amount: item.expenses,
-            display: item.day
-          })),
-          totalExpenseAmount: finalExpenseData.reduce((sum: number, item: any) => sum + (item.expenses || 0), 0),
-          sampleExpenses: finalExpenseData.slice(0, 5),
-          todayDate: normalizeDateToYYYYMMDD(new Date()),
-          hasToday: finalExpenseData.some(e => (e.originalDate || e.day) === normalizeDateToYYYYMMDD(new Date())),
-          todayExpense: finalExpenseData.find(e => (e.originalDate || e.day) === normalizeDateToYYYYMMDD(new Date())),
-          note: 'This is the final expense data that will be displayed in the chart'
-        });
-        
-        // Also log to console.warn so it's not suppressed
-        console.warn('💰 EXPENSE VERIFICATION - Monthly Totals:', 
-          finalExpenseData.map((item: any) => `${item.day || item.originalDate}: ₺${item.expenses.toLocaleString()}`).join(', ')
-        );
         
         // Log individual expenses that contributed to each month
         if (expensesResponse?.expenses) {
@@ -1267,18 +849,18 @@ export const Dashboard: React.FC = () => {
             };
           });
           
-          console.warn('💰 EXPENSE VERIFICATION - Individual Expenses by Month:', expensesByMonth);
-          console.warn('💰 EXPENSE VERIFICATION - Monthly Totals Breakdown:', monthlyTotals);
-          console.warn('💰 EXPENSE VERIFICATION - Summary:', {
-            totalExpenses: expensesResponse.expenses.length,
-            totalAmount: expensesResponse.expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0),
-            monthlyBreakdown: monthlyTotals.map(m => `${m.month}: ₺${m.total.toLocaleString()} (${m.count} expenses)`)
-          });
         }
 
         setExpenseData(finalExpenseData);
       } catch (error) {
-        console.error('Failed to fetch expense data for chart:', error);
+        // Don't log abort errors - they're expected when requests are cancelled
+        if (error instanceof Error && error.name === 'AbortError') {
+          return; // Silently ignore aborted requests
+        }
+        // Only log real errors (not timeouts or aborted requests)
+        if (error instanceof Error && !error.message.includes('timeout') && !error.message.includes('aborted')) {
+          console.error('Failed to fetch expense data for chart:', error);
+        }
         setExpenseData([]);
       }
     };
@@ -1315,20 +897,6 @@ export const Dashboard: React.FC = () => {
     let transactionsToUse: any[] = [];
 
     // Debug: Check if salesByMonth or salesByPeriod is available
-    console.warn('💰 SALES DATA SOURCE CHECK:', {
-      chartPeriod: getChartPeriod,
-      hasSalesByMonth: !!currentDashboardMetrics?.salesByMonth,
-      salesByMonthLength: currentDashboardMetrics?.salesByMonth?.length || 0,
-      hasSalesByPeriod: !!currentDashboardMetrics?.salesByPeriod,
-      salesByPeriodLength: currentDashboardMetrics?.salesByPeriod?.length || 0,
-      salesByMonth: currentDashboardMetrics?.salesByMonth,
-      salesByPeriod: currentDashboardMetrics?.salesByPeriod,
-      hasFilteredSales: !!filteredSales,
-      filteredSalesLength: filteredSales?.length || 0,
-      hasRecentTransactions: !!currentDashboardMetrics?.recentTransactions,
-      recentTransactionsLength: currentDashboardMetrics?.recentTransactions?.length || 0,
-      recentTransactionsSample: currentDashboardMetrics?.recentTransactions?.slice(0, 2)
-    });
 
     // For daily/weekly charts, prefer salesByPeriod from API if available (has historical data)
     // BUT only if it has valid non-zero amounts, otherwise fall back to transactions
@@ -1337,15 +905,6 @@ export const Dashboard: React.FC = () => {
       currentDashboardMetrics.salesByPeriod.some((item: any) => item && item.period && (item.amount || 0) > 0);
     
     if ((getChartPeriod === 'daily' || getChartPeriod === 'weekly') && hasValidSalesByPeriod) {
-      console.warn('💰 Using salesByPeriod from API for daily/weekly chart (preferred over transactions):', {
-        salesByPeriod: currentDashboardMetrics.salesByPeriod,
-        count: currentDashboardMetrics.salesByPeriod.length,
-        periods: currentDashboardMetrics.salesByPeriod
-          .filter((item: any) => item && item.period)
-          .map((item: any) => item.period)
-          .slice(0, 5)
-          .join(', ')
-      });
       
       // Convert salesByPeriod to the format expected by the chart
       // Filter out any null/undefined items and ensure all required fields exist
@@ -1358,36 +917,13 @@ export const Dashboard: React.FC = () => {
           originalDate: item.period
         }));
       
-      console.warn('💰 SALES VERIFICATION - Using salesByPeriod from API:', 
-        currentDashboardMetrics.salesByPeriod
-          .filter((item: any) => item && item.period) // Filter out null/undefined items
-          .map((item: any) => `${item.period}: ₺${(item.amount || 0).toLocaleString()}`)
-          .slice(0, 5)
-          .join(', ') + 
-        (currentDashboardMetrics.salesByPeriod.length > 5 ? ` ... (${currentDashboardMetrics.salesByPeriod.length} total)` : '')
-      );
     } else if ((getChartPeriod === 'daily' || getChartPeriod === 'weekly') && currentDashboardMetrics?.salesByPeriod && currentDashboardMetrics.salesByPeriod.length > 0) {
       // salesByPeriod exists but all amounts are zero - fall back to transactions
-      console.warn('⚠️ salesByPeriod from API has all zero amounts, falling back to transaction data:', {
-        salesByPeriod: currentDashboardMetrics.salesByPeriod,
-        periods: currentDashboardMetrics.salesByPeriod.map((item: any) => `${item.period}: ₺${(item.amount || 0).toLocaleString()}`).join(', '),
-        willUseTransactions: true
-      });
       // Populate transactionsToUse here so it can be processed
       if (filteredSales && filteredSales.length > 0) {
         transactionsToUse = filteredSales;
-        console.log('🔍 Using filteredSales for chart (salesByPeriod had zeros):', {
-          count: filteredSales.length,
-          dateRange,
-          chartPeriod: getChartPeriod
-        });
       } else if (fullTransactions && fullTransactions.length > 0) {
         transactionsToUse = fullTransactions;
-        console.log('🔍 Using fullTransactions for chart (salesByPeriod had zeros, filteredSales empty):', {
-          count: fullTransactions.length,
-          dateRange,
-          chartPeriod: getChartPeriod
-        });
       } else if (currentDashboardMetrics?.recentTransactions && Array.isArray(currentDashboardMetrics.recentTransactions) && currentDashboardMetrics.recentTransactions.length > 0) {
         // Convert recentTransactions format to match expected structure
         transactionsToUse = currentDashboardMetrics.recentTransactions.map((tx: any) => ({
@@ -1400,19 +936,9 @@ export const Dashboard: React.FC = () => {
           status: tx.status || 'completed',
           items: tx.items || []
         }));
-        console.log('🔍 Using recentTransactions for chart (salesByPeriod had zeros, filteredSales and fullTransactions empty):', {
-          count: transactionsToUse.length,
-          dateRange,
-          chartPeriod: getChartPeriod
-        });
       }
     } else if (getChartPeriod === 'monthly' && currentDashboardMetrics?.salesByMonth && currentDashboardMetrics.salesByMonth.length > 0) {
       // For monthly charts, prefer salesByMonth from API if available (has historical data)
-      console.warn('💰 Using salesByMonth from API for monthly chart (preferred over transactions):', {
-        salesByMonth: currentDashboardMetrics.salesByMonth,
-        count: currentDashboardMetrics.salesByMonth.length,
-        months: currentDashboardMetrics.salesByMonth.map((item: any) => item.month).join(', ')
-      });
       
       // Convert salesByMonth to the format expected by the chart
       rawData = currentDashboardMetrics.salesByMonth.map((item: any) => ({
@@ -1422,25 +948,12 @@ export const Dashboard: React.FC = () => {
         originalDate: item.month
       }));
       
-      console.warn('💰 SALES VERIFICATION - Using salesByMonth from API:', 
-        currentDashboardMetrics.salesByMonth.map((item: any) => `${item.month}: ₺${item.sales.toLocaleString()} (${item.transactions} transactions)`).join(', ')
-      );
     } else {
       // Get transactions data - prefer filteredSales, fallback to fullTransactions or recentTransactions
       if (filteredSales && filteredSales.length > 0) {
         transactionsToUse = filteredSales;
-        console.log('🔍 Using filteredSales for chart:', {
-          count: filteredSales.length,
-          dateRange,
-          chartPeriod: getChartPeriod
-        });
       } else if (fullTransactions && fullTransactions.length > 0) {
         transactionsToUse = fullTransactions;
-        console.log('🔍 Using fullTransactions for chart (filteredSales empty):', {
-          count: fullTransactions.length,
-          dateRange,
-          chartPeriod: getChartPeriod
-        });
       } else if (currentDashboardMetrics?.recentTransactions && Array.isArray(currentDashboardMetrics.recentTransactions) && currentDashboardMetrics.recentTransactions.length > 0) {
         // Convert recentTransactions format to match expected structure
         transactionsToUse = currentDashboardMetrics.recentTransactions.map((tx: any) => ({
@@ -1453,29 +966,7 @@ export const Dashboard: React.FC = () => {
           status: tx.status || 'completed',
           items: tx.items || [] // Include items for product aggregation
         }));
-        console.log('🔍 Using recentTransactions for chart (filteredSales and fullTransactions empty):', {
-          count: transactionsToUse.length,
-          dateRange,
-          chartPeriod: getChartPeriod,
-          sampleTransaction: transactionsToUse[0] ? {
-            id: transactionsToUse[0]._id,
-            total_amount: transactionsToUse[0].total_amount,
-            created_at: transactionsToUse[0].created_at
-          } : null
-        });
       } else {
-        console.warn('⚠️ No transactions available for chart:', {
-          hasFilteredSales: !!filteredSales,
-          filteredSalesLength: filteredSales?.length || 0,
-          hasFullTransactions: !!fullTransactions,
-          fullTransactionsLength: fullTransactions?.length || 0,
-          hasRecentTransactions: !!currentDashboardMetrics?.recentTransactions,
-          recentTransactionsLength: currentDashboardMetrics?.recentTransactions?.length || 0,
-          hasSalesByMonth: !!currentDashboardMetrics?.salesByMonth,
-          salesByMonthLength: currentDashboardMetrics?.salesByMonth?.length || 0,
-          dateRange,
-          chartPeriod: getChartPeriod
-        });
       }
     }
 
@@ -1483,30 +974,12 @@ export const Dashboard: React.FC = () => {
     const chartPeriod = getChartPeriod;
 
     // Debug: Log the state before processing
-    console.warn('💰 SALES DATA PROCESSING - Before aggregation:', {
-      rawDataLength: rawData.length,
-      transactionsToUseLength: transactionsToUse.length,
-      chartPeriod,
-      hasRawData: rawData.length > 0,
-      hasTransactions: transactionsToUse.length > 0
-    });
 
     // If rawData was already set from salesByMonth or salesByPeriod, skip transaction processing
     if (rawData.length > 0) {
       // rawData already populated from salesByMonth or valid salesByPeriod, proceed to aggregation
-      console.log('💰 Using pre-aggregated data (salesByMonth or salesByPeriod), skipping transaction processing');
     } else if (transactionsToUse.length > 0) {
       // Always use transaction data for aggregation to ensure we have full historical context
-      console.log('🔍 Processing transactions for chart:', {
-        chartPeriod,
-        transactionCount: transactionsToUse.length,
-        sampleTransactions: transactionsToUse.slice(0, 3).map((tx: any) => ({
-          id: tx._id,
-          total_amount: tx.total_amount,
-          created_at: tx.created_at,
-          created_at_type: typeof tx.created_at
-        }))
-      });
       
       if (chartPeriod === 'monthly') {
         // For monthly view (this_month filter), group transactions by month
@@ -1544,31 +1017,6 @@ export const Dashboard: React.FC = () => {
           });
           return acc;
         }, {});
-        
-        console.log('🔍 Monthly sales aggregation:', {
-          monthlySalesKeys: Object.keys(monthlySales),
-          monthlySalesValues: Object.values(monthlySales).map((item: any) => ({
-            month: item.day,
-            sales: item.sales
-          })),
-          totalMonths: Object.keys(monthlySales).length,
-          transactionsByMonth: Object.keys(transactionsByMonth).map(month => ({
-            month,
-            transactionCount: transactionsByMonth[month].length,
-            totalSales: transactionsByMonth[month].reduce((sum: number, tx: any) => sum + (tx.total_amount || 0), 0),
-            transactions: transactionsByMonth[month]
-          }))
-        });
-        
-        // Also log to console.warn so it's visible
-        console.warn('💰 SALES VERIFICATION - Monthly Totals:', 
-          Object.keys(transactionsByMonth).map(month => {
-            const total = transactionsByMonth[month].reduce((sum: number, tx: any) => sum + (tx.total_amount || 0), 0);
-            return `${month}: ₺${total.toLocaleString()} (${transactionsByMonth[month].length} transactions)`;
-          }).join(', ')
-        );
-        
-        console.warn('💰 SALES VERIFICATION - Transactions by Month:', transactionsByMonth);
 
         rawData = (Object.values(monthlySales) as { day: string; sales: number }[]).map((item) => ({
           day: item.day, // YYYY-MM format for monthly
@@ -1577,29 +1025,12 @@ export const Dashboard: React.FC = () => {
         }));
       } else {
         // For daily/weekly view (today or custom filters), group transactions by day
-        console.warn('💰 DAILY SALES AGGREGATION - Processing transactions:', {
-          transactionCount: transactionsToUse.length,
-          chartPeriod,
-          dateRange,
-          sampleTransactions: transactionsToUse.slice(0, 5).map((tx: any) => ({
-            id: tx._id,
-            created_at: tx.created_at,
-            total_amount: tx.total_amount,
-            normalizedDate: normalizeDateToYYYYMMDD(tx.created_at)
-          }))
-        });
         
         const dailySales = transactionsToUse.reduce((acc, sale) => {
           const dayKey = normalizeDateToYYYYMMDD(sale.created_at);
           
           // Debug: Log date conversion for first few transactions
           if (Object.keys(acc).length < 3) {
-            console.warn('💰 DATE NORMALIZATION DEBUG:', {
-              originalDate: sale.created_at,
-              normalizedDate: dayKey,
-              totalAmount: sale.total_amount,
-              transactionId: sale._id
-            });
           }
 
           if (!acc[dayKey]) {
@@ -1611,16 +1042,6 @@ export const Dashboard: React.FC = () => {
           return acc;
         }, {} as Record<string, { day: string; sales: number; transactionCount: number }>);
 
-        console.warn('💰 DAILY SALES AGGREGATION - Grouped by day:', {
-          dailySalesKeys: Object.keys(dailySales),
-          dailySalesValues: Object.values(dailySales).map((item: any) => ({
-            day: item.day,
-            sales: item.sales,
-            transactionCount: item.transactionCount
-          })),
-          totalDays: Object.keys(dailySales).length
-        });
-
         rawData = (Object.values(dailySales) as { day: string; sales: number; transactionCount: number }[]).map((item) => ({
           day: item.day, // YYYY-MM-DD format for daily
           sales: item.sales,
@@ -1630,7 +1051,6 @@ export const Dashboard: React.FC = () => {
       }
     } else if (rawData.length === 0) {
       // No transactions available and no salesByMonth fallback - return empty (will show "no data" message)
-      console.warn('⚠️ No sales data available - returning empty chart data');
       return [];
     }
 
@@ -1663,27 +1083,12 @@ export const Dashboard: React.FC = () => {
         originalDate: item.day // Keep YYYY-MM format for matching
       }));
       
-      console.log('🔍 Monthly aggregated sales data:', {
-        count: aggregatedData.length,
-        data: aggregatedData.map((item: any) => ({
-          display: item.day,
-          originalDate: item.originalDate,
-          sales: item.sales
-        }))
-      });
     } else {
       // For daily/weekly, use aggregateDataByPeriod
       aggregatedData = aggregateDataByPeriod(rawData, chartPeriod);
     }
 
     // Merge with expense data
-    console.log('🔍 Merging sales and expense data:', {
-      chartPeriod,
-      aggregatedData: aggregatedData.slice(0, 3), // Show first 3 items
-      expenseData: expenseData.slice(0, 3), // Show first 3 items
-      salesDataLength: aggregatedData.length,
-      expenseDataLength: expenseData.length
-    });
 
     const mergedData = aggregatedData.map(salesItem => {
       // Find matching expense data using period-appropriate comparison
@@ -1713,19 +1118,11 @@ export const Dashboard: React.FC = () => {
       };
       
       if (matchingExpense) {
-        console.log('🔍 Found matching expense for', salesItem.day, ':', {
-          salesOriginalDate,
-          expenseOriginalDate: normalizeDateToYYYYMMDD(matchingExpense.originalDate || matchingExpense.day),
-          expenseAmount: matchingExpense.expenses
-        });
       } else {
-        console.log('🔍 No matching expense for', salesItem.day, '- using 0 (not carrying over previous day data)');
       }
       
       return result;
     });
-
-    console.log('🔍 Merged data sample:', mergedData.slice(0, 5));
 
     // If we have expense data for periods not in sales data, add them
     expenseData.forEach(expenseItem => {
@@ -1783,7 +1180,6 @@ export const Dashboard: React.FC = () => {
     // Reduced limits for cleaner, more readable charts
     const maxPoints = chartPeriod === 'monthly' ? 12 : chartPeriod === 'weekly' ? 12 : 20;
     if (mergedData.length > maxPoints) {
-      console.log(`📉 Limiting ${mergedData.length} data points to ${maxPoints} for optimal display`);
       // For large datasets, use smart sampling to preserve important data points
       // Always include first and last points, then sample evenly
       const step = Math.floor(mergedData.length / (maxPoints - 2));
@@ -1892,37 +1288,6 @@ export const Dashboard: React.FC = () => {
           ? currentDashboardMetrics.recentTransactions
           : filteredSales);
 
-    console.log('🔍 Payment Method Data Debug:', {
-      hasDashboardMetrics: !!currentDashboardMetrics,
-      hasPaymentMethods: !!currentDashboardMetrics?.paymentMethods,
-      paymentMethodsKeys: currentDashboardMetrics?.paymentMethods ? Object.keys(currentDashboardMetrics.paymentMethods) : [],
-      fullTransactionsLength: fullTransactions.length,
-      filteredSalesLength: filteredSales.length,
-      recentTransactionsLength: currentDashboardMetrics?.recentTransactions?.length || 0,
-      salesLength: sales.length,
-      dataSource: currentDashboardMetrics?.recentTransactions?.length > 0 ? 'recentTransactions' : (fullTransactions.length > 0 ? 'fullTransactions' : 'filteredSales'),
-      sampleTransactions: sales.slice(0, 3).map((s: any) => ({
-        id: s.id || s._id,
-        totalAmount: s.totalAmount,
-        total_amount: s.total_amount,
-        payment_methods: s.payment_methods,
-        payment_method: s.paymentMethod || s.payment_method,
-        createdAt: s.createdAt || s.created_at
-      })),
-      salesData: sales.slice(0, 2), // Log first 2 transactions for debugging
-      transactionStatuses: sales.map((s: any) => s.status || s.payment_status).filter(Boolean), // Log transaction statuses
-      uniqueStatuses: Array.from(new Set(sales.map((s: any) => s.status || s.payment_status).filter(Boolean))),
-      // Additional debugging for payment method structure
-      paymentMethodFields: sales.map((s: any) => ({
-        hasPaymentMethods: !!(s.payment_methods && s.payment_methods.length > 0),
-        hasPaymentMethod: !!(s.paymentMethod || s.payment_method),
-        paymentMethods: s.payment_methods,
-        paymentMethod: s.paymentMethod || s.payment_method,
-        totalAmount: s.totalAmount,
-        total_amount: s.total_amount
-      })).slice(0, 2)
-    });
-    
     // We'll compute from sales if available; otherwise fallback entirely to API metrics
     if (!sales || sales.length === 0) {
       if (currentDashboardMetrics?.paymentMethods && Object.keys(currentDashboardMetrics.paymentMethods).length > 0) {
@@ -1945,7 +1310,6 @@ export const Dashboard: React.FC = () => {
           color: getPaymentMethodColor(method)
         }));
       }
-      console.log('⚠️ No sales or metric payment data available, returning empty data');
       return [];
     }
     
@@ -1955,7 +1319,6 @@ export const Dashboard: React.FC = () => {
     );
     
     if (!hasPaymentData) {
-      console.log('⚠️ No payment method data found in transactions - returning empty data');
       // Return empty data instead of estimating - we want real payment method data
       return [];
     }
@@ -1964,20 +1327,11 @@ export const Dashboard: React.FC = () => {
     let totalAmount = 0;
     
     sales.forEach((sale: any) => {
-      console.log('Processing sale for payment methods:', {
-        saleId: sale.id || sale._id,
-        totalAmount: sale.totalAmount || sale.total_amount,
-        hasPaymentMethods: !!(sale.payment_methods && sale.payment_methods.length > 0),
-        hasPaymentMethod: !!(sale.paymentMethod || sale.payment_method),
-        paymentMethods: sale.payment_methods,
-        paymentMethod: sale.paymentMethod || sale.payment_method
-      });
       
       // Handle both new (payment_methods array) and legacy (single payment_method) formats
       if (sale.payment_methods && sale.payment_methods.length > 0) {
         // New format: payment_methods array
         sale.payment_methods.forEach((method: any) => {
-          console.log('Processing payment method:', method);
           let methodKey: string;
           switch (method.type) {
             case 'pos_isbank_transfer':
@@ -1993,7 +1347,6 @@ export const Dashboard: React.FC = () => {
             default:
               methodKey = method.type;
           }
-          console.log(`Adding ${method.amount} to ${methodKey}`);
           paymentMethods[methodKey] = (paymentMethods[methodKey] || 0) + method.amount;
           totalAmount += method.amount;
         });
@@ -2020,7 +1373,6 @@ export const Dashboard: React.FC = () => {
         }
         // Use totalAmount for dashboard metrics format, total_amount for full transaction format
         const amount = sale.totalAmount || sale.total_amount || 0;
-        console.log(`Adding ${amount} to ${methodKey} from single payment method`);
         paymentMethods[methodKey] = (paymentMethods[methodKey] || 0) + amount;
         totalAmount += amount;
       }
@@ -2055,14 +1407,7 @@ export const Dashboard: React.FC = () => {
       percentage: totalAmount > 0 ? ((amount / totalAmount) * 100).toFixed(1) : '0.0',
       color: getPaymentMethodColor(method)
     }));
-    
-    console.log('🔍 Final Payment Method Calculation:', {
-      paymentMethods,
-      totalAmount,
-      result,
-      salesProcessed: sales.length
-    });
-    
+
     return result;
   }, [currentDashboardMetrics?.paymentMethods, fullTransactions, filteredSales, currentDashboardMetrics?.recentTransactions]);
 
@@ -2072,13 +1417,7 @@ export const Dashboard: React.FC = () => {
     if (currentDashboardMetrics?.orderSources) {
       const orderSources = currentDashboardMetrics.orderSources;
       const totalAmount = Object.values(orderSources).reduce((sum: number, amount: any) => sum + (amount || 0), 0);
-      
-      console.log('🔍 Dashboard: Order source data from API:', {
-        orderSources,
-        totalAmount,
-        entries: Object.entries(orderSources)
-      });
-      
+
       return Object.entries(orderSources).map(([source, amount]: [string, any]) => ({
         name: (source === 'online') ? 'Online' : 'In-Store',
         value: amount || 0,
@@ -2093,7 +1432,6 @@ export const Dashboard: React.FC = () => {
       : ((filteredSales && filteredSales.length > 0) ? filteredSales : []);
     
     if (!sales || sales.length === 0) {
-      console.log('🔍 Dashboard: No sales data for order source calculation');
       return [];
     }
     
@@ -2102,16 +1440,7 @@ export const Dashboard: React.FC = () => {
       'in_store': 0
     };
     let totalAmount = 0;
-    
-    console.log('🔍 Dashboard: Processing sales for order source (fallback):', {
-      salesCount: sales.length,
-      sampleSales: sales.slice(0, 3).map(s => ({
-        id: s._id,
-        total_amount: s.total_amount,
-        order_source: s.order_source
-      }))
-    });
-    
+
     sales.forEach(sale => {
       const src = sale.order_source;
       // Normalize both 'in-store' and 'in_store' to 'in_store' for frontend consistency
@@ -2119,13 +1448,7 @@ export const Dashboard: React.FC = () => {
       orderSources[normalized] = (orderSources[normalized] || 0) + (sale.total_amount || 0);
       totalAmount += (sale.total_amount || 0);
     });
-    
-    console.log('🔍 Dashboard: Order source calculation (fallback):', {
-      orderSources,
-      totalAmount,
-      salesProcessed: sales.length
-    });
-    
+
     return Object.entries(orderSources).map(([source, amount]) => ({
       name: source === 'online' ? 'Online' : 'In-Store',
       value: amount,
@@ -2310,27 +1633,11 @@ export const Dashboard: React.FC = () => {
   
   // Debug logging
   useEffect(() => {
-    console.log('🔍 Dashboard Data Sources Debug:', {
-      dateRange,
-      currentDashboardMetrics: {
-        totalSales: currentDashboardMetrics?.totalSales,
-        totalTransactions: currentDashboardMetrics?.totalTransactions,
-        averageTransactionValue: currentDashboardMetrics?.averageTransactionValue,
-        totalExpenses: currentDashboardMetrics?.totalExpenses,
-        netProfit: currentDashboardMetrics?.netProfit
-      },
-      finalValues: {
-        totalSales,
-        totalTransactions,
-        averageTransactionValue,
-        totalExpenses: totalExpensesFromMetrics,
-        netProfit: netProfitFromMetrics
-      }
-    });
   }, [dashboardMetrics, totalSales, totalTransactions, averageTransactionValue, growthRate, salesVsYesterday, expensesVsYesterday, profitVsYesterday, transactionsVsYesterday, netProfit, totalExpensesFromMetrics, monthlyExpensesFromMetrics, netProfitFromMetrics, comparisonLabel, periodLabel, dateRange, customStartDate, customEndDate, currentDashboardMetrics]);
 
   const metricCards = [
     {
+      id: 'total-sales',
       title: 'Total Sales',
       value: formatPrice(animatedTotalSales.currentValue),
       animatedValue: animatedTotalSales.currentValue,
@@ -2343,6 +1650,7 @@ export const Dashboard: React.FC = () => {
       changeColor: salesVsYesterday >= 0 ? 'text-emerald-600' : 'text-red-600',
     },
     {
+      id: 'total-expenses',
       title: 'Total Expenses',
       value: formatPrice(animatedTotalExpenses.currentValue),
       animatedValue: animatedTotalExpenses.currentValue,
@@ -2355,6 +1663,7 @@ export const Dashboard: React.FC = () => {
       changeColor: expensesVsYesterday <= 0 ? 'text-emerald-600' : 'text-red-600', // Lower expenses = good (green)
     },
     {
+      id: 'net-profit',
       title: 'Net Profit',
       value: formatPrice(animatedNetProfit.currentValue),
       animatedValue: animatedNetProfit.currentValue,
@@ -2367,6 +1676,7 @@ export const Dashboard: React.FC = () => {
       changeColor: profitVsYesterday >= 0 ? 'text-green-600' : 'text-red-600',
     },
     {
+      id: 'transactions',
       title: 'Transactions',
       value: Math.round(animatedTotalTransactions.currentValue).toString(),
       animatedValue: animatedTotalTransactions.currentValue,
@@ -2471,7 +1781,6 @@ export const Dashboard: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  console.log('🔄 Manual dashboard refresh triggered');
                   unifiedRefresh();
                   setLastRefreshTime(new Date());
                 }}
@@ -2627,11 +1936,11 @@ export const Dashboard: React.FC = () => {
 
         {/* Metrics Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-          {metricCards.map((metric, index) => {
+          {metricCards.map((metric) => {
             const Icon = metric.icon;
             return (
               <div
-                key={index}
+                key={metric.id}
                 className="group relative overflow-hidden bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 dark:border-gray-700/50 p-6 transition-all duration-300 hover:shadow-2xl hover:scale-105 hover:bg-white dark:hover:bg-gray-800"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-white/50 to-transparent dark:from-gray-700/50"></div>

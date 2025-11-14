@@ -77,16 +77,7 @@ export function getThisMonthRange(): DateRange {
   
   // End of month: last day at 23:59:59
   const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
-  
-  console.log('🔍 getThisMonthRange calculated:', {
-    year,
-    month,
-    start: start.toISOString(),
-    end: end.toISOString(),
-    startLocal: start.toLocaleDateString(),
-    endLocal: end.toLocaleDateString()
-  });
-  
+
   return {
     start,
     end
@@ -168,7 +159,6 @@ export function normalizeDateToYYYYMMDD(date: Date | string): string {
   
   // Check if date is valid
   if (isNaN(dateObj.getTime())) {
-    console.warn('⚠️ Invalid date in normalizeDateToYYYYMMDD:', date);
     return typeof date === 'string' ? date : '';
   }
   
@@ -280,13 +270,4 @@ export function debugTimezoneInfo(): void {
   const now = new Date();
   const appTime = getCurrentDateTime();
   
-  console.log('Frontend Timezone Debug Info:', {
-    timezone: DEFAULT_TIMEZONE,
-    systemTime: now.toLocaleString(),
-    appTime: appTime.toLocaleString(),
-    currentDateString: getCurrentDateString(),
-    todayRange: getTodayRange(),
-    yesterdayRange: getYesterdayRange(),
-    thisMonthRange: getThisMonthRange()
-  });
 }

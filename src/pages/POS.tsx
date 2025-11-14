@@ -26,8 +26,7 @@ export const POS: React.FC = () => {
   const { riders, loadRiders } = useRiders();
   const { updateGoalProgress } = useGoals();
   const { refreshNotifications } = useNotifications();
-  
-  
+
   // Enable automatic refresh for POS (conservative settings)
   usePageRefresh({
     refreshOnMount: true,
@@ -50,7 +49,15 @@ export const POS: React.FC = () => {
     if (isAuthenticated && user && searchInputRef.current) {
       // Small delay to ensure the component is fully rendered
       const timer = setTimeout(() => {
-        searchInputRef.current?.focus();
+        try {
+          // Safely focus the input, ignoring browser extension errors
+          if (searchInputRef.current) {
+            searchInputRef.current.focus();
+          }
+        } catch (error) {
+          // Silently ignore focus errors from browser extensions
+          // These are typically harmless and don't affect functionality
+        }
       }, 100);
       return () => clearTimeout(timer);
     }
@@ -148,12 +155,9 @@ export const POS: React.FC = () => {
 
   const filteredProducts = useMemo(() => {
     if (!products || !Array.isArray(products)) {
-      console.log('POS - No products or products not array:', products);
       return [];
     }
-    console.log('POS - Total products available:', products.length);
     if (!searchQuery.trim()) {
-      console.log('POS - Returning all products:', products.length);
       return products;
     }
     
@@ -162,7 +166,6 @@ export const POS: React.FC = () => {
       product.name.toLowerCase().includes(searchLower) ||
       product.barcode?.toLowerCase().includes(searchLower)
     );
-    console.log('POS - Filtered products:', filtered.length);
     return filtered;
   }, [products, searchQuery]);
 
@@ -194,7 +197,6 @@ export const POS: React.FC = () => {
   };
 
   const addToCart = (product: any) => {
-    console.log('Adding product to cart:', product);
     
     if (product.stock_quantity <= 0) {
       toast.error(`${product.name} has insufficient stock (${product.stock_quantity}). Increase stock and try again.`);
@@ -210,7 +212,6 @@ export const POS: React.FC = () => {
         openRestockModal(product, 'addToCart');
         return;
       }
-      console.log('Updating existing item quantity');
       updateCartItemQuantity(product._id, existingItem.quantity + 1);
     } else {
       const newItem: TransactionItem = {
@@ -224,14 +225,12 @@ export const POS: React.FC = () => {
           ? (product.images.find((img: any) => img.is_primary)?.url || product.images[0].url)
           : undefined,
       };
-      console.log('Adding new item to cart:', newItem);
       setCartItems([...cartItems, newItem]);
       toast.success(`Added ${product.name} to cart`);
     }
   };
 
   const updateCartItemQuantity = (productId: string, quantity: number) => {
-    console.log('Updating cart item quantity:', productId, quantity);
     
     // Prevent quantity from going to 0 - set minimum to 0.01
     if (quantity <= 0) {
@@ -256,7 +255,6 @@ export const POS: React.FC = () => {
         : item
     );
     
-    console.log('Updated cart items:', updatedItems);
     setCartItems(updatedItems);
   };
 
@@ -409,13 +407,6 @@ export const POS: React.FC = () => {
         notes: paymentData.notes,
       };
 
-      console.log('🔍 Creating enhanced transaction with payment methods:', {
-        transaction,
-        paymentMethods: paymentData.payment_methods,
-        totalPaymentMethods: paymentData.payment_methods.length,
-        primaryPaymentMethod: primaryPaymentMethod
-      });
-      
       // Process transaction and inventory updates
       await Promise.all([
         addTransaction(transaction),
@@ -469,7 +460,6 @@ export const POS: React.FC = () => {
       setIsProcessingPayment(false);
     }
   };
-
 
   // Show loading state while checking authentication
   if (isLoading) {

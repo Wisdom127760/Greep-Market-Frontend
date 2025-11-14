@@ -71,7 +71,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ transaction, 
       {transaction.notes && <div className="text-xs mt-2 text-gray-600 dark:text-gray-400 italic">Note: {transaction.notes}</div>}
       <div className="mt-4 flex justify-center gap-3">
         <button
-          className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white py-1 px-3 text-xs rounded transition-colors"
+          className="bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 text-white py-1 px-3 text-xs rounded transition-colors"
           onClick={() => {
             window.print();
           }}

@@ -121,7 +121,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
   }
 }
 
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const { user, isAuthenticated } = useAuth();
@@ -130,7 +129,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loadInitialData = async () => {
     // Prevent multiple simultaneous calls
     if (isLoadingData) {
-      console.log('Data is already loading, skipping duplicate call');
       return;
     }
 
@@ -161,7 +159,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadProducts = useCallback(async (search?: string, category?: string, stockLevel?: 'low_stock' | 'out_of_stock' | 'normal' | 'all', tags?: string[]) => {
     if (!isAuthenticated || !user) {
-      console.log('User not authenticated, skipping products load');
       return;
     }
     try {
@@ -190,7 +187,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       
       const response = await apiService.getProducts(params);
-      console.log('Products loaded successfully:', response);
       
       // Clean tags data for all products
       const cleanedProducts = response.products.map(product => ({
@@ -237,7 +233,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadInventoryAlerts = async () => {
     if (!isAuthenticated || !user) {
-      console.log('User not authenticated, skipping inventory alerts load');
       return;
     }
     try {
@@ -335,9 +330,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      console.log('Starting delete all products for store:', user.store_id);
       const result = await apiService.deleteAllProducts(user.store_id);
-      console.log('Delete all products result:', result);
       
       // Clear all products from state
       dispatch({ type: 'SET_PRODUCTS', payload: [] });
@@ -367,7 +360,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      console.log('Starting export products for store:', user.store_id);
       const blob = await apiService.exportProducts(user.store_id);
       
       // Create download link
@@ -395,9 +387,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      console.log('Starting import products for store:', user.store_id);
       const result = await apiService.importProducts(user.store_id, file);
-      console.log('Import products result:', result);
       
       // Refresh products list
       await loadProducts();
@@ -430,7 +420,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         cashier_id: transactionData.cashier_id || user?.id || '',
       };
       
-      console.log('Sending transaction to API:', transactionPayload);
       const newTransaction = await apiService.createTransaction(transactionPayload);
       dispatch({ type: 'ADD_TRANSACTION', payload: newTransaction });
       // Don't show toast here - let the calling component handle it
@@ -466,12 +455,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     endDate?: string;
   }) => {
     if (!isAuthenticated || !user) {
-      console.log('User not authenticated, skipping dashboard refresh');
       return;
     }
     
     try {
-      console.log('🔄 AppContext - Refreshing dashboard metrics', { filters, store_id: user?.store_id });
       const metrics = await apiService.getDashboardAnalytics({
         store_id: user?.store_id,
         ...filters
@@ -518,5 +505,4 @@ export function useApp() {
   }
   return context;
 }
-
 
