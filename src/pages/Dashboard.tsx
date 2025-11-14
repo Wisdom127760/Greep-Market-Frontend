@@ -468,8 +468,46 @@ export const Dashboard: React.FC = () => {
           }
         }
 
-        // Additional check: If dateRange is 'today', ensure we only show today's actual expenses
+        // When the user views "today", fetch a wider window for charts so sales trends keep historical context
         if (dateRange === 'today') {
+          try {
+            const contextualMetrics = await apiService.getDashboardAnalytics({
+              store_id: user?.store_id,
+              status: 'all',
+              dateRange: '30d'
+            });
+
+            if (contextualMetrics?.salesByPeriod?.length) {
+              const todayRange = getTodayRange();
+              const normalizedToday = normalizeDateToYYYYMMDD(todayRange.start);
+              const alignedSalesByPeriod = [...contextualMetrics.salesByPeriod];
+              const todayIndex = alignedSalesByPeriod.findIndex(
+                (item: any) => normalizeDateToYYYYMMDD(item.period) === normalizedToday
+              );
+              
+              if (todayIndex >= 0) {
+                alignedSalesByPeriod[todayIndex] = {
+                  ...alignedSalesByPeriod[todayIndex],
+                  period: normalizedToday,
+                  revenue: finalMetrics.todaySales ?? alignedSalesByPeriod[todayIndex].revenue,
+                  transactions: finalMetrics.totalTransactions ?? alignedSalesByPeriod[todayIndex].transactions
+                };
+              } else {
+                alignedSalesByPeriod.push({
+                  period: normalizedToday,
+                  revenue: finalMetrics.todaySales ?? 0,
+                  transactions: finalMetrics.totalTransactions ?? 0
+                });
+              }
+              
+              finalMetrics = {
+                ...finalMetrics,
+                salesByPeriod: alignedSalesByPeriod
+              };
+            }
+          } catch (contextError) {
+            console.warn('⚠️ Failed to load 30d sales context for chart:', contextError);
+          }
           
           // If the comparison shows -100% vs yesterday, it means today's expenses are 0
           // but we might be showing yesterday's data as totalExpenses
@@ -902,7 +940,7 @@ export const Dashboard: React.FC = () => {
     // BUT only if it has valid non-zero amounts, otherwise fall back to transactions
     const hasValidSalesByPeriod = currentDashboardMetrics?.salesByPeriod && 
       currentDashboardMetrics.salesByPeriod.length > 0 &&
-      currentDashboardMetrics.salesByPeriod.some((item: any) => item && item.period && (item.amount || 0) > 0);
+      currentDashboardMetrics.salesByPeriod.some((item: any) => item && item.period && (item.revenue || 0) > 0);
     
     if ((getChartPeriod === 'daily' || getChartPeriod === 'weekly') && hasValidSalesByPeriod) {
       
@@ -912,13 +950,13 @@ export const Dashboard: React.FC = () => {
         .filter((item: any) => item && item.period) // Filter out null/undefined items
         .map((item: any) => ({
           day: item.period, // Should be in YYYY-MM-DD format for daily
-          sales: item.amount || 0, // Default to 0 if amount is undefined
+          sales: item.revenue || 0, // Default to 0 if revenue is undefined
           created_at: item.period,
           originalDate: item.period
         }));
       
     } else if ((getChartPeriod === 'daily' || getChartPeriod === 'weekly') && currentDashboardMetrics?.salesByPeriod && currentDashboardMetrics.salesByPeriod.length > 0) {
-      // salesByPeriod exists but all amounts are zero - fall back to transactions
+      // salesByPeriod exists but all revenue entries are zero - fall back to transactions
       // Populate transactionsToUse here so it can be processed
       if (filteredSales && filteredSales.length > 0) {
         transactionsToUse = filteredSales;
