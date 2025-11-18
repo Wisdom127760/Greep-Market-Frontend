@@ -6,7 +6,9 @@ import {
   ApiResponse,
   InventoryAlert,
   DashboardMetrics,
-  PriceHistory 
+  PriceHistory,
+  Wholesaler,
+  LowStockProduct
 } from '../types';
 import { api } from '../config/environment';
 
@@ -585,10 +587,39 @@ class ApiService {
     // Add cache-busting parameter to ensure fresh data when filters change
     queryParams.append('_t', Date.now().toString());
 
-    const response = await this.privateRequest<Transaction[]>(`/transactions?${queryParams}`);
+    const response = await this.privateRequest<any>(`/transactions?${queryParams}`);
+    
+    // Handle different response structures
+    let transactions: Transaction[] = [];
+    let total = 0;
+    
+    // Cast response to any to access potential pagination property
+    const responseAny = response as any;
+    
+    // Check if response.data is an array (simple array response)
+    if (Array.isArray(response.data)) {
+      transactions = response.data;
+      total = response.data.length;
+    } 
+    // Check if response.data has a transactions property (nested structure)
+    else if (response.data && typeof response.data === 'object' && Array.isArray(response.data.transactions)) {
+      transactions = response.data.transactions;
+      total = response.data.pagination?.total || responseAny.pagination?.total || transactions.length;
+    }
+    // Check if response has pagination at root level
+    else if (responseAny.pagination) {
+      transactions = Array.isArray(response.data) ? response.data : [];
+      total = responseAny.pagination.total || transactions.length;
+    }
+    // Fallback: try to use response.data as array
+    else {
+      transactions = Array.isArray(response.data) ? response.data : [];
+      total = transactions.length;
+    }
+    
     return {
-      transactions: response.data,
-      total: response.data.length,
+      transactions,
+      total,
       page: params?.page || 1,
       limit: params?.limit || 20,
     };
@@ -1260,6 +1291,112 @@ class ApiService {
       body: JSON.stringify(settings),
     });
     return (response as any).data;
+  }
+
+  // Wholesaler Management Methods
+  async getWholesalers(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    store_id?: string;
+    is_active?: boolean;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }): Promise<{ wholesalers: Wholesaler[]; total: number; page: number; pages: number }> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+    if (params?.is_active !== undefined) queryParams.append('is_active', params.is_active.toString());
+    if (params?.sort_by) queryParams.append('sort_by', params.sort_by);
+    if (params?.sort_order) queryParams.append('sort_order', params.sort_order);
+
+    const response = await this.privateRequest<{ success: boolean; data: { wholesalers: Wholesaler[]; total: number; page: number; pages: number } }>(`/wholesalers?${queryParams}`);
+    return (response as any).data;
+  }
+
+  async getWholesalerById(wholesalerId: string, includeProducts?: boolean): Promise<Wholesaler> {
+    const queryParams = new URLSearchParams();
+    if (includeProducts) queryParams.append('include_products', 'true');
+
+    const response = await this.privateRequest<{ success: boolean; data: Wholesaler }>(`/wholesalers/${wholesalerId}${queryParams.toString() ? `?${queryParams}` : ''}`);
+    return (response as any).data;
+  }
+
+  async createWholesaler(wholesalerData: {
+    name: string;
+    phone: string;
+    email?: string;
+    address?: string;
+    store_id: string;
+    notes?: string;
+    is_active?: boolean;
+  }): Promise<Wholesaler> {
+    const response = await this.privateRequest<{ success: boolean; data: Wholesaler }>('/wholesalers', {
+      method: 'POST',
+      body: JSON.stringify(wholesalerData),
+    });
+    return (response as any).data;
+  }
+
+  async updateWholesaler(wholesalerId: string, wholesalerData: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    notes?: string;
+    is_active?: boolean;
+  }): Promise<Wholesaler> {
+    const response = await this.privateRequest<{ success: boolean; data: Wholesaler }>(`/wholesalers/${wholesalerId}`, {
+      method: 'PUT',
+      body: JSON.stringify(wholesalerData),
+    });
+    return (response as any).data;
+  }
+
+  async deleteWholesaler(wholesalerId: string): Promise<void> {
+    await this.privateRequest(`/wholesalers/${wholesalerId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getWholesalerLowStock(wholesalerId: string): Promise<LowStockProduct[]> {
+    const response = await this.privateRequest<{ success: boolean; data: LowStockProduct[] }>(`/wholesalers/${wholesalerId}/low-stock`);
+    return (response as any).data;
+  }
+
+  async sendWholesalerEmailAlert(wholesalerId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.privateRequest<{ success: boolean; message: string }>(`/wholesalers/${wholesalerId}/send-email-alert`, {
+      method: 'POST',
+    });
+    return response as any;
+  }
+
+  async getWholesalerWhatsAppLink(wholesalerId: string): Promise<{ link: string }> {
+    const response = await this.privateRequest<{ success: boolean; data: { link: string } }>(`/wholesalers/${wholesalerId}/whatsapp-link`);
+    return (response as any).data;
+  }
+
+  async exportWholesalers(params?: {
+    format?: 'pdf' | 'excel';
+    include_products?: boolean;
+    store_id?: string;
+  }): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    if (params?.format) queryParams.append('format', params.format);
+    if (params?.include_products) queryParams.append('include_products', 'true');
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+
+    const response = await this.rawRequest(`/wholesalers/export?${queryParams}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    return await response.blob();
   }
 }
 
