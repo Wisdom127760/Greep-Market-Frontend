@@ -744,9 +744,99 @@ class ApiService {
     if (params?.store_id) queryParams.append('store_id', params.store_id);
     if (params?.start_date) queryParams.append('start_date', params.start_date);
     if (params?.end_date) queryParams.append('end_date', params.end_date);
-
+    
     const response = await this.privateRequest(`/analytics/sales?${queryParams}`);
     return response.data;
+  }
+
+  async getSalesByDayOfWeek(params?: {
+    store_id?: string;
+    start_date?: string;
+    end_date?: string;
+    period?: string;
+  }): Promise<Array<{ day: string; revenue: number; transactions: number }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
+    if (params?.period) queryParams.append('period', params.period);
+    
+    try {
+      const response = await this.privateRequest<any>(`/analytics/sales/by-day-of-week?${queryParams}`);
+      // Handle different response structures
+      if (response.data && Array.isArray(response.data)) {
+        return response.data;
+      } else if (Array.isArray(response)) {
+        return response;
+      } else if ((response as any).success && (response as any).data) {
+        return (response as any).data;
+      }
+      console.warn('Unexpected response structure for getSalesByDayOfWeek:', response);
+      return [];
+    } catch (error) {
+      console.error('Error fetching sales by day of week:', error);
+      return [];
+    }
+  }
+
+  async getSalesByHourOfDay(params?: {
+    store_id?: string;
+    start_date?: string;
+    end_date?: string;
+    period?: string;
+  }): Promise<Array<{ hour: number; revenue: number; transactions: number }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
+    if (params?.period) queryParams.append('period', params.period);
+    
+    try {
+      const response = await this.privateRequest<any>(`/analytics/sales/by-hour-of-day?${queryParams}`);
+      // Handle different response structures
+      if (response.data && Array.isArray(response.data)) {
+        return response.data;
+      } else if (Array.isArray(response)) {
+        return response;
+      } else if ((response as any).success && (response as any).data) {
+        return (response as any).data;
+      }
+      console.warn('Unexpected response structure for getSalesByHourOfDay:', response);
+      return [];
+    } catch (error) {
+      console.error('Error fetching sales by hour of day:', error);
+      return [];
+    }
+  }
+
+  async getSalesByCategory(params?: {
+    store_id?: string;
+    start_date?: string;
+    end_date?: string;
+    period?: string;
+  }): Promise<Array<{ category: string; revenue: number; quantity: number; transactions: number; percentage: number }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
+    if (params?.period) queryParams.append('period', params.period);
+    
+    try {
+      const response = await this.privateRequest<any>(`/analytics/sales/by-category?${queryParams}`);
+      // Handle different response structures
+      if (response.data && Array.isArray(response.data)) {
+        return response.data;
+      } else if (Array.isArray(response)) {
+        return response;
+      } else if ((response as any).success && (response as any).data) {
+        return (response as any).data;
+      }
+      console.warn('Unexpected response structure for getSalesByCategory:', response);
+      return [];
+    } catch (error) {
+      console.error('Error fetching sales by category:', error);
+      return [];
+    }
   }
 
   async getProductPerformance(store_id?: string, period?: string, startDate?: Date, endDate?: Date): Promise<any> {
@@ -761,6 +851,112 @@ class ApiService {
     const response = await this.privateRequest(url);
 
     return response.data;
+  }
+
+  async getMostProfitableProducts(params?: {
+    store_id?: string;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<Array<{
+    productId: string;
+    productName: string;
+    revenue: number;
+    profitMargin: number;
+    avgPricePerSale: number;
+    transactions: number;
+    quantitySold: number;
+  }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
+    
+    const response = await this.privateRequest<{ success: boolean; data: Array<any> }>(`/analytics/products/most-profitable?${queryParams}`);
+    return (response as any).data || [];
+  }
+
+  async getWorstPerformers(params?: {
+    store_id?: string;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<Array<{
+    productId: string;
+    productName: string;
+    category: string;
+    stockQuantity: number;
+    price: number;
+    stockValue: number;
+    lastSaleDate: Date | null;
+  }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
+    
+    const response = await this.privateRequest<{ success: boolean; data: Array<any> }>(`/analytics/products/worst-performers?${queryParams}`);
+    return (response as any).data || [];
+  }
+
+  async getBestPerformers(params?: {
+    store_id?: string;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<Array<{
+    productId: string;
+    productName: string;
+    revenue: number;
+    quantitySold: number;
+    transactions: number;
+  }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
+    
+    const response = await this.privateRequest<{ success: boolean; data: Array<any> }>(`/analytics/products/best-performers?${queryParams}`);
+    return (response as any).data || [];
+  }
+
+  async getFastestMovingProducts(params?: {
+    store_id?: string;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<Array<{
+    productId: string;
+    productName: string;
+    quantitySold: number;
+    revenue: number;
+    turnoverRate: number;
+    avgDailySales: number;
+  }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
+    
+    const response = await this.privateRequest<{ success: boolean; data: Array<any> }>(`/analytics/products/fastest-moving?${queryParams}`);
+    return (response as any).data || [];
+  }
+
+  async getCategoryPerformance(params?: {
+    store_id?: string;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<Array<{
+    category: string;
+    products: number;
+    totalRevenue: number;
+    quantitySold: number;
+    avgRevenuePerProduct: number;
+    stockValue: number;
+  }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.store_id) queryParams.append('store_id', params.store_id);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
+    
+    const response = await this.privateRequest<{ success: boolean; data: Array<any> }>(`/analytics/categories/performance?${queryParams}`);
+    return (response as any).data || [];
   }
 
   async getInventoryAnalytics(store_id?: string): Promise<any> {

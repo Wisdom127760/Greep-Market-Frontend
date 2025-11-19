@@ -848,27 +848,39 @@ export const Reports: React.FC = () => {
     const dashboardData = analyticsData?.dashboardAnalytics;
     const now = new Date();
     
+    // Filter sales by selected period
+    const dateRange = getDateRange(selectedPeriod, periodStartDate, periodEndDate);
+    const filteredSales = allSales.filter(sale => {
+      const saleDate = new Date(sale.created_at || sale.createdAt || sale.date);
+      return saleDate >= dateRange.startDateObj && saleDate <= dateRange.endDateObj;
+    });
+    
     console.log('Calculating Sales Metrics:', {
       transactionsFromAPI: allTransactions.length,
       transactionsFromContext: sales?.length || 0,
       totalUsed: allSales.length,
+      filteredByPeriod: filteredSales.length,
+      period: selectedPeriod,
       dashboardDataAvailable: !!dashboardData
     });
 
+    // Use filtered sales for all calculations
+    const salesToUse = filteredSales.length > 0 ? filteredSales : allSales;
+    
     // Time-based breakdowns
-    const today = allSales.filter(sale => {
+    const today = salesToUse.filter(sale => {
       const saleDate = new Date(sale.created_at || sale.createdAt || sale.date);
       return saleDate.toDateString() === now.toDateString();
     });
 
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdaySales = allSales.filter(sale => {
+    const yesterdaySales = salesToUse.filter(sale => {
       const saleDate = new Date(sale.created_at || sale.createdAt || sale.date);
       return saleDate.toDateString() === yesterday.toDateString();
     });
 
-    const thisWeek = allSales.filter(sale => {
+    const thisWeek = salesToUse.filter(sale => {
       const saleDate = new Date(sale.created_at || sale.createdAt || sale.date);
       const weekStart = new Date(now);
       weekStart.setDate(now.getDate() - now.getDay());
@@ -876,7 +888,7 @@ export const Reports: React.FC = () => {
       return saleDate >= weekStart;
     });
 
-    const lastWeek = allSales.filter(sale => {
+    const lastWeek = salesToUse.filter(sale => {
       const saleDate = new Date(sale.created_at || sale.createdAt || sale.date);
       const lastWeekStart = new Date(now);
       lastWeekStart.setDate(now.getDate() - now.getDay() - 7);
@@ -887,12 +899,12 @@ export const Reports: React.FC = () => {
       return saleDate >= lastWeekStart && saleDate < lastWeekEnd;
     });
 
-    const thisMonth = allSales.filter(sale => {
+    const thisMonth = salesToUse.filter(sale => {
       const saleDate = new Date(sale.created_at || sale.createdAt || sale.date);
       return saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear();
     });
 
-    const lastMonth = allSales.filter(sale => {
+    const lastMonth = salesToUse.filter(sale => {
       const saleDate = new Date(sale.created_at || sale.createdAt || sale.date);
       const lastMonthDate = new Date(now);
       lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
@@ -912,9 +924,9 @@ export const Reports: React.FC = () => {
     const weekGrowth = lastWeekAmount > 0 ? ((thisWeekAmount - lastWeekAmount) / lastWeekAmount) * 100 : (thisWeekAmount > 0 ? 100 : 0);
     const monthGrowth = lastMonthAmount > 0 ? ((thisMonthAmount - lastMonthAmount) / lastMonthAmount) * 100 : (thisMonthAmount > 0 ? 100 : 0);
 
-    // Sales by day of week
+    // Sales by day of week (using filtered sales)
     const salesByDayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day, index) => {
-      const daySales = allSales.filter(sale => {
+      const daySales = salesToUse.filter(sale => {
         const saleDate = new Date(sale.created_at || sale.createdAt || sale.date);
         return saleDate.getDay() === index;
       });
@@ -925,9 +937,9 @@ export const Reports: React.FC = () => {
       };
     });
 
-    // Sales by hour
+    // Sales by hour (using filtered sales)
     const salesByHour = Array.from({ length: 24 }, (_, hour) => {
-      const hourSales = allSales.filter(sale => {
+      const hourSales = salesToUse.filter(sale => {
         const saleDate = new Date(sale.created_at || sale.createdAt || sale.date);
         return saleDate.getHours() === hour;
       });
@@ -938,9 +950,9 @@ export const Reports: React.FC = () => {
       };
     });
 
-    // Top selling products from sales
+    // Top selling products from sales (using filtered sales)
     const productSalesMap = new Map<string, { revenue: number; quantity: number; transactions: number }>();
-    allSales.forEach(sale => {
+    salesToUse.forEach(sale => {
       if (sale.items && Array.isArray(sale.items)) {
         sale.items.forEach((item: any) => {
           const productId = item.product_id || item.product_name || 'Unknown';
@@ -965,9 +977,9 @@ export const Reports: React.FC = () => {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 20);
 
-    // Sales by category
+    // Sales by category (using filtered sales)
     const categorySalesMap = new Map<string, { revenue: number; quantity: number; transactions: number }>();
-    allSales.forEach(sale => {
+    salesToUse.forEach(sale => {
       if (sale.items && Array.isArray(sale.items)) {
         sale.items.forEach((item: any) => {
           const category = item.category || item.product_category || 'Uncategorized';
@@ -1040,7 +1052,7 @@ export const Reports: React.FC = () => {
         transactions: p.transactions || 1,
         avgPrice: p.avgPrice || (p.revenue && p.quantitySold ? p.revenue / p.quantitySold : 0)
       })) || topSellingProducts,
-      salesByCategory: dashboardData?.salesByCategory || salesByCategory,
+      salesByCategory: salesByCategory.length > 0 ? salesByCategory : (dashboardData?.salesByCategory || []),
       peakHour,
       peakDay
     };
@@ -1696,15 +1708,23 @@ export const Reports: React.FC = () => {
           </div>
 
           {/* Sales by Day of Week */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
+          {/* <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sales by Day of Week</h3>
             <div className="h-64">
-              {salesMetrics.salesByDayOfWeek.length > 0 ? (
+              {salesMetrics.salesByDayOfWeek && salesMetrics.salesByDayOfWeek.some((day: any) => day.sales > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={salesMetrics.salesByDayOfWeek}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="day" stroke="#9CA3AF" />
-                    <YAxis tickFormatter={(value) => `₺${(value / 1000).toFixed(0)}k`} stroke="#9CA3AF" />
+                  <LineChart data={salesMetrics.salesByDayOfWeek}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#e5e7eb"} />
+                    <XAxis 
+                      dataKey="day" 
+                      stroke={isDark ? "#9CA3AF" : "#6b7280"}
+                      tick={{ fill: isDark ? "#9CA3AF" : "#6b7280", fontSize: 12 }}
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `₺${(value / 1000).toFixed(0)}k`} 
+                      stroke={isDark ? "#9CA3AF" : "#6b7280"}
+                      tick={{ fill: isDark ? "#9CA3AF" : "#6b7280", fontSize: 12 }}
+                    />
                     <Tooltip 
                       formatter={(value: number, name: string, props: any) => [
                         formatPrice(value), 
@@ -1712,27 +1732,45 @@ export const Reports: React.FC = () => {
                       ]}
                       {...getTooltipStyles()}
                     />
-                    <Bar dataKey="sales" fill="#3b82f6" />
-                  </BarChart>
+                    <Line 
+                      type="monotone" 
+                      dataKey="sales" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      dot={{ fill: "#3b82f6", r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-                  No data available
+                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                  <BarChart3 className="h-12 w-12 mb-2 opacity-50" />
+                  <p className="text-sm">No sales data available for this period</p>
+                  <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">Try selecting a different time period</p>
                 </div>
               )}
             </div>
-          </div>
+          </div> */}
 
           {/* Sales by Hour */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
+          {/* <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sales by Hour of Day</h3>
             <div className="h-64">
-              {salesMetrics.salesByHour.length > 0 ? (
+              {salesMetrics.salesByHour && salesMetrics.salesByHour.some((hour: any) => hour.sales > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={salesMetrics.salesByHour}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="hour" stroke="#9CA3AF" label={{ value: 'Hour', position: 'insideBottom', offset: -5 }} />
-                    <YAxis tickFormatter={(value) => `₺${(value / 1000).toFixed(0)}k`} stroke="#9CA3AF" />
+                  <LineChart data={salesMetrics.salesByHour}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#374151" : "#e5e7eb"} />
+                    <XAxis 
+                      dataKey="hour" 
+                      stroke={isDark ? "#9CA3AF" : "#6b7280"}
+                      tick={{ fill: isDark ? "#9CA3AF" : "#6b7280", fontSize: 12 }}
+                      label={{ value: 'Hour', position: 'insideBottom', offset: -5, fill: isDark ? "#9CA3AF" : "#6b7280" }}
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `₺${(value / 1000).toFixed(0)}k`} 
+                      stroke={isDark ? "#9CA3AF" : "#6b7280"}
+                      tick={{ fill: isDark ? "#9CA3AF" : "#6b7280", fontSize: 12 }}
+                    />
                     <Tooltip 
                       formatter={(value: number, name: string, props: any) => [
                         formatPrice(value), 
@@ -1740,16 +1778,25 @@ export const Reports: React.FC = () => {
                       ]}
                       {...getTooltipStyles()}
                     />
-                    <Bar dataKey="sales" fill="#22c55e" />
-                  </BarChart>
+                    <Line 
+                      type="monotone" 
+                      dataKey="sales" 
+                      stroke="#22c55e" 
+                      strokeWidth={2}
+                      dot={{ fill: "#22c55e", r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-                  No data available
+                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                  <Clock className="h-12 w-12 mb-2 opacity-50" />
+                  <p className="text-sm">No sales data available for this period</p>
+                  <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">Try selecting a different time period</p>
                 </div>
               )}
             </div>
-          </div>
+          </div> */}
 
           {/* Top Selling Products */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
@@ -1792,47 +1839,55 @@ export const Reports: React.FC = () => {
           </div>
 
           {/* Sales by Category */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
+          {/* <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sales by Category</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Revenue</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Quantity</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Transactions</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">% of Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {salesMetrics.salesByCategory.map((cat: any, index: number) => {
-                    const percentage = totalSales > 0 ? (cat.revenue / totalSales) * 100 : 0;
-                    return (
-                      <tr
-                        key={cat.category || index}
-                        className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                      >
-                        <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">{cat.category}</td>
-                        <td className="py-3 px-4 text-sm font-semibold text-gray-900 dark:text-white text-right">
-                          {formatPrice(cat.revenue)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 text-right">
-                          {cat.quantity.toLocaleString()}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 text-right">
-                          {cat.transactions}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 text-right">
-                          {percentage.toFixed(1)}%
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+            {salesMetrics.salesByCategory && salesMetrics.salesByCategory.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Revenue</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Quantity</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Transactions</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">% of Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salesMetrics.salesByCategory.map((cat: any, index: number) => {
+                      const percentage = totalSales > 0 ? (cat.revenue / totalSales) * 100 : 0;
+                      return (
+                        <tr
+                          key={cat.category || index}
+                          className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                        >
+                          <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">{cat.category}</td>
+                          <td className="py-3 px-4 text-sm font-semibold text-gray-900 dark:text-white text-right">
+                            {formatPrice(cat.revenue)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 text-right">
+                            {cat.quantity.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 text-right">
+                            {cat.transactions}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 text-right">
+                            {percentage.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                <Package className="h-12 w-12 mb-2 opacity-50" />
+                <p className="text-sm">No category data available for this period</p>
+                <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">Try selecting a different time period</p>
+              </div>
+            )}
+          </div> */}
         </>
       )}
 
@@ -2426,7 +2481,7 @@ export const Reports: React.FC = () => {
             </div>
 
             {/* Most Profitable Products */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
+            {/* <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Most Profitable Products (By Margin)</h3>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -2469,7 +2524,7 @@ export const Reports: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </div> */}
 
             {/* Worst Performers */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
@@ -2510,7 +2565,7 @@ export const Reports: React.FC = () => {
             </div>
 
             {/* Category Performance */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
+            {/* <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Category Performance</h3>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -2549,7 +2604,7 @@ export const Reports: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </div> */}
           </>
         )}
 
