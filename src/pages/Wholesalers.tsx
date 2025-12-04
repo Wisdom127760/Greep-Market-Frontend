@@ -486,13 +486,18 @@ export const Wholesalers: React.FC = () => {
         {/* Search Bar */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
           <div className="relative">
+            <label htmlFor="wholesaler-search" className="sr-only">
+              Search wholesalers
+            </label>
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <Input
+              id="wholesaler-search"
               type="text"
               placeholder="Search wholesalers by name, phone, or email..."
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               className="pl-10"
+              aria-label="Search wholesalers by name, phone, or email"
             />
           </div>
         </div>
@@ -876,13 +881,18 @@ export const Wholesalers: React.FC = () => {
           <div className="space-y-4">
             {/* Search Bar */}
             <div className="relative">
+              <label htmlFor="product-search" className="sr-only">
+                Search products
+              </label>
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <Input
+                id="product-search"
                 type="text"
                 placeholder="Search products..."
                 value={productSearchQuery}
                 onChange={(e) => setProductSearchQuery(e.target.value)}
                 className="pl-10"
+                aria-label="Search products"
               />
             </div>
 
@@ -907,11 +917,13 @@ export const Wholesalers: React.FC = () => {
                     >
                       <input
                         type="checkbox"
+                        id={`product-checkbox-${product._id}`}
                         checked={isSelected}
                         disabled={isAlreadyLinked}
                         onChange={() => !isAlreadyLinked && handleToggleProductSelection(product._id)}
                         className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         onClick={(e) => e.stopPropagation()}
+                        aria-label={`Select ${product.name} to link to wholesaler`}
                       />
                       {product.images && product.images.length > 0 && (
                         <img

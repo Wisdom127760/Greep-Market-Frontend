@@ -124,8 +124,29 @@ export const Dashboard: React.FC = () => {
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState<'today' | 'this_month' | 'custom'>('today'); // Default to today as requested
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
+  // Helper function to get date range from selected month/year
+  const getDateRangeFromMonthYear = useCallback((month: number, year: number) => {
+    const startDate = new Date(year, month - 1, 1); // month is 1-12, Date expects 0-11
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999); // Last day of the month
+    return {
+      startDate: normalizeDateToYYYYMMDD(startDate),
+      endDate: normalizeDateToYYYYMMDD(endDate),
+      startDateObj: startDate,
+      endDateObj: endDate
+    };
+  }, []);
+
+  // Get current custom date range from selected month/year
+  const customDateRange = dateRange === 'custom' 
+    ? getDateRangeFromMonthYear(selectedMonth, selectedYear)
+    : null;
+
+  // Computed custom date values for backward compatibility with existing logic
+  const customStartDate = customDateRange?.startDate || '';
+  const customEndDate = customDateRange?.endDate || '';
 
   // Chart period is now automatically determined by dateRange filter - no separate state needed
   
@@ -415,9 +436,27 @@ export const Dashboard: React.FC = () => {
         case 'custom':
           if (customStartDate && customEndDate) {
             // Ensure proper date formatting for custom range
-            const startDate = new Date(customStartDate);
-            const endDate = new Date(customEndDate);
-            endDate.setHours(23, 59, 59, 999); // End of day
+            // Add time component to ensure proper parsing
+            const startDateStr = customStartDate.includes('T') ? customStartDate : customStartDate + 'T00:00:00';
+            const endDateStr = customEndDate.includes('T') ? customEndDate : customEndDate + 'T23:59:59.999';
+            
+            const startDate = new Date(startDateStr);
+            const endDate = new Date(endDateStr);
+            
+            // Validate dates
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+              console.error('Invalid custom date range:', { customStartDate, customEndDate });
+              return; // Don't refresh if dates are invalid
+            }
+            
+            // Validate that start date is before or equal to end date
+            if (startDate > endDate) {
+              console.error('Start date must be before end date:', { customStartDate, customEndDate });
+              return; // Don't refresh if dates are invalid
+            }
+            
+            // Ensure end date is at end of day
+            endDate.setHours(23, 59, 59, 999);
             
             filterParams = {
               dateRange: 'custom',
@@ -425,7 +464,16 @@ export const Dashboard: React.FC = () => {
               endDate: endDate.toISOString() // Full ISO timestamp for end of custom range
             };
           } else {
-            return; // Don't refresh if custom dates are not set
+            // If custom dates are not set, use current month/year as fallback
+            const now = new Date();
+            const fallbackMonth = now.getMonth() + 1;
+            const fallbackYear = now.getFullYear();
+            const fallbackRange = getDateRangeFromMonthYear(fallbackMonth, fallbackYear);
+            filterParams = {
+              dateRange: 'custom',
+              startDate: new Date(fallbackRange.startDate + 'T00:00:00').toISOString(),
+              endDate: new Date(fallbackRange.endDate + 'T23:59:59.999').toISOString()
+            };
           }
           break;
         default:
@@ -439,24 +487,172 @@ export const Dashboard: React.FC = () => {
       // Single API call to get all dashboard data
       try {
 
-        const metrics = await apiService.getDashboardAnalytics({
+        // For custom date range (month/year selection), pass month and year to backend
+        // so monthlySales and monthlyExpenses use the selected month instead of current month
+        const analyticsParams: any = {
           store_id: user?.store_id,
           status: 'all', // Explicitly request all transaction statuses
           dateRange: filterParams.dateRange,
           startDate: startDate,
           endDate: endDate,
-        });
+        };
+        
+        // Add month and year for custom date ranges so backend calculates monthly metrics correctly
+        if (dateRange === 'custom' && selectedMonth && selectedYear) {
+          analyticsParams.month = selectedMonth;
+          analyticsParams.year = selectedYear;
+        }
 
-        // Check if expenses are missing and fetch them separately if needed
-        // Always fetch raw expenses for custom date range calculations
+        const metrics = await apiService.getDashboardAnalytics(analyticsParams);
+
+        // Debug logging for custom date ranges
+        if (dateRange === 'custom') {
+          // Filter salesByMonth for September, October, November
+          const relevantMonths = metrics?.salesByMonth?.filter((item: any) => {
+            const month = item.month || '';
+            return month.startsWith('2025-09') || month.startsWith('2025-10') || month.startsWith('2025-11');
+          }) || [];
+          
+          console.log('📊 [Dashboard] Custom range API response:', {
+            dateRange: 'custom',
+            selectedMonth,
+            selectedYear,
+            customStartDate,
+            customEndDate,
+            apiParams: analyticsParams,
+            metricsReceived: {
+              totalSales: metrics?.totalSales,
+              monthlySales: metrics?.monthlySales,
+              totalTransactions: metrics?.totalTransactions,
+              totalExpenses: metrics?.totalExpenses,
+              monthlyExpenses: metrics?.monthlyExpenses,
+            },
+            hasRecentTransactions: metrics?.recentTransactions?.length > 0,
+            recentTransactionsCount: metrics?.recentTransactions?.length,
+            salesByMonth: metrics?.salesByMonth || [],
+            relevantMonths: {
+              description: 'September, October, November 2025 data',
+              months: relevantMonths.map((item: any) => ({
+                month: item.month,
+                sales: item.sales,
+                transactions: item.transactions,
+                onlineSales: item.onlineSales,
+                inStoreSales: item.inStoreSales
+              }))
+            }
+          });
+          
+          // Log a formatted summary for September-November
+          if (metrics?.salesByMonth && metrics.salesByMonth.length > 0) {
+            console.log('📅 [Dashboard] ============================================');
+            console.log('📅 [Dashboard] Monthly Data Summary (September - November 2025):');
+            console.log('📅 [Dashboard] ============================================');
+            const monthNames: { [key: string]: string } = {
+              '2025-09': 'September 2025',
+              '2025-10': 'October 2025',
+              '2025-11': 'November 2025'
+            };
+            
+            ['2025-09', '2025-10', '2025-11'].forEach((monthKey) => {
+              const monthData = metrics.salesByMonth.find((item: any) => item.month === monthKey) as any;
+              if (monthData) {
+                const netProfit = (monthData.sales || 0) - ((monthData.onlineSales as number) || 0) - ((monthData.inStoreSales as number) || 0);
+                console.log(`\n📅 ${monthNames[monthKey]}:`);
+                console.log(`   Total Sales: ₺${(monthData.sales || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+                console.log(`   Transactions: ${monthData.transactions || 0}`);
+                console.log(`   Online Sales: ₺${((monthData.onlineSales as number) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+                console.log(`   In-Store Sales: ₺${((monthData.inStoreSales as number) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+                console.log(`   Average per Transaction: ₺${monthData.transactions > 0 ? ((monthData.sales || 0) / monthData.transactions).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}`);
+              } else {
+                console.log(`\n📅 ${monthNames[monthKey]}: No data found`);
+              }
+            });
+            console.log('📅 [Dashboard] ============================================\n');
+          }
+        }
+
+        // Backend now provides correctly filtered metrics - trust the API response
+        // The backend uses a single PRIMARY date range for all metrics:
+        // - totalSales, totalTransactions, totalExpenses, netProfit are all correctly filtered
+        // - salesByPeriod and expensesByPeriod are for charts only
         let finalMetrics = { ...metrics };
+        
+        // For custom date ranges, check if API totalSales matches the selected month's data
+        // If totalSales seems wrong (sum of all months), extract from salesByMonth instead
+        if (dateRange === 'custom' && metrics) {
+          const monthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+          const monthData = metrics.salesByMonth?.find((item: any) => item.month === monthKey);
+          
+          console.log('✅ [Dashboard] Backend API Response:', {
+            apiTotalSales: metrics.totalSales,
+            apiTotalTransactions: metrics.totalTransactions,
+            selectedMonthKey: monthKey,
+            monthDataFromSalesByMonth: monthData ? {
+              sales: monthData.sales,
+              transactions: monthData.transactions
+            } : 'not found',
+            _filterInfo: (metrics as any)._filterInfo
+          });
+          
+          // ALWAYS use salesByMonth for custom date ranges - it has the correct per-month data
+          // The API's totalSales might be summing all months, so we extract the selected month's data
+          if (monthData) {
+            const expectedSales = monthData.sales || 0;
+            const expectedTransactions = monthData.transactions || 0;
+            
+            // Always use salesByMonth for the selected month - it's the source of truth
+            finalMetrics.totalSales = expectedSales;
+            finalMetrics.totalTransactions = expectedTransactions;
+            finalMetrics.monthlySales = expectedSales;
+            
+            // Recalculate netProfit using the correct totalSales and totalExpenses
+            // Don't trust the API's netProfit - it might be calculated from wrong values
+            const correctNetProfit = expectedSales - (finalMetrics.totalExpenses || 0);
+            finalMetrics.netProfit = correctNetProfit;
+            
+            console.log('✅ [Dashboard] Using salesByMonth for selected month:', {
+              monthKey,
+              sales: expectedSales,
+              transactions: expectedTransactions,
+              expenses: finalMetrics.totalExpenses,
+              netProfit: correctNetProfit,
+              note: 'salesByMonth has the correct per-month data, netProfit recalculated'
+            });
+          } else {
+            console.warn('⚠️ [Dashboard] Month data not found in salesByMonth:', {
+              monthKey,
+              selectedMonth,
+              selectedYear,
+              availableMonths: metrics.salesByMonth?.map((item: any) => item.month) || []
+            });
+          }
+        }
+        
+        // For custom ranges, fetch a wider range of expenses to include previous period for comparisons
+        let expenseStartDate = startDate;
+        let expenseEndDate = endDate;
+        
+        if (dateRange === 'custom' && customStartDate && customEndDate) {
+          // Calculate previous period dates for expense fetching
+          const currentStart = new Date(customStartDate + 'T00:00:00');
+          const currentEnd = new Date(customEndDate + 'T23:59:59.999');
+          const periodLength = currentEnd.getTime() - currentStart.getTime();
+          const previousPeriodEnd = new Date(currentStart.getTime() - 1);
+          previousPeriodEnd.setHours(23, 59, 59, 999);
+          const previousPeriodStart = new Date(previousPeriodEnd.getTime() - periodLength);
+          previousPeriodStart.setHours(0, 0, 0, 0);
+          
+          // Fetch expenses from previous period start to current period end
+          expenseStartDate = normalizeDateToYYYYMMDD(previousPeriodStart);
+          expenseEndDate = endDate;
+        }
         
         // Fetch raw expenses in parallel with metrics for faster loading
         const expensesPromise = apiService.getExpenses({
           store_id: user?.store_id,
-          start_date: startDate,
-          end_date: endDate,
-          limit: 1000 // Get all expenses for the period
+          start_date: expenseStartDate,
+          end_date: expenseEndDate,
+          limit: 1000 // Backend limit is max 1000
         }).catch((expenseError) => {
           console.error('❌ Failed to fetch expenses separately:', expenseError);
           return { expenses: [] };
@@ -473,7 +669,7 @@ export const Dashboard: React.FC = () => {
           const expensesArray = Array.isArray(expensesResponse.expenses) ? expensesResponse.expenses : [];
           const totalExpenses = expensesArray.reduce((sum: number, expense: any) => sum + (expense.amount || 0), 0);
           finalMetrics = {
-            ...metrics,
+            ...finalMetrics,
             totalExpenses: totalExpenses,
             monthlyExpenses: totalExpenses
           };
@@ -530,7 +726,22 @@ export const Dashboard: React.FC = () => {
           }
         }
 
+        // Always recalculate netProfit to ensure it's correct: totalSales - totalExpenses
+        // Don't trust API's netProfit - it might be calculated from wrong values
+        finalMetrics.netProfit = finalMetrics.totalSales - (finalMetrics.totalExpenses || 0);
+        
         // Update metrics immediately for fast initial render
+        // Log final metrics before setting to verify extraction worked
+        if (dateRange === 'custom') {
+          console.log('📊 [Dashboard] Setting finalMetrics to state:', {
+            totalSales: finalMetrics.totalSales,
+            monthlySales: finalMetrics.monthlySales,
+            totalTransactions: finalMetrics.totalTransactions,
+            totalExpenses: finalMetrics.totalExpenses,
+            netProfit: finalMetrics.netProfit,
+            calculation: `${finalMetrics.totalSales} - ${finalMetrics.totalExpenses || 0} = ${finalMetrics.netProfit}`
+          });
+        }
         setLocalDashboardMetrics(finalMetrics);
         setIsInitialLoad(false);
 
@@ -545,35 +756,73 @@ export const Dashboard: React.FC = () => {
           console.warn('⚠️ Failed to fetch full transactions (non-critical):', err);
         });
         
-        // Use recentTransactions from metrics for immediate display
-        const fetchedTransactions: any[] = [];
-
-        // Log what was fetched
-
-        // Populate filteredSales from API data for chart display
-        // Use fetchedTransactions first, then recentTransactions from API, then fullTransactions state
+        // For custom date ranges, fetch transactions specifically for the selected month/year
+        // This ensures we have complete data for accurate metrics calculation
         let transactionsForChart: any[] = [];
         
-        if (fetchedTransactions && fetchedTransactions.length > 0) {
-          // Use freshly fetched transactions (most complete data)
-          transactionsForChart = fetchedTransactions;
-        } else if (finalMetrics?.recentTransactions && finalMetrics.recentTransactions.length > 0) {
-          // Convert recentTransactions to the format expected by chart
-          transactionsForChart = finalMetrics.recentTransactions.map((tx: any) => ({
-            _id: tx.id,
-            total_amount: tx.totalAmount || tx.total_amount,
-            created_at: tx.createdAt || tx.created_at,
-            payment_method: tx.paymentMethod || tx.payment_method,
-            payment_methods: tx.paymentMethods || tx.payment_methods,
-            order_source: tx.orderSource || tx.order_source,
-            status: tx.status || 'completed'
-          }));
-        } else if (fullTransactions && fullTransactions.length > 0) {
-          // Fallback to state (might be from previous fetch)
-          transactionsForChart = fullTransactions;
+        if (dateRange === 'custom' && customStartDate && customEndDate) {
+          // Fetch transactions for the exact date range selected
+          try {
+            const transactionsResponse = await apiService.getTransactions({
+              store_id: user?.store_id,
+              start_date: startDate,
+              end_date: endDate,
+              limit: 10000,
+              status: 'all',
+            });
+            
+            if (transactionsResponse?.transactions && Array.isArray(transactionsResponse.transactions)) {
+              transactionsForChart = transactionsResponse.transactions.map((tx: any) => ({
+                _id: tx._id || tx.id,
+                total_amount: tx.total_amount || tx.totalAmount || 0,
+                created_at: tx.created_at || tx.createdAt,
+                payment_method: tx.payment_method || tx.paymentMethod,
+                payment_methods: tx.payment_methods || tx.paymentMethods,
+                order_source: tx.order_source || tx.orderSource,
+                status: tx.status || 'completed'
+              }));
+              
+              // Debug logging for fetched transactions
+              console.log('📊 [Dashboard] Fetched transactions for custom range:', {
+                dateRange: startDate + ' to ' + endDate,
+                transactionCount: transactionsForChart.length,
+                totalSalesFromTransactions: transactionsForChart.reduce((sum: number, tx: any) => sum + (tx.total_amount || 0), 0),
+                transactionsWithAmount: transactionsForChart.filter((tx: any) => (tx.total_amount || 0) > 0).length,
+                transactionsWithZeroAmount: transactionsForChart.filter((tx: any) => !tx.total_amount || tx.total_amount === 0).length,
+                sampleTransactions: transactionsForChart.slice(0, 5).map((tx: any) => ({
+                  id: tx._id,
+                  created_at: tx.created_at,
+                  total_amount: tx.total_amount,
+                  hasItems: !!tx.items,
+                  itemsCount: Array.isArray(tx.items) ? tx.items.length : 0
+                }))
+              });
+            }
+          } catch (txError) {
+            console.warn('⚠️ Failed to fetch transactions for custom range:', txError);
+          }
         }
         
-        // Set filteredSales for chart rendering
+        // If we don't have custom range transactions, use recentTransactions from API or fallback
+        if (transactionsForChart.length === 0) {
+          if (finalMetrics?.recentTransactions && finalMetrics.recentTransactions.length > 0) {
+            // Convert recentTransactions to the format expected by chart
+            transactionsForChart = finalMetrics.recentTransactions.map((tx: any) => ({
+              _id: tx.id || tx._id,
+              total_amount: tx.totalAmount || tx.total_amount || 0,
+              created_at: tx.createdAt || tx.created_at,
+              payment_method: tx.paymentMethod || tx.payment_method,
+              payment_methods: tx.paymentMethods || tx.payment_methods,
+              order_source: tx.orderSource || tx.order_source,
+              status: tx.status || 'completed'
+            }));
+          } else if (fullTransactions && fullTransactions.length > 0) {
+            // Fallback to state (might be from previous fetch)
+            transactionsForChart = fullTransactions;
+          }
+        }
+        
+        // Set filteredSales for chart rendering and metrics calculation
         setFilteredSales(transactionsForChart);
 
         // Dashboard metrics are now managed locally - no need to update AppContext
@@ -1696,15 +1945,36 @@ export const Dashboard: React.FC = () => {
       case 'custom':
         // Custom range vs same length period before
         if (!customStartDate || !customEndDate) {
-               return null;
+          return null;
         }
-        currentPeriodStart = new Date(customStartDate);
-        currentPeriodEnd = new Date(customEndDate);
+        // Parse dates properly and set time boundaries
+        currentPeriodStart = new Date(customStartDate + 'T00:00:00');
+        currentPeriodEnd = new Date(customEndDate + 'T23:59:59.999');
+        
+        // Validate dates
+        if (isNaN(currentPeriodStart.getTime()) || isNaN(currentPeriodEnd.getTime())) {
+          return null;
+        }
+        
+        // Calculate period length in milliseconds
         const periodLength = currentPeriodEnd.getTime() - currentPeriodStart.getTime();
+        
+        // Calculate previous period (same length, ending just before current period starts)
         previousPeriodEnd = new Date(currentPeriodStart.getTime() - 1);
+        previousPeriodEnd.setHours(23, 59, 59, 999);
         previousPeriodStart = new Date(previousPeriodEnd.getTime() - periodLength);
+        previousPeriodStart.setHours(0, 0, 0, 0);
+        
         comparisonLabel = 'vs previous period';
-        periodLabel = `${new Date(customStartDate).toLocaleDateString()} - ${new Date(customEndDate).toLocaleDateString()}`;
+        
+        // Format period label with consistent date format (M/D/YYYY)
+        try {
+          const startFormatted = `${currentPeriodStart.getMonth() + 1}/${currentPeriodStart.getDate()}/${currentPeriodStart.getFullYear()}`;
+          const endFormatted = `${currentPeriodEnd.getMonth() + 1}/${currentPeriodEnd.getDate()}/${currentPeriodEnd.getFullYear()}`;
+          periodLabel = `${startFormatted} - ${endFormatted}`;
+        } catch {
+          periodLabel = `${customStartDate} - ${customEndDate}`;
+        }
         break;
         
       default:
@@ -1769,60 +2039,96 @@ export const Dashboard: React.FC = () => {
     };
   };
 
-  // Calculate metrics from filtered data for custom date ranges
+  // NOTE: The backend now provides correctly filtered metrics using a single PRIMARY date range
+  // We should trust the API response (totalSales, totalTransactions, totalExpenses, netProfit)
+  // and NOT recalculate from filteredSales or salesByPeriod
+  // This calculated metrics function is kept for debugging/fallback only
   const calculatedMetricsForCustomRange = useMemo(() => {
-    // Only calculate for custom date ranges
+    // Only calculate for custom date ranges (but we prefer API values)
     if (dateRange !== 'custom' || !customStartDate || !customEndDate) {
       return null;
     }
 
-    // Filter transactions by custom date range to ensure accuracy
-    const startDate = new Date(customStartDate);
-    const endDate = new Date(customEndDate);
-    endDate.setHours(23, 59, 59, 999); // End of day
+    // Parse and normalize dates properly
+    const startDate = new Date(customStartDate + 'T00:00:00');
+    const endDate = new Date(customEndDate + 'T23:59:59.999');
+    
+    // Validate dates
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return null;
+    }
+
+    // Filter transactions by custom date range using normalized date comparison
+    const normalizedStartDate = normalizeDateToYYYYMMDD(startDate);
+    const normalizedEndDate = normalizeDateToYYYYMMDD(endDate);
     
     const filteredTransactionsInRange = filteredSales.filter((transaction: any) => {
       if (!transaction.created_at) return false;
       
       const transactionDate = new Date(transaction.created_at);
+      const normalizedTransactionDate = normalizeDateToYYYYMMDD(transactionDate);
       
-      // Normalize dates to compare only the date part (ignore time)
-      const transactionDateOnly = new Date(transactionDate.getFullYear(), transactionDate.getMonth(), transactionDate.getDate());
-      const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-      const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-      
-      return transactionDateOnly >= startDateOnly && transactionDateOnly <= endDateOnly;
+      return normalizedTransactionDate >= normalizedStartDate && normalizedTransactionDate <= normalizedEndDate;
+    });
+
+    // Debug logging for calculated metrics
+    console.log('📊 [Dashboard] Calculating metrics for custom range:', {
+      dateRange: customStartDate + ' to ' + customEndDate,
+      filteredSalesCount: filteredSales.length,
+      filteredTransactionsInRangeCount: filteredTransactionsInRange.length,
+      normalizedStartDate,
+      normalizedEndDate,
+      sampleTransactions: filteredTransactionsInRange.slice(0, 3).map((tx: any) => ({
+        id: tx._id,
+        created_at: tx.created_at,
+        total_amount: tx.total_amount,
+        normalizedDate: normalizeDateToYYYYMMDD(new Date(tx.created_at))
+      }))
     });
 
     // Calculate Total Sales from filtered transactions
     const calculatedTotalSales = filteredTransactionsInRange.reduce((sum: number, transaction: any) => {
-      return sum + (transaction.total_amount || 0);
+      const amount = transaction.total_amount || 0;
+      if (!amount && transaction._id) {
+        console.warn('⚠️ [Dashboard] Transaction has 0/null total_amount:', {
+          transactionId: transaction._id,
+          created_at: transaction.created_at,
+          total_amount: transaction.total_amount,
+          allFields: Object.keys(transaction)
+        });
+      }
+      return sum + amount;
     }, 0);
 
     // Calculate Total Transactions count
     const calculatedTotalTransactions = filteredTransactionsInRange.length;
+    
+    // Debug: Log if we have transactions but calculated sales are 0
+    if (calculatedTotalTransactions > 0 && calculatedTotalSales === 0) {
+      console.warn('⚠️ [Dashboard] Calculated 0 sales from transactions:', {
+        transactionCount: calculatedTotalTransactions,
+        calculatedSales: calculatedTotalSales,
+        sampleAmounts: filteredTransactionsInRange.slice(0, 5).map((tx: any) => ({
+          id: tx._id,
+          total_amount: tx.total_amount,
+          hasAmount: !!tx.total_amount
+        }))
+      });
+    }
 
     // Calculate Average Transaction Value
     const calculatedAverageTransactionValue = calculatedTotalTransactions > 0
       ? calculatedTotalSales / calculatedTotalTransactions
       : 0;
 
-    // Calculate Total Expenses from rawExpenses
+    // Calculate Total Expenses from rawExpenses using normalized dates
     const calculatedTotalExpenses = rawExpenses.reduce((sum: number, expense: any) => {
-      // Check if expense is within the custom date range
       if (!expense.date) return sum;
       
       const expenseDate = new Date(expense.date);
-      const startDate = new Date(customStartDate);
-      const endDate = new Date(customEndDate);
-      endDate.setHours(23, 59, 59, 999); // End of day
+      const normalizedExpenseDate = normalizeDateToYYYYMMDD(expenseDate);
       
-      // Normalize dates to compare only the date part (ignore time)
-      const expenseDateOnly = new Date(expenseDate.getFullYear(), expenseDate.getMonth(), expenseDate.getDate());
-      const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-      const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-      
-      if (expenseDateOnly >= startDateOnly && expenseDateOnly <= endDateOnly) {
+      if (normalizedExpenseDate >= normalizedStartDate && normalizedExpenseDate <= normalizedEndDate) {
         return sum + (expense.amount || 0);
       }
       return sum;
@@ -1840,27 +2146,135 @@ export const Dashboard: React.FC = () => {
     };
   }, [dateRange, customStartDate, customEndDate, filteredSales, rawExpenses]);
 
-  // Use calculated metrics for custom ranges, otherwise use API data
-  const totalSales = calculatedMetricsForCustomRange?.totalSales ?? currentDashboardMetrics?.totalSales ?? 0;
-  const totalTransactions = calculatedMetricsForCustomRange?.totalTransactions ?? currentDashboardMetrics?.totalTransactions ?? 0;
-  const averageTransactionValue = calculatedMetricsForCustomRange?.averageTransactionValue ?? currentDashboardMetrics?.averageTransactionValue ?? 0;
+  // Backend now provides correctly filtered metrics using a single PRIMARY date range
+  // Trust the API response for totalSales, totalTransactions, and totalExpenses
+  // But ALWAYS recalculate netProfit to ensure accuracy: netProfit = totalSales - totalExpenses
+  // The API's netProfit might be calculated from incorrect values
+  const totalSales = currentDashboardMetrics?.totalSales ?? 0;
+  const totalTransactions = currentDashboardMetrics?.totalTransactions ?? 0;
+  const totalExpenses = currentDashboardMetrics?.totalExpenses ?? 0;
+  // Always recalculate netProfit to ensure it's correct
+  const netProfit = totalSales - totalExpenses;
+  const averageTransactionValue = currentDashboardMetrics?.averageTransactionValue ?? (totalTransactions > 0 ? totalSales / totalTransactions : 0);
   const growthRate = currentDashboardMetrics?.growthRate ?? 0;
 
   // Animated numbers for key metrics
   const animatedTotalSales = useAnimatedNumber(totalSales);
   const animatedTotalTransactions = useAnimatedNumber(totalTransactions);
-  const animatedTotalExpenses = useAnimatedNumber(currentDashboardMetrics?.totalExpenses ?? 0);
-  const animatedNetProfit = useAnimatedNumber(currentDashboardMetrics?.netProfit ?? 0);
+  const animatedTotalExpenses = useAnimatedNumber(totalExpenses);
+  const animatedNetProfit = useAnimatedNumber(netProfit);
   
-  // New individual vs yesterday metrics
-  const salesVsYesterday = currentDashboardMetrics?.salesVsYesterday ?? 0;
-  const expensesVsYesterday = currentDashboardMetrics?.expensesVsYesterday ?? 0;
-  const rawProfitVsYesterday = currentDashboardMetrics?.profitVsYesterday ?? 0;
-  const transactionsVsYesterday = currentDashboardMetrics?.transactionsVsYesterday ?? 0;
+  // Calculate comparison metrics for custom ranges by comparing with previous period
+  const comparisonMetricsForCustomRange = useMemo(() => {
+    if (dateRange !== 'custom' || !customStartDate || !customEndDate) {
+      return null;
+    }
+
+    // Calculate previous period dates inline to avoid dependency issues
+    const startDate = new Date(customStartDate + 'T00:00:00');
+    const endDate = new Date(customEndDate + 'T23:59:59.999');
+    
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return null;
+    }
+    
+    // Calculate period length in milliseconds
+    const periodLength = endDate.getTime() - startDate.getTime();
+    
+    // Calculate previous period (same length, ending just before current period starts)
+    const previousPeriodEnd = new Date(startDate.getTime() - 1);
+    previousPeriodEnd.setHours(23, 59, 59, 999);
+    const previousPeriodStart = new Date(previousPeriodEnd.getTime() - periodLength);
+    previousPeriodStart.setHours(0, 0, 0, 0);
+    
+    // Normalize previous period dates for comparison
+    const normalizedPreviousStart = normalizeDateToYYYYMMDD(previousPeriodStart);
+    const normalizedPreviousEnd = normalizeDateToYYYYMMDD(previousPeriodEnd);
+
+    // Get current period metrics from calculated metrics
+    const currentSales = calculatedMetricsForCustomRange?.totalSales ?? 0;
+    const currentExpenses = calculatedMetricsForCustomRange?.totalExpenses ?? 0;
+    const currentProfit = calculatedMetricsForCustomRange?.netProfit ?? 0;
+    const currentTransactions = calculatedMetricsForCustomRange?.totalTransactions ?? 0;
+
+    // Calculate previous period metrics from fullTransactions and rawExpenses
+    // Filter transactions for previous period
+    const previousPeriodTransactions = fullTransactions.filter((transaction: any) => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      const normalizedTransactionDate = normalizeDateToYYYYMMDD(transactionDate);
+      return normalizedTransactionDate >= normalizedPreviousStart && normalizedTransactionDate <= normalizedPreviousEnd;
+    });
+
+    // Calculate previous period sales
+    const previousSales = previousPeriodTransactions.reduce((sum: number, transaction: any) => {
+      return sum + (transaction.total_amount || 0);
+    }, 0);
+
+    // Calculate previous period expenses
+    const previousExpenses = rawExpenses.reduce((sum: number, expense: any) => {
+      if (!expense.date) return sum;
+      const expenseDate = new Date(expense.date);
+      const normalizedExpenseDate = normalizeDateToYYYYMMDD(expenseDate);
+      if (normalizedExpenseDate >= normalizedPreviousStart && normalizedExpenseDate <= normalizedPreviousEnd) {
+        return sum + (expense.amount || 0);
+      }
+      return sum;
+    }, 0);
+
+    // Calculate previous period profit
+    const previousProfit = previousSales - previousExpenses;
+    const previousTransactions = previousPeriodTransactions.length;
+
+    // Calculate percentage changes
+    const calculatePercentageChange = (current: number, previous: number): number => {
+      // Handle edge cases
+      if (previous === 0 && current === 0) {
+        return 0; // Both are 0, no change
+      }
+      if (previous === 0) {
+        // If previous is 0 and current is not, return a large percentage to indicate growth from zero
+        return current > 0 ? 100 : (current < 0 ? -100 : 0);
+      }
+      // Standard percentage change calculation: ((current - previous) / previous) * 100
+      const change = ((current - previous) / Math.abs(previous)) * 100;
+      // Round to 1 decimal place to match display format
+      return Math.round(change * 10) / 10;
+    };
+
+    const salesChange = calculatePercentageChange(currentSales, previousSales);
+    const expensesChange = calculatePercentageChange(currentExpenses, previousExpenses);
+    const profitChange = calculatePercentageChange(currentProfit, previousProfit);
+    const transactionsChange = calculatePercentageChange(currentTransactions, previousTransactions);
+
+    return {
+      salesVsPrevious: salesChange,
+      expensesVsPrevious: expensesChange,
+      profitVsPrevious: profitChange,
+      transactionsVsPrevious: transactionsChange,
+    };
+  }, [dateRange, customStartDate, customEndDate, calculatedMetricsForCustomRange, fullTransactions, rawExpenses]);
+
+  // Use calculated comparison metrics for custom ranges, otherwise use API metrics
+  const salesVsYesterday = dateRange === 'custom' && comparisonMetricsForCustomRange
+    ? comparisonMetricsForCustomRange.salesVsPrevious
+    : (currentDashboardMetrics?.salesVsYesterday ?? 0);
+  
+  const expensesVsYesterday = dateRange === 'custom' && comparisonMetricsForCustomRange
+    ? comparisonMetricsForCustomRange.expensesVsPrevious
+    : (currentDashboardMetrics?.expensesVsYesterday ?? 0);
+  
+  const transactionsVsYesterday = dateRange === 'custom' && comparisonMetricsForCustomRange
+    ? comparisonMetricsForCustomRange.transactionsVsPrevious
+    : (currentDashboardMetrics?.transactionsVsYesterday ?? 0);
+  
+  const rawProfitVsYesterday = dateRange === 'custom' && comparisonMetricsForCustomRange
+    ? comparisonMetricsForCustomRange.profitVsPrevious
+    : (currentDashboardMetrics?.profitVsYesterday ?? 0);
   
   // Fix profit percentage calculation for negative base values
   const profitVsYesterday = useMemo(() => {
-    const currentProfit = currentDashboardMetrics?.netProfit ?? 0;
+    const currentProfit = dateRange === 'custom' ? netProfit : (currentDashboardMetrics?.netProfit ?? 0);
     
     // If current profit is positive and raw percentage is very negative (< -100),
     // this means we went from negative to positive profit - which is always good!
@@ -1871,7 +2285,7 @@ export const Dashboard: React.FC = () => {
     }
     
     return rawProfitVsYesterday;
-  }, [rawProfitVsYesterday, currentDashboardMetrics?.netProfit]);
+  }, [rawProfitVsYesterday, netProfit, currentDashboardMetrics?.netProfit, dateRange]);
   // Get comparison label and period label based on current filter
   let comparisonLabel = 'vs last month';
   let periodLabel = 'This Month';
@@ -1896,12 +2310,9 @@ export const Dashboard: React.FC = () => {
   }
 
   // Use calculated metrics for custom ranges, otherwise use API data
-  const totalExpensesFromMetrics = calculatedMetricsForCustomRange?.totalExpenses ?? currentDashboardMetrics?.totalExpenses ?? 0;
+  const totalExpensesFromMetrics = totalExpenses;
   const monthlyExpensesFromMetrics = currentDashboardMetrics?.monthlyExpenses || 0;
-  const netProfitFromMetrics = calculatedMetricsForCustomRange?.netProfit ?? currentDashboardMetrics?.netProfit ?? 0;
-
-  // Use net profit from calculated metrics or API (calculated by backend)
-  const netProfit = netProfitFromMetrics;
+  const netProfitFromMetrics = netProfit;
   
   // Debug logging
   useEffect(() => {
@@ -1918,7 +2329,7 @@ export const Dashboard: React.FC = () => {
       gradient: 'from-emerald-500 to-teal-600',
       iconBg: 'bg-gradient-to-br from-emerald-100 to-teal-100',
       iconColor: 'text-emerald-600',
-      change: `${salesVsYesterday > 0 ? '+' : ''}${salesVsYesterday.toFixed(1)}% ${comparisonLabel}`,
+      change: `${salesVsYesterday !== 0 ? (salesVsYesterday > 0 ? '+' : '') : ''}${salesVsYesterday.toFixed(1)}% ${comparisonLabel}`,
       changeColor: salesVsYesterday >= 0 ? 'text-emerald-600' : 'text-red-600',
     },
     {
@@ -1931,7 +2342,7 @@ export const Dashboard: React.FC = () => {
       gradient: 'from-red-500 to-pink-600',
       iconBg: 'bg-gradient-to-br from-red-100 to-pink-100',
       iconColor: 'text-red-600',
-      change: `${expensesVsYesterday > 0 ? '+' : ''}${expensesVsYesterday.toFixed(1)}% ${comparisonLabel}`,
+      change: `${expensesVsYesterday !== 0 ? (expensesVsYesterday > 0 ? '+' : '') : ''}${expensesVsYesterday.toFixed(1)}% ${comparisonLabel}`,
       changeColor: expensesVsYesterday <= 0 ? 'text-emerald-600' : 'text-red-600', // Lower expenses = good (green)
     },
     {
@@ -1944,7 +2355,7 @@ export const Dashboard: React.FC = () => {
       gradient: animatedNetProfit.currentValue >= 0 ? 'from-green-500 to-emerald-600' : 'from-red-500 to-rose-600',
       iconBg: animatedNetProfit.currentValue >= 0 ? 'bg-gradient-to-br from-green-100 to-emerald-100' : 'bg-gradient-to-br from-red-100 to-rose-100',
       iconColor: animatedNetProfit.currentValue >= 0 ? 'text-green-600' : 'text-red-600',
-      change: `${profitVsYesterday > 0 ? '+' : ''}${profitVsYesterday.toFixed(1)}% ${comparisonLabel}`,
+      change: `${profitVsYesterday !== 0 ? (profitVsYesterday > 0 ? '+' : '') : ''}${profitVsYesterday.toFixed(1)}% ${comparisonLabel}`,
       changeColor: profitVsYesterday >= 0 ? 'text-green-600' : 'text-red-600',
     },
     {
@@ -1957,7 +2368,7 @@ export const Dashboard: React.FC = () => {
       gradient: 'from-green-500 to-green-700',
       iconBg: 'bg-gradient-to-br from-green-100 to-green-200',
       iconColor: 'text-green-600',
-      change: `${transactionsVsYesterday > 0 ? '+' : ''}${transactionsVsYesterday.toFixed(1)}% ${comparisonLabel}`,
+      change: `${transactionsVsYesterday !== 0 ? (transactionsVsYesterday > 0 ? '+' : '') : ''}${transactionsVsYesterday.toFixed(1)}% ${comparisonLabel}`,
       changeColor: transactionsVsYesterday >= 0 ? 'text-green-600' : 'text-red-600',
     },
   ];
@@ -2124,43 +2535,78 @@ export const Dashboard: React.FC = () => {
                     This Month
                   </button>
                   <button
-                    onClick={() => setDateRange('custom')}
+                    onClick={() => {
+                      setDateRange('custom');
+                      // Initialize with current month/year if needed
+                      const now = new Date();
+                      if (selectedMonth === 0 || selectedYear === 0) {
+                        setSelectedMonth(now.getMonth() + 1);
+                        setSelectedYear(now.getFullYear());
+                      }
+                    }}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === 'custom'
                         ? 'bg-blue-500 text-white shadow-md'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    Custom Range
+                    Select Month
                   </button>
                 </div>
               </div>
 
-              {/* Custom Date Range */}
+              {/* Month and Year Selection */}
               {dateRange === 'custom' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      From Date
+                      Month
                     </label>
-                    <input
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
+                    <select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      aria-label="Select start date"
-                    />
+                      aria-label="Select month"
+                    >
+                      <option value={1}>January</option>
+                      <option value={2}>February</option>
+                      <option value={3}>March</option>
+                      <option value={4}>April</option>
+                      <option value={5}>May</option>
+                      <option value={6}>June</option>
+                      <option value={7}>July</option>
+                      <option value={8}>August</option>
+                      <option value={9}>September</option>
+                      <option value={10}>October</option>
+                      <option value={11}>November</option>
+                      <option value={12}>December</option>
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      To Date
+                      Year
                     </label>
-                    <input
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => {
+                        const newEndDate = e.target.value;
+                        setSelectedYear(parseInt(newEndDate));
+                        // If start date is after new end date, clear it
+                        if (customStartDate && newEndDate && new Date(customStartDate) > new Date(newEndDate)) {
+                          // No need to clear - month/year handles this
+                        }
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      aria-label="Select end date"
-                    />
+                      aria-label="Select year"
+                    >
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        return (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
                 </div>
               )}
@@ -2171,19 +2617,37 @@ export const Dashboard: React.FC = () => {
           <div className="mt-4 flex flex-wrap items-center justify-between">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-gray-600 dark:text-gray-400">Active filter:</span>
-              {dateRange !== 'this_month' && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                  {dateRange === 'today' ? 'Today' : 
-                   dateRange === 'custom' ? 
-                     (customStartDate && customEndDate ? 
-                       `${new Date(customStartDate).toLocaleDateString()} - ${new Date(customEndDate).toLocaleDateString()}` : 
-                       'Custom Range') : 
-                   'This Month'}
+              {(dateRange === 'today' || dateRange === 'custom' || dateRange === 'this_month') && (
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                  {dateRange === 'today' 
+                    ? 'Today' 
+                    : dateRange === 'this_month'
+                    ? 'This Month'
+                    : dateRange === 'custom' && customStartDate && customEndDate
+                    ? (() => {
+                        try {
+                          const start = new Date(customStartDate);
+                          const end = new Date(customEndDate);
+                          // Format as M/D/YYYY to match image format (e.g., "11/1/2025")
+                          const startFormatted = `${start.getMonth() + 1}/${start.getDate()}/${start.getFullYear()}`;
+                          const endFormatted = `${end.getMonth() + 1}/${end.getDate()}/${end.getFullYear()}`;
+                          return `${startFormatted} - ${endFormatted}`;
+                        } catch {
+                          return 'Custom Range';
+                        }
+                      })()
+                    : 'Custom Range'}
                   <button
-                    onClick={() => setDateRange('this_month')}
-                    className="ml-1 hover:text-blue-600"
-                    title="Reset to This Month"
-                    aria-label="Reset to This Month"
+                    onClick={() => {
+                      setDateRange('this_month');
+                      // Reset to current month/year
+                      const now = new Date();
+                      setSelectedMonth(now.getMonth() + 1);
+                      setSelectedYear(now.getFullYear());
+                    }}
+                    className="ml-2 hover:text-blue-600 transition-colors"
+                    title="Clear filter"
+                    aria-label="Clear filter"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -2191,11 +2655,17 @@ export const Dashboard: React.FC = () => {
               )}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              {currentDashboardMetrics ? (
-                `Showing ${currentDashboardMetrics.totalTransactions || 0} ${dateRange === 'today' ? 'today\'s' : dateRange === 'this_month' ? 'this month\'s' : 'filtered'} transactions`
-              ) : (
-                `Showing 0 total transactions`
-              )}
+              {(() => {
+                // Use the same transaction count as the Transactions card to ensure consistency
+                // This should match the API response totalTransactions
+                const transactionCount = totalTransactions;
+                const periodLabel = dateRange === 'today' 
+                  ? 'today\'s' 
+                  : dateRange === 'this_month' 
+                  ? 'this month\'s' 
+                  : 'filtered';
+                return `Showing ${transactionCount.toLocaleString()} ${periodLabel} transactions`;
+              })()}
             </div>
           </div>
         </div>

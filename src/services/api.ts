@@ -778,6 +778,8 @@ class ApiService {
     startDate?: string;
     endDate?: string;
     period?: string;
+    month?: number;
+    year?: number;
   }): Promise<DashboardMetrics> {
     const queryParams = new URLSearchParams();
     if (params?.store_id) queryParams.append('store_id', params.store_id);
@@ -788,6 +790,8 @@ class ApiService {
     if (params?.startDate) queryParams.append('startDate', params.startDate);
     if (params?.endDate) queryParams.append('endDate', params.endDate);
     if (params?.period) queryParams.append('period', params.period);
+    if (params?.month) queryParams.append('month', params.month.toString());
+    if (params?.year) queryParams.append('year', params.year.toString());
 
     // Add cache-busting parameter to ensure fresh data when filters change
     queryParams.append('_t', Date.now().toString());
