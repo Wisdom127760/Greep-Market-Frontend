@@ -123,7 +123,7 @@ export const Dashboard: React.FC = () => {
   
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
-  const [dateRange, setDateRange] = useState<'today' | 'this_month' | 'custom'>('today'); // Default to today as requested
+  const [dateRange, setDateRange] = useState<'today' | '7d' | '14d' | '30d' | '90d' | 'this_month' | 'custom'>('today'); // Default to today as requested
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
@@ -419,6 +419,23 @@ export const Dashboard: React.FC = () => {
             dateRange: 'today',
             startDate: todayRange.start.toISOString(), // Full ISO timestamp for start of day
             endDate: todayRange.end.toISOString() // Full ISO timestamp for end of day
+          };
+          break;
+        case '7d':
+        case '14d':
+        case '30d':
+        case '90d':
+          const days = parseInt(dateRange.replace('d', ''));
+          const endDateForDays = new Date();
+          endDateForDays.setHours(23, 59, 59, 999);
+          const startDateForDays = new Date(endDateForDays);
+          startDateForDays.setDate(startDateForDays.getDate() - days);
+          startDateForDays.setHours(0, 0, 0, 0);
+          
+          filterParams = {
+            dateRange: dateRange,
+            startDate: startDateForDays.toISOString(),
+            endDate: endDateForDays.toISOString()
           };
           break;
         case 'this_month':
@@ -1079,6 +1096,9 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     // Determine chart period to know how to group expenses
     const chartPeriod = dateRange === 'today' ? 'daily' 
+      : dateRange === '7d' || dateRange === '14d' ? 'daily'
+      : dateRange === '30d' ? 'daily'
+      : dateRange === '90d' ? 'weekly'
       : dateRange === 'this_month' ? 'monthly' 
       : (dateRange === 'custom' && customStartDate && customEndDate) 
         ? (() => {
@@ -1156,6 +1176,17 @@ export const Dashboard: React.FC = () => {
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
           startDate = normalizeDateToYYYYMMDD(thirtyDaysAgo);
           endDate = normalizeDateToYYYYMMDD(now);
+          } else if (dateRange === '7d' || dateRange === '14d' || dateRange === '30d' || dateRange === '90d') {
+            // For day-based filters, use the period directly
+            const days = parseInt(dateRange.replace('d', ''));
+            const startDateObj = new Date(now);
+            startDateObj.setDate(startDateObj.getDate() - days);
+            startDateObj.setHours(0, 0, 0, 0);
+            const endDateObj = new Date(now);
+            endDateObj.setHours(23, 59, 59, 999);
+            
+            startDate = normalizeDateToYYYYMMDD(startDateObj);
+            endDate = normalizeDateToYYYYMMDD(endDateObj);
           } else if (dateRange === 'this_month') {
           // For "this_month" filter, fetch last 12 months for monthly trend context
           const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, 1);
@@ -1322,6 +1353,12 @@ export const Dashboard: React.FC = () => {
   const getChartPeriod = useMemo(() => {
     if (dateRange === 'today') {
       return 'daily'; // Show daily data for today filter
+    } else if (dateRange === '7d' || dateRange === '14d') {
+      return 'daily'; // Show daily data for short periods
+    } else if (dateRange === '30d') {
+      return 'daily'; // Show daily data for 30 days
+    } else if (dateRange === '90d') {
+      return 'weekly'; // Show weekly data for 90 days
     } else if (dateRange === 'this_month') {
       return 'monthly'; // Show monthly data for this_month filter
     } else if (dateRange === 'custom' && customStartDate && customEndDate) {
@@ -2526,6 +2563,42 @@ export const Dashboard: React.FC = () => {
                     Today
                   </button>
                   <button
+                    onClick={() => setDateRange('7d')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === '7d'
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    7 Days
+                  </button>
+                  <button
+                    onClick={() => setDateRange('14d')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === '14d'
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    14 Days
+                  </button>
+                  <button
+                    onClick={() => setDateRange('30d')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === '30d'
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    30 Days
+                  </button>
+                  <button
+                    onClick={() => setDateRange('90d')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === '90d'
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    90 Days
+                  </button>
+                  <button
                     onClick={() => setDateRange('this_month')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === 'this_month'
                         ? 'bg-blue-500 text-white shadow-md'
@@ -2617,10 +2690,18 @@ export const Dashboard: React.FC = () => {
           <div className="mt-4 flex flex-wrap items-center justify-between">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-gray-600 dark:text-gray-400">Active filter:</span>
-              {(dateRange === 'today' || dateRange === 'custom' || dateRange === 'this_month') && (
+              {dateRange && (
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                   {dateRange === 'today' 
                     ? 'Today' 
+                    : dateRange === '7d'
+                    ? 'Last 7 Days'
+                    : dateRange === '14d'
+                    ? 'Last 14 Days'
+                    : dateRange === '30d'
+                    ? 'Last 30 Days'
+                    : dateRange === '90d'
+                    ? 'Last 90 Days'
                     : dateRange === 'this_month'
                     ? 'This Month'
                     : dateRange === 'custom' && customStartDate && customEndDate
@@ -2884,7 +2965,11 @@ export const Dashboard: React.FC = () => {
                 {salesData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={salesData}>
-                      <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" opacity={0.2} />
+                      <CartesianGrid 
+                        strokeDasharray="3 3" 
+                        stroke={isDark ? "#374151" : "#d1d5db"} 
+                        opacity={isDark ? 0.5 : 0.6} 
+                      />
                       <XAxis 
                         dataKey="day"
                         stroke="#6b7280" 
@@ -2995,7 +3080,11 @@ export const Dashboard: React.FC = () => {
                 {topProductsData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topProductsData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
+                      <CartesianGrid 
+                        strokeDasharray="3 3" 
+                        stroke={isDark ? "#374151" : "#d1d5db"} 
+                        opacity={isDark ? 0.5 : 0.6} 
+                      />
                       <XAxis 
                         dataKey="name" 
                         stroke="#6b7280" 
@@ -3092,7 +3181,11 @@ export const Dashboard: React.FC = () => {
                   ) : salesByDayOfWeek.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={salesByDayOfWeek}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
+                        <CartesianGrid 
+                          strokeDasharray="3 3" 
+                          stroke={isDark ? "#374151" : "#d1d5db"} 
+                          opacity={isDark ? 0.5 : 0.6} 
+                        />
                         <XAxis 
                           dataKey="day" 
                           stroke="#6b7280" 
@@ -3167,7 +3260,11 @@ export const Dashboard: React.FC = () => {
                   ) : salesByHourOfDay.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={salesByHourOfDay}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
+                        <CartesianGrid 
+                          strokeDasharray="3 3" 
+                          stroke={isDark ? "#374151" : "#d1d5db"} 
+                          opacity={isDark ? 0.5 : 0.6} 
+                        />
                         <XAxis 
                           dataKey="hour" 
                           stroke="#6b7280" 

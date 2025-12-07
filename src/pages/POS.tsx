@@ -163,8 +163,9 @@ export const POS: React.FC = () => {
         } catch (error) {
           // Silently ignore focus errors from browser extensions
           // These are typically harmless and don't affect functionality
+          // The error is from content_script.js (browser extension), not our code
         }
-      }, 100);
+      }, 150);
       return () => clearTimeout(timer);
     }
   }, [isAuthenticated, user]);
@@ -460,6 +461,9 @@ export const POS: React.FC = () => {
   };
 
   const handleCheckout = () => {
+    // Prevent multiple clicks
+    if (isProcessingPayment) return;
+    
     if (cartItems.length === 0) {
       toast.error('Cart is empty');
       return;

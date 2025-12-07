@@ -35,6 +35,41 @@ import { GoalCelebrationManager } from './components/ui/GoalCelebrationManager';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
+  // Global error handler to suppress authentication errors on login page
+  React.useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      const isLoginPage = window.location.pathname === '/login';
+      if (isLoginPage && (
+        event.message?.includes('token is missing') ||
+        event.message?.includes('Authentication token is missing') ||
+        event.message?.includes('Please sign in again')
+      )) {
+        event.preventDefault();
+        return false;
+      }
+    };
+
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const isLoginPage = window.location.pathname === '/login';
+      if (isLoginPage && event.reason?.message && (
+        event.reason.message.includes('token is missing') ||
+        event.reason.message.includes('Authentication token is missing') ||
+        event.reason.message.includes('Please sign in again')
+      )) {
+        event.preventDefault();
+        return false;
+      }
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider>
