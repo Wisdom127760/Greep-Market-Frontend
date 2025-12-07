@@ -11,9 +11,11 @@ import { RiderProvider } from './context/RiderContext';
 import { NavigationProvider } from './context/NavigationContext';
 import { RefreshProvider } from './context/RefreshContext';
 import { GoalProvider } from './context/GoalContext';
+import { SeasonProvider } from './context/SeasonContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Header } from './components/navigation/Header';
 import { MobileNavigation } from './components/navigation/MobileNavigation';
+import { SeasonalAnimationWrapper } from './components/ui/SeasonalAnimations/SeasonalAnimationWrapper';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Products } from './pages/Products';
@@ -82,11 +84,13 @@ function App() {
                     <NotificationProvider>
                       <StoreProvider>
                         <AppProvider>
-                          <GoalProvider>
-                            <RefreshProvider>
-                              <NavigationProvider>
+                          <SeasonProvider>
+                            <GoalProvider>
+                              <RefreshProvider>
+                                <NavigationProvider>
                   <ScrollToTopWrapper>
                   <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
+                <SeasonalAnimationWrapper intensity="medium" />
                 <GoalCelebrationManager />
                 <Routes>
               <Route path="/login" element={<Login />} />
@@ -225,6 +229,7 @@ function App() {
                               </NavigationProvider>
                             </RefreshProvider>
                           </GoalProvider>
+                          </SeasonProvider>
                         </AppProvider>
                       </StoreProvider>
                     </NotificationProvider>

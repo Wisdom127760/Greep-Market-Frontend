@@ -16,7 +16,7 @@ import {
   TrendingUp,
   Target
 } from 'lucide-react';
-import { Card } from '../components/ui/Card';
+import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '../components/ui/Card';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/skeleton';
@@ -24,7 +24,9 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { useGoals } from '../context/GoalContext';
 import { useTheme } from '../context/ThemeContext';
+import { useSeason } from '../context/SeasonContext';
 import { NotificationPermissionBanner } from '../components/ui/NotificationPermissionBanner';
+import { getSeasonalTheme } from '../utils/seasonalTheme';
 import { NotificationStatus } from '../components/ui/NotificationStatus';
 import { GoalSettingModal } from '../components/ui/GoalSettingModal';
 import { apiService } from '../services/api';
@@ -84,6 +86,10 @@ export const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { dailyProgress, monthlyProgress, updateGoalProgress } = useGoals();
   const { isDark } = useTheme();
+  const { seasonInfo } = useSeason();
+  
+  // Get seasonal theme configuration
+  const seasonalTheme = getSeasonalTheme(seasonInfo);
   
   // Tooltip styles based on theme
   const getTooltipStyles = () => ({
@@ -2413,21 +2419,37 @@ export const Dashboard: React.FC = () => {
   // Show loading state only if truly loading and no metrics available
   if ((loading && !currentDashboardMetrics) || (isInitialLoad && !currentDashboardMetrics)) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-green-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 pb-24">
+      <div className={`min-h-screen bg-gradient-to-br ${seasonalTheme.backgroundGradient} p-4 pb-24 transition-all duration-500`}>
         <div className="max-w-7xl mx-auto space-y-8">
-          {/* Header */}
-          <div className="relative overflow-hidden bg-gradient-to-r from-white via-white to-green-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-700 rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-r from-green-600/5 to-green-700/5 dark:from-green-400/5 dark:to-green-500/5"></div>
-            <div className="relative text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-green-700 rounded-2xl mb-4 shadow-lg">
-                <Activity className="h-8 w-8 text-white" />
+          {/* Header - Sleek ShadCN Design */}
+          <div className="relative overflow-hidden rounded-xl border-0 shadow-none bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
+            <div className={`absolute inset-0 bg-gradient-to-br ${seasonalTheme.cardGradient} opacity-[0.04] dark:opacity-[0.06]`}></div>
+            
+            <div className="p-4 relative">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className={`flex items-center justify-center w-11 h-11 bg-gradient-to-br ${seasonalTheme.iconGradient} rounded-lg shadow-sm flex-shrink-0`}>
+                    <span className="text-xl">{seasonalTheme.emoji}</span>
+                  </div>
+                  <div className="flex flex-col gap-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className={`text-lg font-bold bg-gradient-to-r ${seasonalTheme.textGradient} bg-clip-text text-transparent`}>
+                        Dashboard
+                      </h3>
+                      {seasonalTheme.festiveMessage && (
+                        <div className={`inline-flex items-center px-2.5 py-1 rounded-md bg-gradient-to-r ${seasonalTheme.badgeGradient} shadow-sm`}>
+                          <span className={`text-xs font-semibold ${seasonalTheme.accentColor}`}>
+                            {seasonalTheme.festiveMessage}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <p className={`${seasonalTheme.accentColor} font-medium text-xs text-gray-600 dark:text-gray-400`}>
+                      {seasonalTheme.welcomeMessage} {app.name} Management System
+                    </p>
+                  </div>
+                </div>
               </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-2">
-                Dashboard
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                Welcome to {app.name} Management System
-              </p>
             </div>
           </div>
 
@@ -2454,109 +2476,113 @@ export const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-green-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 pb-24">
+    <div className={`min-h-screen bg-gradient-to-br ${seasonalTheme.backgroundGradient} p-4 pb-24 transition-all duration-500`}>
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-white via-white to-green-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-700 rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-8 transition-all duration-300 hover:shadow-2xl">
-          <div className="absolute inset-0 bg-gradient-to-r from-green-600/5 to-green-700/5 dark:from-green-400/5 dark:to-green-500/5"></div>
-          <div className="relative text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-green-700 rounded-2xl mb-4 shadow-lg">
-              <Activity className="h-8 w-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-2">
-              Dashboard
-            </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-              Welcome to {app.name} Management System
-            </p>
-            <div className="mt-4 flex justify-center items-center space-x-4 flex-wrap gap-2">
-              <NotificationStatus />
-              
-              {/* Auto-refresh Toggle */}
-              <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-1">
-                <button
-                  onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
-                  className={`flex items-center space-x-1 text-xs font-medium transition-all duration-200 ${
-                    autoRefreshEnabled 
-                      ? 'text-green-600 dark:text-green-400' 
-                      : 'text-gray-500 dark:text-gray-400'
-                  }`}
-                >
-                  <div className={`w-2 h-2 rounded-full ${autoRefreshEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-                  <span>Auto-refresh</span>
-                </button>
-              </div>
-
-              {/* Last refresh time */}
-              {lastRefreshTime && (
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Last updated: {lastRefreshTime.toLocaleTimeString()}
+        {/* Header - Sleek ShadCN Design */}
+        <div className="relative overflow-hidden rounded-xl border-0 shadow-none bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
+          {/* Subtle seasonal accent background */}
+          <div className={`absolute inset-0 bg-gradient-to-br ${seasonalTheme.cardGradient} opacity-[0.04] dark:opacity-[0.06]`}></div>
+          
+          <div className="p-4 relative">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+              {/* Left: Icon, Title and Messages */}
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <div className={`flex items-center justify-center w-11 h-11 bg-gradient-to-br ${seasonalTheme.iconGradient} rounded-lg shadow-sm flex-shrink-0`}>
+                  <span className="text-xl">{seasonalTheme.emoji}</span>
                 </div>
-              )}
+                <div className="flex flex-col gap-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className={`text-lg font-bold bg-gradient-to-r ${seasonalTheme.textGradient} bg-clip-text text-transparent`}>
+                      Dashboard
+                    </h3>
+                    {seasonalTheme.festiveMessage && (
+                      <div className={`inline-flex items-center px-2.5 py-1 rounded-md bg-gradient-to-r ${seasonalTheme.badgeGradient} shadow-sm`}>
+                        <span className={`text-xs font-semibold ${seasonalTheme.accentColor}`}>
+                          {seasonalTheme.festiveMessage}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <p className={`${seasonalTheme.accentColor} font-medium text-xs text-gray-600 dark:text-gray-400`}>
+                    {seasonalTheme.welcomeMessage} {app.name} Management System
+                  </p>
+                </div>
+              </div>
+              
+              {/* Right: Status and Actions */}
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <NotificationStatus />
+                
+                {/* Auto-refresh Toggle */}
+                <div className="flex items-center space-x-1.5 bg-gray-100 dark:bg-gray-700 rounded-md px-2.5 py-1">
+                  <button
+                    onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+                    className={`flex items-center space-x-1.5 text-xs font-medium transition-all duration-200 ${
+                      autoRefreshEnabled 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : 'text-gray-500 dark:text-gray-400'
+                    }`}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${autoRefreshEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                    <span>Auto-refresh</span>
+                  </button>
+                </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  unifiedRefresh();
-                  setLastRefreshTime(new Date());
-                }}
-                className="flex items-center space-x-2"
-              >
-                <Activity className="h-4 w-4" />
-                <span>Refresh Now</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsGoalSettingModalOpen(true)}
-                className="flex items-center space-x-2"
-              >
-                <Target className="h-4 w-4" />
-                <span>Set Goals</span>
-              </Button>
+                {/* Last refresh time */}
+                {lastRefreshTime && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+                    {lastRefreshTime.toLocaleTimeString()}
+                  </div>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    unifiedRefresh();
+                    setLastRefreshTime(new Date());
+                  }}
+                  className="flex items-center space-x-1.5 h-8"
+                >
+                  <Activity className="h-3.5 w-3.5" />
+                  <span className="text-xs">Refresh</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsGoalSettingModalOpen(true)}
+                  className="flex items-center space-x-1.5 h-8"
+                >
+                  <Target className="h-3.5 w-3.5" />
+                  <span className="text-xs">Goals</span>
+                </Button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Filters Section */}
-        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/50 p-6 transition-all duration-300 animate-fade-in-up">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-700 rounded-xl flex items-center justify-center">
-                <Filter className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Dashboard Filters</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Filter your dashboard data</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
+        {/* Compact Filters Bar */}
+        <div className="flex flex-col gap-3">
+          {/* Filter Controls Row */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            {/* Quick Filter Buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center space-x-2"
+                className="flex items-center gap-1.5 h-8"
               >
-                <Filter className="h-4 w-4" />
-                <span>{showFilters ? 'Hide' : 'Show'} Filters</span>
+                <Filter className="h-3.5 w-3.5" />
+                <span className="text-xs">{showFilters ? 'Hide' : 'Show'} Filters</span>
               </Button>
-
-            </div>
-          </div>
-
-          {showFilters && (
-            <div className="space-y-4">
-              {/* Quick Date Range Buttons */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  Quick Select
-                </label>
-                <div className="flex flex-wrap gap-2">
+              
+              {showFilters && (
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     onClick={() => setDateRange('today')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === 'today'
-                        ? 'bg-blue-500 text-white shadow-md'
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${dateRange === 'today'
+                        ? 'bg-blue-500 text-white shadow-sm'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
@@ -2564,191 +2590,171 @@ export const Dashboard: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setDateRange('7d')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === '7d'
-                        ? 'bg-blue-500 text-white shadow-md'
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${dateRange === '7d'
+                        ? 'bg-blue-500 text-white shadow-sm'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    7 Days
+                    7d
                   </button>
                   <button
                     onClick={() => setDateRange('14d')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === '14d'
-                        ? 'bg-blue-500 text-white shadow-md'
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${dateRange === '14d'
+                        ? 'bg-blue-500 text-white shadow-sm'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    14 Days
+                    14d
                   </button>
                   <button
                     onClick={() => setDateRange('30d')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === '30d'
-                        ? 'bg-blue-500 text-white shadow-md'
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${dateRange === '30d'
+                        ? 'bg-blue-500 text-white shadow-sm'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    30 Days
+                    30d
                   </button>
                   <button
                     onClick={() => setDateRange('90d')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === '90d'
-                        ? 'bg-blue-500 text-white shadow-md'
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${dateRange === '90d'
+                        ? 'bg-blue-500 text-white shadow-sm'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    90 Days
+                    90d
                   </button>
                   <button
                     onClick={() => setDateRange('this_month')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === 'this_month'
-                        ? 'bg-blue-500 text-white shadow-md'
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${dateRange === 'this_month'
+                        ? 'bg-blue-500 text-white shadow-sm'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    This Month
+                    Month
                   </button>
                   <button
                     onClick={() => {
                       setDateRange('custom');
-                      // Initialize with current month/year if needed
                       const now = new Date();
                       if (selectedMonth === 0 || selectedYear === 0) {
                         setSelectedMonth(now.getMonth() + 1);
                         setSelectedYear(now.getFullYear());
                       }
                     }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${dateRange === 'custom'
-                        ? 'bg-blue-500 text-white shadow-md'
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${dateRange === 'custom'
+                        ? 'bg-blue-500 text-white shadow-sm'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    Select Month
+                    Custom
                   </button>
-                </div>
-              </div>
-
-              {/* Month and Year Selection */}
-              {dateRange === 'custom' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Month
-                    </label>
-                    <select
-                      value={selectedMonth}
-                      onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      aria-label="Select month"
-                    >
-                      <option value={1}>January</option>
-                      <option value={2}>February</option>
-                      <option value={3}>March</option>
-                      <option value={4}>April</option>
-                      <option value={5}>May</option>
-                      <option value={6}>June</option>
-                      <option value={7}>July</option>
-                      <option value={8}>August</option>
-                      <option value={9}>September</option>
-                      <option value={10}>October</option>
-                      <option value={11}>November</option>
-                      <option value={12}>December</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Year
-                    </label>
-                    <select
-                      value={selectedYear}
-                      onChange={(e) => {
-                        const newEndDate = e.target.value;
-                        setSelectedYear(parseInt(newEndDate));
-                        // If start date is after new end date, clear it
-                        if (customStartDate && newEndDate && new Date(customStartDate) > new Date(newEndDate)) {
-                          // No need to clear - month/year handles this
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      aria-label="Select year"
-                    >
-                      {Array.from({ length: 5 }, (_, i) => {
-                        const year = new Date().getFullYear() - i;
-                        return (
-                          <option key={year} value={year}>
-                            {year}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
                 </div>
               )}
             </div>
-          )}
 
-          {/* Active Filters Summary */}
-          <div className="mt-4 flex flex-wrap items-center justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Active filter:</span>
+            {/* Active Filter & Summary */}
+            <div className="flex items-center gap-3 flex-wrap text-xs">
               {dateRange && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                  {dateRange === 'today' 
-                    ? 'Today' 
-                    : dateRange === '7d'
-                    ? 'Last 7 Days'
-                    : dateRange === '14d'
-                    ? 'Last 14 Days'
-                    : dateRange === '30d'
-                    ? 'Last 30 Days'
-                    : dateRange === '90d'
-                    ? 'Last 90 Days'
-                    : dateRange === 'this_month'
-                    ? 'This Month'
-                    : dateRange === 'custom' && customStartDate && customEndDate
-                    ? (() => {
-                        try {
-                          const start = new Date(customStartDate);
-                          const end = new Date(customEndDate);
-                          // Format as M/D/YYYY to match image format (e.g., "11/1/2025")
-                          const startFormatted = `${start.getMonth() + 1}/${start.getDate()}/${start.getFullYear()}`;
-                          const endFormatted = `${end.getMonth() + 1}/${end.getDate()}/${end.getFullYear()}`;
-                          return `${startFormatted} - ${endFormatted}`;
-                        } catch {
-                          return 'Custom Range';
-                        }
-                      })()
-                    : 'Custom Range'}
-                  <button
-                    onClick={() => {
-                      setDateRange('this_month');
-                      // Reset to current month/year
-                      const now = new Date();
-                      setSelectedMonth(now.getMonth() + 1);
-                      setSelectedYear(now.getFullYear());
-                    }}
-                    className="ml-2 hover:text-blue-600 transition-colors"
-                    title="Clear filter"
-                    aria-label="Clear filter"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 dark:text-gray-400">Active:</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium">
+                    {dateRange === 'today' 
+                      ? 'Today' 
+                      : dateRange === '7d'
+                      ? '7 Days'
+                      : dateRange === '14d'
+                      ? '14 Days'
+                      : dateRange === '30d'
+                      ? '30 Days'
+                      : dateRange === '90d'
+                      ? '90 Days'
+                      : dateRange === 'this_month'
+                      ? 'This Month'
+                      : dateRange === 'custom' && customStartDate && customEndDate
+                      ? (() => {
+                          try {
+                            const start = new Date(customStartDate);
+                            const end = new Date(customEndDate);
+                            const startFormatted = `${start.getMonth() + 1}/${start.getDate()}/${start.getFullYear()}`;
+                            const endFormatted = `${end.getMonth() + 1}/${end.getDate()}/${end.getFullYear()}`;
+                            return `${startFormatted} - ${endFormatted}`;
+                          } catch {
+                            return 'Custom';
+                          }
+                        })()
+                      : 'Custom'}
+                    <button
+                      onClick={() => {
+                        setDateRange('this_month');
+                        const now = new Date();
+                        setSelectedMonth(now.getMonth() + 1);
+                        setSelectedYear(now.getFullYear());
+                      }}
+                      className="hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
+                      title="Clear filter"
+                      aria-label="Clear filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                </div>
               )}
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {(() => {
-                // Use the same transaction count as the Transactions card to ensure consistency
-                // This should match the API response totalTransactions
-                const transactionCount = totalTransactions;
-                const periodLabel = dateRange === 'today' 
-                  ? 'today\'s' 
-                  : dateRange === 'this_month' 
-                  ? 'this month\'s' 
-                  : 'filtered';
-                return `Showing ${transactionCount.toLocaleString()} ${periodLabel} transactions`;
-              })()}
+              <span className="text-gray-500 dark:text-gray-400">
+                {(() => {
+                  const transactionCount = totalTransactions;
+                  const periodLabel = dateRange === 'today' 
+                    ? 'today\'s' 
+                    : dateRange === 'this_month' 
+                    ? 'this month\'s' 
+                    : 'filtered';
+                  return `${transactionCount.toLocaleString()} ${periodLabel} transactions`;
+                })()}
+              </span>
             </div>
           </div>
+
+          {/* Month/Year Selection (when custom is selected) */}
+          {showFilters && dateRange === 'custom' && (
+            <div className="flex items-center gap-3">
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Select month"
+              >
+                <option value={1}>January</option>
+                <option value={2}>February</option>
+                <option value={3}>March</option>
+                <option value={4}>April</option>
+                <option value={5}>May</option>
+                <option value={6}>June</option>
+                <option value={7}>July</option>
+                <option value={8}>August</option>
+                <option value={9}>September</option>
+                <option value={10}>October</option>
+                <option value={11}>November</option>
+                <option value={12}>December</option>
+              </select>
+              <select
+                value={selectedYear}
+                onChange={(e) => {
+                  setSelectedYear(parseInt(e.target.value));
+                }}
+                className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                aria-label="Select year"
+              >
+                {Array.from({ length: 5 }, (_, i) => {
+                  const year = new Date().getFullYear() - i;
+                  return (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Notification Permission Banner */}
