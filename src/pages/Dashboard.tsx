@@ -391,25 +391,29 @@ export const Dashboard: React.FC = () => {
   // Sales data now comes from unified dashboard analytics API - no separate filtering needed
 
   // Unified refresh function that loads all dashboard data at once
-  const unifiedRefresh = useCallback(async () => {
+  const unifiedRefresh = useCallback(async (skipThrottle = false) => {
     if (isRefreshingRef.current) {
       return;
     }
 
-    // Throttle API calls to prevent spam (minimum 2 seconds between calls)
-    const now = Date.now();
-    if (now - lastRefreshRef.current < 2000) {
-      return;
+    // Skip throttle for user-initiated filter changes to make them instant
+    if (!skipThrottle) {
+      // Reduced throttle for auto-refresh (minimum 100ms between calls)
+      const now = Date.now();
+      if (now - lastRefreshRef.current < 100) {
+        return;
+      }
     }
 
-    // Cancel any pending request before starting a new one
+    // Cancel any pending request immediately before starting a new one
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     isRefreshingRef.current = true;
-    lastRefreshRef.current = now;
+    lastRefreshRef.current = Date.now();
 
     try {
       // Calculate filter parameters based on current date range
@@ -919,11 +923,8 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-    const timeoutId = setTimeout(() => {
-      unifiedRefresh();
-    }, 500); // 500ms debounce to prevent API spam
-
-    return () => clearTimeout(timeoutId);
+    // Instant refresh on filter change - skip throttle for immediate response
+    unifiedRefresh(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange, customStartDate, customEndDate]); // Removed unifiedRefresh from dependencies
   // eslint-disable-next-line react-hooks/exhaustive-deps
