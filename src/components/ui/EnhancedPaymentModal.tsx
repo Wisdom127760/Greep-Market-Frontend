@@ -59,6 +59,13 @@ export const EnhancedPaymentModal: React.FC<EnhancedPaymentModalProps> = ({
     { id: 'crypto_payment', label: 'Crypto Payment', icon: Coins, color: 'orange' },
   ];
 
+  // Reset processing state when modal closes (ensures fresh state for next sale)
+  useEffect(() => {
+    if (!isOpen) {
+      setIsProcessing(false);
+    }
+  }, [isOpen]);
+
   // Calculate remaining amount based on current payments
   useEffect(() => {
     const totalPaid = getTotalPaid();
@@ -151,7 +158,8 @@ export const EnhancedPaymentModal: React.FC<EnhancedPaymentModalProps> = ({
 
     try {
       await onProcessPayment(paymentData);
-      // Reset form
+      // Reset form and processing state (parent closes modal; we must reset for next sale)
+      setIsProcessing(false);
       setPaymentMethods([]);
       setOrderSource('in_store');
       setCustomerId('');

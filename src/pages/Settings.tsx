@@ -1018,6 +1018,7 @@ export const Settings: React.FC = () => {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -1147,6 +1148,7 @@ export const Settings: React.FC = () => {
               <button
                 onClick={() => setShowAddStoreModal(false)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1175,6 +1177,7 @@ export const Settings: React.FC = () => {
                     value={newStore.currency}
                     onChange={(e) => setNewStore({...newStore, currency: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
+                    aria-label="Currency"
                   >
                     <option value="TRY">TRY (Turkish Lira)</option>
                     <option value="USD">USD (US Dollar)</option>
@@ -1234,6 +1237,7 @@ export const Settings: React.FC = () => {
                     value={newStore.timezone}
                     onChange={(e) => setNewStore({...newStore, timezone: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
+                    aria-label="Timezone"
                   >
                     <option value="Europe/Istanbul">Europe/Istanbul</option>
                     <option value="America/New_York">America/New_York</option>
@@ -1253,6 +1257,8 @@ export const Settings: React.FC = () => {
                     min="0"
                     max="100"
                     step="0.1"
+                    placeholder="0"
+                    aria-label="Tax rate percentage"
                   />
                 </div>
                 <div>
@@ -1265,6 +1271,8 @@ export const Settings: React.FC = () => {
                     onChange={(e) => setNewStore({...newStore, low_stock_threshold: Number(e.target.value)})}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
                     min="0"
+                    placeholder="0"
+                    aria-label="Low stock threshold"
                   />
                 </div>
               </div>
